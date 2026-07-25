@@ -329,8 +329,65 @@ npx supabase functions deploy proyectos-activos --project-ref flknwsgtcswiusahfj
                         <td style={{ padding: '8px', color: 'var(--text-secondary)' }}>object (json)</td>
                         <td style={{ padding: '8px' }}>Contiene las coordenadas geográficas (lat, lng) y la dirección textual del proyecto.</td>
                       </tr>
+                      <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                        <td style={{ padding: '8px', color: 'var(--primary-cyan)', fontFamily: 'monospace' }}>progress_logs</td>
+                        <td style={{ padding: '8px', color: 'var(--text-secondary)' }}>array (json)</td>
+                        <td style={{ padding: '8px' }}>Listado de avances de la obra (bitácora), incluyendo descripción, fecha de subida y archivos multimedia (imágenes/videos) asociados.</td>
+                      </tr>
                     </tbody>
                   </table>
+                </div>
+              </div>
+
+              {/* Ejemplo de JSON Entregado */}
+              <div>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Code size={16} style={{ color: 'var(--text-secondary)' }} />
+                  Estructura del JSON de Respuesta
+                </h3>
+                <div style={{
+                  position: 'relative',
+                  background: 'rgba(0, 0, 0, 0.25)',
+                  border: '1px solid var(--border-glass)',
+                  borderRadius: '10px',
+                  padding: '15px'
+                }}>
+                  <pre style={{
+                    margin: 0,
+                    fontSize: '0.8rem',
+                    fontFamily: 'monospace',
+                    color: '#cbd5e1',
+                    lineHeight: '1.6',
+                    overflowX: 'auto'
+                  }}>
+{`[
+  {
+    "id": "obra_ejemplo_1",
+    "name": "Casa Moderna El Campestre",
+    "status": "active",
+    "progress": 72,
+    "start_date": "2026-03-15",
+    "end_date": "2026-09-30",
+    "location": {
+      "address": "Calle 45 # 12-30, Cali, Colombia",
+      "coordinates": { "lat": 3.4516, "lng": -76.5320 }
+    },
+    "progress_logs": [
+      {
+        "id": 14,
+        "description": "Instalación de tuberías hidrosanitarias y vaciado de losa del segundo piso.",
+        "upload_date": "2026-07-20",
+        "media": [
+          {
+            "file_type": "image",
+            "file_base64": "data:image/jpeg;base64,/9j/4AAQSkZJR..."
+          }
+        ]
+      }
+    ]
+  }
+]`}
+                  </pre>
                 </div>
               </div>
             </div>
