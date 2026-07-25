@@ -19,10 +19,24 @@ serve(async (req) => {
     // Inicializar cliente de Supabase
     const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-    // Consultar proyectos activos filtrando campos confidenciales
+    // Consultar proyectos activos filtrando campos confidenciales e incluyendo bitácora
     const { data, error } = await supabase
       .from('projects')
-      .select('id, name, status, progress, start_date, end_date, location')
+      .select(`
+        id,
+        name,
+        status,
+        progress,
+        start_date,
+        end_date,
+        location,
+        progress_logs (
+          id,
+          description,
+          upload_date,
+          media
+        )
+      `)
       .eq('status', 'active')
 
     if (error) {
