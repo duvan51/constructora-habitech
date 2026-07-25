@@ -5,7 +5,119 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Convert Base64 data URI to Blob
+const base64ToBlob = (base64Str) => {
+  try {
+    const parts = base64Str.split(';base64,');
+    const contentType = parts[0].split(':')[1];
+    const raw = window.atob(parts[1]);
+    const rawLength = raw.length;
+    const uInt8Array = new Uint8Array(rawLength);
+    for (let i = 0; i < rawLength; ++i) {
+      uInt8Array[i] = raw.charCodeAt(i);
+    }
+    return new Blob([uInt8Array], { type: contentType });
+  } catch (err) {
+    console.error('Error parsing base64 string:', err);
+    return null;
+  }
+};
+
+// Upload helper to upload image/video/doc base64 to Supabase Storage.
+// Falls back to returning the base64 string on failure (e.g. if bucket doesn't exist).
+export const uploadFileToStorage = async (path, base64Str) => {
+  if (!base64Str || !base64Str.startsWith('data:')) {
+    return base64Str; // Already a URL or not a base64 string
+  }
+
+  try {
+    const blob = base64ToBlob(base64Str);
+    if (!blob) return base64Str;
+    
+    const contentType = blob.type;
+    // Generate a unique file name
+    const ext = contentType.split('/')[1] || 'bin';
+    const filename = `${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}.${ext}`;
+    const fullPath = `${path}/${filename}`;
+
+    const { data, error } = await supabase.storage
+      .from('habitech-media')
+      .upload(fullPath, blob, {
+        contentType,
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (error) {
+      console.warn('Storage upload warning (create a public bucket "habitech-media" in Supabase Storage dashboard to activate):', error);
+      return base64Str; // Graceful fallback
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('habitech-media')
+      .getPublicUrl(fullPath);
+
+    return publicUrl;
+  } catch (err) {
+    console.warn('Failed uploading to Supabase Storage, using Base64 fallback:', err);
+    return base64Str;
+  }
+};
+
+const processPaymentPlanFiles = async (paymentPlan, projectId) => {
+  if (!paymentPlan) return [];
+  const updatedPlan = await Promise.all(paymentPlan.map(async (hito) => {
+    if (!hito.payments) return hito;
+    const updatedPayments = await Promise.all(hito.payments.map(async (pay) => {
+      if (!pay.files) return pay;
+      const updatedFiles = await Promise.all(pay.files.map(async (file) => {
+        if (file.fileBase64 && file.fileBase64.startsWith('data:')) {
+          const publicUrl = await uploadFileToStorage(`payments/${projectId}`, file.fileBase64);
+          return {
+            ...file,
+            fileBase64: publicUrl
+          };
+        }
+        return file;
+      }));
+      return { ...pay, files: updatedFiles };
+    }));
+    return { ...hito, payments: updatedPayments };
+  }));
+  return updatedPlan;
+};
+
 // Mapping helpers to translate Postgres snake_case to React camelCase
+const mapTransactionToCamel = (t) => {
+  if (!t) return null;
+  return {
+    id: t.id,
+    projectId: t.project_id || 'general',
+    projectName: t.project_name,
+    type: t.type,
+    category: t.category,
+    description: t.description,
+    amount: parseFloat(t.amount) || 0,
+    date: t.date,
+    createdAt: t.created_at
+  };
+};
+
+const mapTransactionToSnake = (t) => {
+  if (!t) return null;
+  return {
+    id: t.id,
+    project_id: t.projectId === 'general' ? null : t.projectId,
+    project_name: t.projectName,
+    type: t.type,
+    category: t.category,
+    description: t.description,
+    amount: t.amount,
+    date: t.date
+  };
+};
+
 const mapProjectToCamel = (p) => {
   if (!p) return null;
   return {
@@ -139,6 +251,51 @@ export const seedMockData = async () => {
       await supabase.from('transactions').insert(defaultTransactions);
       console.log('Supabase mock data seeded successfully.');
     }
+
+    // Seed default portfolio data if empty
+    const { count: portCount, error: portError } = await supabase
+      .from('portfolio')
+      .select('*', { count: 'exact', head: true });
+
+    if (!portError && portCount === 0) {
+      const defaultPortfolio = [
+        {
+          id: 'p_1',
+          code: 'CA-1',
+          title: 'Casa Campestre Premium',
+          description: 'Hermoso diseño de casa campestre de un solo piso. Cuenta con una distribución abierta que conecta una sala con chimenea, comedor y cocina americana. Incluye 3 habitaciones, 2 baños y una terraza exterior con zona de asados.',
+          main_image: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MDAiIGhlaWdodD0iNjAwIiB2aWV3Qm94PSIwIDAgODAwIDYwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzFlMjkzYiIvPjxwYXRoIGQ9Ik00MDAgMTUwIEw2MDAgMzUwIEgyMDAgWiIgZmlsbD0iI2ZmNmQwMCIvPjxyZWN0IHg9IjI1MCIgeT0iMzUwIiB3aWR0aD0iMzAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2UyZThmMCIvPjxyZWN0IHg9IjM3MCIgeT0iNDAwIiB3aWR0aD0iNjAiIGhlaWdodD0iMTAwIiBmaWxsPSIjMGYxNzJhIi8+PGNpcmNsZSBjeD0iMzg1IiBjeT0iNDUwIiByPSI0IiBmaWxsPSIjZTJlOGYwIi8+PHJlY3QgeD0iMjgwIiB5PSIzODAiIHdpZHRoPSI2MCIgaGVpZ2h0PSI1MCIgZmlsbD0iIzBmMTcyYSIvPjxyZWN0IHg9IjE2MCIgeT0iMzgwIiB3aWR0aD0iNjAiIGhlaWdodD0iNTAiIGZpbGw9IiMwZjE3MmEiLz48L3N2Zz4=',
+          blueprint_image: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MDAiIGhlaWdodD0iNjAwIiB2aWV3Qm94PSIwIDAgODAwIDYwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzBkOTR4OCIvPjxnIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjUpIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1kYXNoYXJyYXk9IjUsNSI+PGxpbmUgeDE9IjAiIHkxPSIxMDAiIHgyPSI4MDAiIHkyPSIxMDAiIC8+PGxpbmUgeDE9IjAiIHkxPSIyMDAiIHgyPSI4MDAiIHkyPSIyMDAiIC8+PGxpbmUgeDE9IjAiIHkxPSIzMDAiIHgyPSI4MDAiIHkyPSIzMDAiIC8+PGxpbmUgeDE9IjAiIHkxPSI0MDAiIHgyPSI4MDAiIHkyPSI0MDAiIC8+PGxpbmUgeDE9IjAiIHkxPSI1MDAiIHgyPSI4MDAiIHkyPSI1MDAiIC8+PGxpbmUgeDE9IjEwMCIgeT0iMCIgeDI9IjEwMCIgeTI9IjYwMCIgLz48bGluZSB4MT0iMjAwIiB5MT0iMCIgeDI9IjIwMCIgeTI9IjYwMCIgLz48bGluZSB4MT0iMzAwIiB5MT0iMCIgeDI9IjMwMCIgeTI9IjYwMCIgLz48bGluZSB4MT0iNDAwIiB5MT0iMCIgeDI9IjQwMCIgeTI9IjYwMCIgLz48bGluZSB4MT0iNTAwIiB5MT0iMCIgeDI9IjUwMCIgeTI9IjYwMCIgLz48bGluZSB4MT0iNjAwIiB5MT0iMCIgeDI9IjYwMCIgeTI9IjYwMCIgLz48bGluZSB4MT0iNzAwIiB5MT0iMCIgeDI9IjcwMCIgeTI9IjYwMCIgLz48L2c+PHJlY3QgeD0iMTUwIiB5PSIxNTAiIHdpZHRoPSI1MDAiIGhlaWdodD0iMzAwIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iNCIvPjxsaW5lIHgxPSIzNTAiIHkxPSIxNTAiIHgyPSIzNTAiIHkyPSI0NTAiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSI0Ii8+PGxpbmUgeDE9IjE1MCIgeTE9IjMwMCIgeDI9IjM1MCIgeTI9IjMwMCIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjQiLz48dGV4dCB4PSIyNTAiIHk9IjIzMCIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIyMCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+SEFCSVRBQ0nTT04gMTwvdGV4dD48dGV4dCB4PSIyNTAiIHk9IjM4MCIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIyMCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+SEFCSVRBQ0nTT04gIDI8L3RleHQ+PHRleHQgeD0iNTAwIiB5PSIzMDAiIGZpbGw9IiNmZmYiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlpPTkEgU09DSUFMPC90ZXh0Pjwvc3ZnPg==',
+          other_images: [
+            'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MDAiIGhlaWdodD0iNjAwIiB2aWV3Qm94PSIwIDAgODAwIDYwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzExMTgyNyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmaWxsPSIjOTNhM2FmIiBmb250LXNpemU9IjMwIiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+RmFjaGFkYSBQZXJzcGVjdGl2YTwvdGV4dD48L3N2Zz4='
+          ],
+          video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          construction_systems: ['Tradicional', 'Modular Prefabricado'],
+          built_area: 140,
+          lot_area: 320,
+          logos: [
+            'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzBmMTcyYSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjM1IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjZkMDAiIHN0cm9rZS13aWR0aD0iNCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZmlsbD0iI2ZmNmQwMCIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkFMSUFETyAxPC90ZXh0Pjwvc3ZnPg==',
+            'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzBmMTcyYSIvPjxwb2x5Z29uIHBvaW50cz0iNTAsMTUgODUsODAgMTUsODAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzEwYjk4MSIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHRleHQgeD0iNTAiIHk9IjY1IiBmaWxsPSIjMTBiOTgxIiBmb250LXNpemU9IjEyIiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+QUxJQURPIDI8L3RleHQ+PC9zdmc+'
+          ]
+        },
+        {
+          id: 'p_2',
+          code: 'BM-2',
+          title: 'Bungalow Moderno Loft',
+          description: 'Diseño tipo loft industrial de doble altura. Perfecto para parejas o solteros, con una recámara en mezzanine, sala integrada a cocina de concepto abierto, grandes cristaleras y acabados rústicos en concreto expuesto.',
+          main_image: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MDAiIGhlaWdodD0iNjAwIiB2aWV3Qm94PSIwIDAgODAwIDYwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzExMTgyNyIvPjxyZWN0IHg9IjIwMCIgeT0iMjAwIiB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzQ3NTU2OSIvPjxwb2x5Z29uIHBvaW50cz0iMjAwLDIwMCA2MDAsMjAwIDUwMCwxMDAgMzAwLDEwMCIgZmlsbD0iI2ZmNmQwMCIvPjxyZWN0IHg9IjI1MCIgeT0iMjUwIiB3aWR0aD0iMzAwIiBoZWlnaHQ9IjI1MCIgZmlsbD0iIzA4OTFiMiIvPjxsaW5lIHgxPSI0MDAiIHkxPSIyNTAiIHgyPSI0MDAiIHkyPSI1MDAiIHN0cm9rZT0iIzBmMTcyYSIgc3Ryb2tlLXdpZHRoPSI0Ii8+PC9zdmc+',
+          blueprint_image: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MDAiIGhlaWdodD0iNjAwIiB2aWV3Qm94PSIwIDAgODAwIDYwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzBkOTR4OCIvPjxnIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjUpIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1kYXNoYXJyYXk9IjUsNSI+PC9nPjxyZWN0IHg9IjIwMCIgeT0iMjAwIiB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjQiLz48dGV4dCB4PSI0MDAiIHk9IjMwMCIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIyMCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TE9GVCBBUkVSPC90ZXh0Pjwvc3ZnPg==',
+          other_images: [],
+          video_url: '',
+          construction_systems: ['Steel Framing', 'Modular Prefabricado'],
+          built_area: 85,
+          lot_area: 120,
+          logos: []
+        }
+      ];
+      await supabase.from('portfolio').insert(defaultPortfolio);
+      console.log('Supabase portfolio mock data seeded successfully.');
+    }
   } catch (err) {
     console.error('Seeding error:', err);
   }
@@ -155,6 +312,9 @@ export const getAll = async (tableName) => {
   if (tableName === 'projects') {
     return data.map(mapProjectToCamel);
   }
+  if (tableName === 'transactions') {
+    return data.map(mapTransactionToCamel);
+  }
   return data;
 };
 
@@ -162,6 +322,8 @@ export const saveItem = async (tableName, item) => {
   let itemToSave = item;
   if (tableName === 'projects') {
     itemToSave = mapProjectToSnake(item);
+  } else if (tableName === 'transactions') {
+    itemToSave = mapTransactionToSnake(item);
   }
 
   const { data, error } = await supabase
@@ -318,4 +480,119 @@ export const deleteUser = async (email) => {
   if (error) throw error;
   return true;
 };
+
+// --- Portfolio Management Services ---
+
+export const getPortfolio = async () => {
+  const { data, error } = await supabase
+    .from('portfolio')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data.map(item => ({
+    id: item.id,
+    code: item.code,
+    title: item.title,
+    description: item.description,
+    mainImage: item.main_image,
+    blueprintImage: item.blueprint_image,
+    otherImages: item.other_images || [],
+    videoUrl: item.video_url || '',
+    constructionSystems: item.construction_systems || [],
+    builtArea: parseFloat(item.built_area) || 0,
+    lotArea: parseFloat(item.lot_area) || 0,
+    logos: item.logos || [],
+    createdAt: item.created_at
+  }));
+};
+
+export const savePortfolioItem = async (item) => {
+  const itemToSave = {
+    id: item.id,
+    code: item.code,
+    title: item.title,
+    description: item.description,
+    main_image: item.mainImage,
+    blueprint_image: item.blueprintImage,
+    other_images: item.otherImages || [],
+    video_url: item.videoUrl || '',
+    construction_systems: item.constructionSystems || [],
+    built_area: item.builtArea,
+    lot_area: item.lotArea,
+    logos: item.logos || []
+  };
+
+  const { data, error } = await supabase
+    .from('portfolio')
+    .upsert(itemToSave)
+    .select();
+
+  if (error) throw error;
+  return data;
+};
+
+export const deletePortfolioItem = async (id) => {
+  const { error } = await supabase
+    .from('portfolio')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+  return true;
+};
+
+// --- Specialized Progress Logs Services ---
+
+export const getProgressLogsForProject = async (projId) => {
+  const { data, error } = await supabase
+    .from('progress_logs')
+    .select('*')
+    .eq('project_id', projId)
+    .order('upload_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data.map(log => ({
+    id: log.id,
+    projectId: log.project_id,
+    description: log.description,
+    uploadDate: log.upload_date,
+    media: log.media || [],
+    createdAt: log.created_at
+  }));
+};
+
+export const saveProgressLog = async (logItem) => {
+  const itemToSave = {
+    project_id: logItem.projectId,
+    description: logItem.description,
+    upload_date: logItem.uploadDate,
+    media: logItem.media || []
+  };
+
+  if (logItem.id) {
+    itemToSave.id = logItem.id;
+  }
+
+  const { data, error } = await supabase
+    .from('progress_logs')
+    .upsert(itemToSave)
+    .select();
+
+  if (error) throw error;
+  return data;
+};
+
+export const deleteProgressLog = async (id) => {
+  const { error } = await supabase
+    .from('progress_logs')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+  return true;
+};
+
+
 

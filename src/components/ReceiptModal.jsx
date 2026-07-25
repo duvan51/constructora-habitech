@@ -18,11 +18,19 @@ export default function ReceiptModal({ project, payment, onClose }) {
   };
 
   // Calculate project financials up to this point
-  const totalPaid = project.paymentPlan
-    .filter(p => p.status === 'paid')
-    .reduce((sum, p) => sum + p.amount, 0);
+  const totalPaid = project.paymentPlan.reduce((sum, p) => {
+    const paidForHito = p.payments && p.payments.length > 0
+      ? p.payments.reduce((s, pay) => s + pay.amount, 0)
+      : (p.status === 'paid' ? p.amount : 0);
+    return sum + paidForHito;
+  }, 0);
 
   const pendingBalance = project.totalCost - totalPaid;
+
+  // Get payments list for this milestone
+  const milestonePayments = payment.payments || (payment.status === 'paid' ? [{ id: 'legacy', amount: payment.amount, date: payment.paidDate || payment.dueDate, method: 'Transferencia', files: [] }] : []);
+  const hitoTotalPaid = milestonePayments.reduce((s, p) => s + p.amount, 0);
+  const hitoRemaining = Math.max(0, payment.amount - hitoTotalPaid);
 
   const receiptNumber = `RCP-${project.id}-${payment.id.toUpperCase()}`;
 
@@ -46,11 +54,11 @@ export default function ReceiptModal({ project, payment, onClose }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
                   {/* Clean SVG Logo */}
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2L2 12H5V21H9V15H15V21H19V12H22L12 2Z" fill="#06b6d4" />
-                    <path d="M12 5L4 13V19H7V13H17V19H20V13L12 5Z" fill="#6366f1" />
+                    <path d="M12 2L2 12H5V21H9V15H15V21H19V12H22L12 2Z" fill="#FF6D00" />
+                    <path d="M12 5L4 13V19H7V13H17V19H20V13L12 5Z" fill="#e05300" />
                   </svg>
                   <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>
-                    HABITECH <span style={{ color: '#06b6d4', fontWeight: 400 }}>Constructor</span>
+                    HABITECH <span style={{ color: '#FF6D00', fontWeight: 400 }}>Constructor</span>
                   </span>
                 </div>
                 <div style={{ fontSize: '0.8rem', color: '#4b5563', lineHeight: '1.3' }}>
@@ -62,7 +70,7 @@ export default function ReceiptModal({ project, payment, onClose }) {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#111827' }}>RECIBO DE CAJA</div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#06b6d4', marginTop: '3px' }}>
+                <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#FF6D00', marginTop: '3px' }}>
                   N° {receiptNumber}
                 </div>
                 <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '10px' }}>
@@ -96,41 +104,59 @@ export default function ReceiptModal({ project, payment, onClose }) {
             </div>
 
             {/* Financial Ledger Table */}
-            <table className="receipt-table">
+            <table className="receipt-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px', marginBottom: '20px' }}>
               <thead>
-                <tr>
-                  <th>Concepto / Descripción del Pago</th>
-                  <th style={{ textAlign: 'right' }}>Valor Recibido</th>
+                <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb', color: '#374151', fontSize: '0.85rem', textAlign: 'left' }}>
+                  <th style={{ padding: '10px' }}>Concepto / Descripción del Pago</th>
+                  <th style={{ padding: '10px' }}>Fecha Pago</th>
+                  <th style={{ padding: '10px' }}>Método</th>
+                  <th style={{ padding: '10px', textAlign: 'right' }}>Valor Recibido</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>
-                    <div style={{ fontWeight: 600, color: '#1f2937' }}>{payment.name}</div>
-                    <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '4px' }}>
-                      Porcentaje correspondiente del plan de pagos: {payment.percentage}%
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '1.1rem', color: '#10b981' }}>
-                    {formatCurrency(payment.amount)}
-                  </td>
-                </tr>
+                {milestonePayments.map((p, idx) => (
+                  <tr key={p.id || idx} style={{ borderBottom: '1px solid #e5e7eb', fontSize: '0.9rem', color: '#4b5563' }}>
+                    <td style={{ padding: '12px 10px' }}>
+                      <div style={{ fontWeight: 600, color: '#1f2937' }}>{payment.name}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '2px' }}>
+                        Abono Parcial #{idx + 1} ({payment.percentage}%)
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 10px' }}>{p.date}</td>
+                    <td style={{ padding: '12px 10px' }}>{p.method}</td>
+                    <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
+                      {formatCurrency(p.amount)}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
 
             {/* Financial Summary */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
-              <div style={{ width: '100%', maxWidth: '300px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                  <span style={{ color: '#4b5563' }}>Valor de la Obra:</span>
+              <div style={{ width: '100%', maxWidth: '340px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#4b5563' }}>Monto Sugerido del Hito:</span>
+                  <span style={{ fontWeight: 600, color: '#1f2937' }}>{formatCurrency(payment.amount)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#4b5563' }}>Total Cobrado Hito:</span>
+                  <span style={{ fontWeight: 700, color: '#10b981' }}>{formatCurrency(hitoTotalPaid)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderBottom: '1px dashed #e5e7eb', paddingBottom: '6px' }}>
+                  <span style={{ color: '#4b5563' }}>Restante por este Hito:</span>
+                  <span style={{ fontWeight: 700, color: '#f59e0b' }}>{formatCurrency(hitoRemaining)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#4b5563' }}>Total Contrato Obra:</span>
                   <span style={{ fontWeight: 600, color: '#1f2937' }}>{formatCurrency(project.totalCost)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                  <span style={{ color: '#4b5563' }}>Total Recaudado:</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#4b5563' }}>Total Recaudado Acumulado:</span>
                   <span style={{ fontWeight: 600, color: '#10b981' }}>{formatCurrency(totalPaid)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', borderTop: '2px solid #e5e7eb', paddingTop: '8px' }}>
-                  <span style={{ fontWeight: 700, color: '#1f2937' }}>Saldo Pendiente:</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', borderTop: '2px solid #e5e7eb', paddingTop: '8px' }}>
+                  <span style={{ fontWeight: 700, color: '#1f2937' }}>Saldo Pendiente Obra:</span>
                   <span style={{ fontWeight: 700, color: '#f59e0b' }}>{formatCurrency(pendingBalance)}</span>
                 </div>
               </div>

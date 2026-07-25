@@ -7,13 +7,19 @@ import ProjectForm from './components/ProjectForm';
 import Ledger from './components/Ledger';
 import Login from './components/Login';
 import UserManagement from './components/UserManagement';
+import ApiSettings from './components/ApiSettings';
 import { 
   seedMockData, 
   getAll, 
   saveItem, 
-  deleteItem 
+  deleteItem,
+  getPortfolio,
+  savePortfolioItem,
+  deletePortfolioItem
 } from './db/supabase';
 import { HardHat, Plus, Search, Calendar, Landmark, Menu } from 'lucide-react';
+import Portfolio from './components/Portfolio';
+import { getCachedData, setCachedData } from './db/storage';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -21,6 +27,7 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [projects, setProjects] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [portfolio, setPortfolio] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -46,13 +53,71 @@ export default function App() {
   }, []);
 
   const loadData = async () => {
+    // 1. Try loading cached data first for instant load
+    try {
+      const [cachedProjects, cachedTransactions, cachedPortfolio] = await Promise.all([
+        getCachedData('supabase_projects'),
+        getCachedData('supabase_transactions'),
+        getCachedData('supabase_portfolio')
+      ]);
+
+      if (cachedProjects) setProjects(cachedProjects);
+      if (cachedTransactions) setTransactions(cachedTransactions);
+      if (cachedPortfolio) setPortfolio(cachedPortfolio);
+    } catch (cacheErr) {
+      console.warn('Failed to load cached projects/transactions:', cacheErr);
+    }
+
+    // 2. Fetch fresh data from Supabase
     try {
       const allProj = await getAll('projects');
       const allTx = await getAll('transactions');
       setProjects(allProj);
       setTransactions(allTx);
+      
+      let allPort = [];
+      try {
+        allPort = await getPortfolio();
+        setPortfolio(allPort);
+      } catch (portErr) {
+        console.warn('Portfolio table may not exist yet in Supabase. Check supabase_schema.sql.', portErr);
+      }
+
+      // Save fresh data to cache for next load
+      try {
+        await Promise.all([
+          setCachedData('supabase_projects', allProj),
+          setCachedData('supabase_transactions', allTx),
+          allPort.length > 0 ? setCachedData('supabase_portfolio', allPort) : Promise.resolve()
+        ]);
+      } catch (cacheErr) {
+        console.warn('Failed to save to cache:', cacheErr);
+      }
     } catch (err) {
       console.error('Error loading data:', err);
+    }
+  };
+
+  const handleSavePortfolioItem = async (updatedItem) => {
+    try {
+      await savePortfolioItem(updatedItem);
+      await loadData();
+    } catch (err) {
+      console.error('Error saving portfolio item:', err);
+      alert('Ocurrió un error al guardar el proyecto del portafolio.');
+    }
+  };
+
+  const handleDeletePortfolioItem = async (id) => {
+    if (currentUser.role === 'viewer') return;
+    if (confirm('¿Estás seguro de eliminar este proyecto del portafolio?')) {
+      try {
+        await deletePortfolioItem(id);
+        await loadData();
+      } catch (err) {
+        console.error('Error deleting portfolio item:', err);
+        alert('Ocurrió un error al eliminar el proyecto.');
+      }
     }
   };
 
@@ -318,6 +383,21 @@ export default function App() {
             {/* User Management View */}
             {currentTab === 'users' && currentUser.role === 'admin' && (
               <UserManagement currentUser={currentUser} />
+            )}
+
+            {/* Portfolio View */}
+            {currentTab === 'portfolio' && (
+              <Portfolio 
+                portfolio={portfolio}
+                userRole={currentUser.role}
+                onSave={handleSavePortfolioItem}
+                onDelete={handleDeletePortfolioItem}
+              />
+            )}
+
+            {/* API & System Settings View */}
+            {currentTab === 'settings' && currentUser.role === 'admin' && (
+              <ApiSettings />
             )}
           </>
         )}

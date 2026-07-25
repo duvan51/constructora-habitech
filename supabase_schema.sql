@@ -123,3 +123,52 @@ CREATE POLICY "Public DELETE users" ON users FOR DELETE USING (true);
 INSERT INTO users (email, pin, role, name)
 VALUES ('constructorahabitecsas@gmail.com', '1234', 'admin', 'Habitech Admin')
 ON CONFLICT (email) DO NOTHING;
+
+-- 6. Create Portfolio Table (projects offered to clients)
+CREATE TABLE IF NOT EXISTS portfolio (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  main_image TEXT NOT NULL, -- Base64 representation of the cover image
+  blueprint_image TEXT, -- Base64 representation of the technical blueprint
+  other_images JSONB NOT NULL DEFAULT '[]'::jsonb, -- Array of additional Base64 images
+  video_url TEXT, -- YouTube link or Base64 video file
+  construction_systems JSONB NOT NULL DEFAULT '[]'::jsonb, -- Array of strings (e.g., ["Tradicional", "Modular"])
+  built_area NUMERIC NOT NULL DEFAULT 0, -- Built M2
+  lot_area NUMERIC, -- Lot M2
+  logos JSONB NOT NULL DEFAULT '[]'::jsonb, -- Array of Base64 logos of brands/partners
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Enable RLS and configure policies for the portfolio table
+ALTER TABLE portfolio ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public SELECT portfolio" ON portfolio;
+DROP POLICY IF EXISTS "Public INSERT portfolio" ON portfolio;
+DROP POLICY IF EXISTS "Public UPDATE portfolio" ON portfolio;
+DROP POLICY IF EXISTS "Public DELETE portfolio" ON portfolio;
+CREATE POLICY "Public SELECT portfolio" ON portfolio FOR SELECT USING (true);
+CREATE POLICY "Public INSERT portfolio" ON portfolio FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public UPDATE portfolio" ON portfolio FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Public DELETE portfolio" ON portfolio FOR DELETE USING (true);
+
+-- 7. Create Progress Logs Table (timeline logs with multi-media)
+CREATE TABLE IF NOT EXISTS progress_logs (
+  id BIGSERIAL PRIMARY KEY,
+  project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+  description TEXT NOT NULL,
+  upload_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  media JSONB NOT NULL DEFAULT '[]'::jsonb, -- Contendrá un array de {file_base64: TEXT, file_type: 'image'|'video'}
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Enable RLS and configure policies
+ALTER TABLE progress_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public SELECT progress_logs" ON progress_logs;
+DROP POLICY IF EXISTS "Public INSERT progress_logs" ON progress_logs;
+DROP POLICY IF EXISTS "Public UPDATE progress_logs" ON progress_logs;
+DROP POLICY IF EXISTS "Public DELETE progress_logs" ON progress_logs;
+CREATE POLICY "Public SELECT progress_logs" ON progress_logs FOR SELECT USING (true);
+CREATE POLICY "Public INSERT progress_logs" ON progress_logs FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public UPDATE progress_logs" ON progress_logs FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Public DELETE progress_logs" ON progress_logs FOR DELETE USING (true);

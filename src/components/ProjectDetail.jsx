@@ -2,25 +2,71 @@ import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Edit3, MapPin, Calendar, User, Phone, Mail, 
   DollarSign, CheckSquare, FileText, Image as ImageIcon, Camera, 
-  TrendingUp, Plus, Trash2, Eye, Download, CheckCircle, Clock, X 
+  TrendingUp, Plus, Trash2, Eye, Download, CheckCircle, Clock, X, Printer 
 } from 'lucide-react';
 import { 
   getDocumentsForProject, 
-  getGalleryForProject, 
-  saveGalleryItem, 
+  getProgressLogsForProject, 
+  saveProgressLog, 
+  deleteProgressLog,
   deleteItem 
 } from '../db/supabase';
 import ScannerModal from './ScannerModal';
 import ReceiptModal from './ReceiptModal';
+import ProjectForm from './ProjectForm';
+import { getCachedData, setCachedData } from '../db/storage';
+
+// Client-side image compression helper
+const compressImage = (base64Str, maxWidth = 1200, maxHeight = 1200, quality = 0.7) => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => {
+      resolve(base64Str);
+    };
+  });
+};
 
 export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTransaction, userRole }) {
   const [activeTab, setActiveTab] = useState('general');
   const [documents, setDocuments] = useState([]);
-  const [gallery, setGallery] = useState([]);
+  const [progressLogs, setProgressLogs] = useState([]);
   
   // Modal states
   const [showScanner, setShowScanner] = useState(false);
   const [showReceipt, setShowReceipt] = useState(null); // holds payment object
+  const [showHitoPayments, setShowHitoPayments] = useState(null); // holds the active payment plan hito object
+  const [showEditProject, setShowEditProject] = useState(false); // toggle project edit modal
+  const [newPayment, setNewPayment] = useState({
+    id: null,
+    amount: '',
+    date: new Date().toISOString().split('T')[0],
+    method: 'Transferencia',
+    files: [] // { fileBase64, fileName, fileType }
+  });
   
   // Expense Logging Form State
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -34,9 +80,10 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   // Timeline Progress Entry State
   const [showAddTimeline, setShowAddTimeline] = useState(false);
   const [timelineData, setTimelineData] = useState({
+    id: null,
     description: '',
-    mediaBase64: '',
-    mediaType: 'image' // 'image' | 'video'
+    uploadDate: new Date().toISOString().split('T')[0],
+    media: [] // Array of { fileBase64, fileType }
   });
 
   // Custom Budget Item State
@@ -101,11 +148,40 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   }, [project.id]);
 
   const loadFiles = async () => {
+    const cachedDocsKey = `supabase_docs_${project.id}`;
+    const cachedLogsKey = `supabase_logs_${project.id}`;
+
+    // 1. Try loading from IndexedDB cache first for instant render
+    try {
+      const [cachedDocs, cachedLogs] = await Promise.all([
+        getCachedData(cachedDocsKey),
+        getCachedData(cachedLogsKey)
+      ]);
+
+      if (cachedDocs) setDocuments(cachedDocs);
+      if (cachedLogs) setProgressLogs(cachedLogs);
+    } catch (cacheErr) {
+      console.warn('Failed to load cached files:', cacheErr);
+    }
+
+    // 2. Fetch fresh data from Supabase
     try {
       const docs = await getDocumentsForProject(project.id);
-      const items = await getGalleryForProject(project.id);
+      const items = await getProgressLogsForProject(project.id);
+      
+      // Update React states
       setDocuments(docs);
-      setGallery(items);
+      setProgressLogs(items);
+
+      // Save fresh data to cache for next load
+      try {
+        await Promise.all([
+          setCachedData(cachedDocsKey, docs),
+          setCachedData(cachedLogsKey, items)
+        ]);
+      } catch (cacheErr) {
+        console.warn('Failed to save files to cache:', cacheErr);
+      }
     } catch (err) {
       console.error('Error loading files:', err);
     }
@@ -119,37 +195,151 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     }).format(value);
   };
 
-  // 1. Payment Hito Status Update
-  const handleMarkPaymentPaid = (paymentId) => {
-    const paidDate = prompt('Ingresa la fecha del pago (AAAA-MM-DD):', new Date().toISOString().split('T')[0]);
-    if (!paidDate) return;
+  // 1. Payment Hito Status Update with partial payments & comprobantes
+  const handlePaymentFileChange = (e) => {
+    const filesList = Array.from(e.target.files);
+    if (!filesList.length) return;
 
-    const paymentMethod = prompt('Método de pago (Efectivo / Transferencia / Cheque):', 'Transferencia');
-    if (!paymentMethod) return;
+    filesList.forEach(file => {
+      const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
+      const reader = new FileReader();
+      reader.onload = async () => {
+        let base64Result = reader.result;
+        if (fileType === 'image') {
+          base64Result = await compressImage(base64Result);
+        }
+        setNewPayment(prev => ({
+          ...prev,
+          files: [
+            ...prev.files,
+            { fileBase64: base64Result, fileName: file.name, fileType }
+          ]
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
 
-    const updatedPayments = project.paymentPlan.map(pay => {
-      if (pay.id === paymentId) {
-        // Log transaction in global ledger
-        const newTx = {
-          projectId: project.id,
-          projectName: project.name,
-          type: 'income',
-          category: 'client_payment',
-          description: `Cobro Recibido: ${pay.name} (Ref: ${paymentMethod})`,
-          amount: pay.amount,
-          date: paidDate
+  const handleRemovePaymentFile = (index) => {
+    setNewPayment(prev => ({
+      ...prev,
+      files: prev.files.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleSavePaymentSubmit = async (e) => {
+    e.preventDefault();
+    const amt = parseFloat(newPayment.amount);
+    if (isNaN(amt) || amt <= 0) {
+      alert('Por favor ingresa un monto válido.');
+      return;
+    }
+
+    const payId = `pay_${new Date().getTime()}`;
+    const newPayItem = {
+      id: payId,
+      amount: amt,
+      date: newPayment.date,
+      method: newPayment.method,
+      files: newPayment.files
+    };
+
+    // Calculate milestone payments
+    const currentMilestone = project.paymentPlan.find(h => h.id === showHitoPayments.id);
+    const existingPayments = currentMilestone.payments || (currentMilestone.status === 'paid' ? [{ id: 'legacy', amount: currentMilestone.amount, date: currentMilestone.paidDate || currentMilestone.dueDate, method: 'Transferencia', files: [] }] : []);
+    const updatedPaymentsList = [...existingPayments, newPayItem];
+
+    const hitoTotalPaid = updatedPaymentsList.reduce((s, p) => s + p.amount, 0);
+    const updatedStatus = hitoTotalPaid >= currentMilestone.amount ? 'paid' : 'partial';
+
+    const updatedPaymentPlan = project.paymentPlan.map(h => {
+      if (h.id === showHitoPayments.id) {
+        return {
+          ...h,
+          payments: updatedPaymentsList,
+          status: updatedStatus,
+          paidDate: updatedStatus === 'paid' ? newPayment.date : null
         };
-        logGlobalTransaction(newTx);
-
-        return { ...pay, status: 'paid', paidDate };
       }
-      return pay;
+      return h;
     });
 
-    const updatedProject = { ...project, paymentPlan: updatedPayments };
+    const updatedProject = { ...project, paymentPlan: updatedPaymentPlan };
+
+    // Ledger income transaction
+    const newTx = {
+      id: `tx_pay_${payId}`,
+      projectId: project.id,
+      projectName: project.name,
+      type: 'income',
+      category: 'client_payment',
+      description: `Cobro Parcial Hito: ${showHitoPayments.name} (${newPayment.method})`,
+      amount: amt,
+      date: newPayment.date
+    };
+
+    try {
+      logGlobalTransaction(newTx);
+      await onUpdate(updatedProject);
+      
+      // Update local modal state
+      const updatedHito = updatedPaymentPlan.find(h => h.id === showHitoPayments.id);
+      setShowHitoPayments(updatedHito);
+
+      // Reset form
+      setNewPayment({
+        id: null,
+        amount: '',
+        date: new Date().toISOString().split('T')[0],
+        method: 'Transferencia',
+        files: []
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Error al registrar abono.');
+    }
+  };
+
+  const handleDeletePayment = async (paymentId) => {
+    if (!confirm('¿Estás seguro de eliminar este comprobante de abono? El saldo se actualizará y la transacción asociada se borrará del libro de caja.')) return;
+
+    const currentMilestone = project.paymentPlan.find(h => h.id === showHitoPayments.id);
+    const existingPayments = currentMilestone.payments || (currentMilestone.status === 'paid' ? [{ id: 'legacy', amount: currentMilestone.amount, date: currentMilestone.paidDate || currentMilestone.dueDate, method: 'Transferencia', files: [] }] : []);
     
-    // Automatically recalculate project physical progress if paid hitos represent milestones
-    onUpdate(updatedProject);
+    const updatedPaymentsList = existingPayments.filter(p => p.id !== paymentId);
+    const hitoTotalPaid = updatedPaymentsList.reduce((s, p) => s + p.amount, 0);
+    const updatedStatus = hitoTotalPaid >= currentMilestone.amount 
+      ? 'paid' 
+      : (hitoTotalPaid > 0 ? 'partial' : 'pending');
+
+    const updatedPaymentPlan = project.paymentPlan.map(h => {
+      if (h.id === showHitoPayments.id) {
+        return {
+          ...h,
+          payments: updatedPaymentsList,
+          status: updatedStatus,
+          paidDate: updatedStatus === 'paid' ? (updatedPaymentsList[updatedPaymentsList.length - 1]?.date || null) : null
+        };
+      }
+      return h;
+    });
+
+    const updatedProject = { ...project, paymentPlan: updatedPaymentPlan };
+
+    try {
+      if (paymentId !== 'legacy') {
+        await deleteItem('transactions', `tx_pay_${paymentId}`);
+      }
+      await onUpdate(updatedProject);
+
+      // Update local modal state
+      const updatedHito = updatedPaymentPlan.find(h => h.id === showHitoPayments.id);
+      setShowHitoPayments(updatedHito);
+    } catch (err) {
+      console.error(err);
+      alert('Error al eliminar abono.');
+    }
   };
 
   // 2. Add Expense to a Budget Category
@@ -312,21 +502,38 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     setShowEditPaymentPlan(false);
   };
 
-  // 3. Add Timeline progress update with image
-  const handleTimelineImageChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  // 3. Add Timeline progress update with multiple images/videos
+  const handleTimelineFilesChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
 
-    const fileType = file.type.startsWith('video/') ? 'video' : 'image';
-    const reader = new FileReader();
-    reader.onload = () => {
-      setTimelineData(prev => ({
-        ...prev,
-        mediaBase64: reader.result,
-        mediaType: fileType
-      }));
-    };
-    reader.readAsDataURL(file);
+    files.forEach(file => {
+      const fileType = file.type.startsWith('video/') ? 'video' : 'image';
+      const reader = new FileReader();
+      reader.onload = async () => {
+        let base64Result = reader.result;
+        if (fileType === 'image') {
+          base64Result = await compressImage(base64Result);
+        }
+        setTimelineData(prev => ({
+          ...prev,
+          media: [
+            ...prev.media,
+            { fileBase64: base64Result, fileType }
+          ]
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+    // Limpiar input
+    e.target.value = '';
+  };
+
+  const handleRemoveMedia = (index) => {
+    setTimelineData(prev => ({
+      ...prev,
+      media: prev.media.filter((_, i) => i !== index)
+    }));
   };
 
   const handleAddTimelineSubmit = async (e) => {
@@ -337,21 +544,25 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     }
 
     try {
-      await saveGalleryItem(
-        project.id,
-        timelineData.description,
-        timelineData.mediaBase64,
-        timelineData.mediaType
-      );
+      await saveProgressLog({
+        id: timelineData.id,
+        projectId: project.id,
+        description: timelineData.description,
+        uploadDate: timelineData.uploadDate,
+        media: timelineData.media
+      });
       
-      // Seed timeline list
       await loadFiles();
-      
-      // Update overall progress slightly as a mock or let it be
       setShowAddTimeline(false);
-      setTimelineData({ description: '', mediaBase64: '', mediaType: 'image' });
+      setTimelineData({
+        id: null,
+        description: '',
+        uploadDate: new Date().toISOString().split('T')[0],
+        media: []
+      });
     } catch (err) {
-      console.error('Error saving progress item:', err);
+      console.error('Error saving progress log:', err);
+      alert('Ocurrió un error al guardar el avance de obra.');
     }
   };
 
@@ -362,17 +573,25 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     }
   };
 
-  const handleDeleteGallery = async (id) => {
-    if (confirm('¿Estás seguro de eliminar esta foto/video de avance?')) {
-      await deleteItem('gallery', id);
-      loadFiles();
+  const handleDeleteProgressLog = async (id) => {
+    if (confirm('¿Estás seguro de eliminar este registro de avance?')) {
+      try {
+        await deleteProgressLog(id);
+        await loadFiles();
+      } catch (err) {
+        console.error('Error deleting progress log:', err);
+        alert('Ocurrió un error al eliminar el avance de obra.');
+      }
     }
   };
 
-  // Calculate totals
-  const totalPaid = project.paymentPlan
-    .filter(p => p.status === 'paid')
-    .reduce((sum, p) => sum + p.amount, 0);
+  // Calculate totals (including partial payments)
+  const totalPaid = project.paymentPlan.reduce((sum, p) => {
+    const paidForHito = p.payments && p.payments.length > 0
+      ? p.payments.reduce((s, pay) => s + pay.amount, 0)
+      : (p.status === 'paid' ? p.amount : 0);
+    return sum + paidForHito;
+  }, 0);
 
   const totalBudgetEst = project.budgetItems.reduce((sum, i) => sum + i.estimated, 0);
   const totalBudgetAct = project.budgetItems.reduce((sum, i) => sum + (i.actual || 0), 0);
@@ -380,15 +599,35 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   return (
     <div className="project-detail-view animate-fade-in">
       {/* Header Navigation */}
-      <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '25px' }}>
-        <button className="btn-icon" onClick={onBack}>
-          <ArrowLeft size={18} />
-        </button>
-        <div>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
-            Obra / Detalles
-          </span>
-          <h2 style={{ margin: 0, fontSize: '1.6rem', color: 'var(--text-primary)' }}>{project.name}</h2>
+      <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '25px', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <button className="btn-icon" onClick={onBack}>
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+              Obra / Detalles
+            </span>
+            <h2 style={{ margin: 0, fontSize: '1.6rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {project.name}
+              {userRole !== 'viewer' && (
+                <button className="btn-icon" onClick={() => setShowEditProject(true)} title="Editar Ficha Técnica" style={{ padding: '6px', color: 'var(--primary-cyan)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  <Edit3 size={16} />
+                </button>
+              )}
+            </h2>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {project.status === 'planning' ? (
+            <span className="badge badge-planning">Planificación</span>
+          ) : project.status === 'active' ? (
+            <span className="badge badge-progress">En Obra</span>
+          ) : project.status === 'halted' ? (
+            <span className="badge badge-halted">Detenido</span>
+          ) : (
+            <span className="badge badge-completed">Terminado</span>
+          )}
         </div>
       </div>
 
@@ -407,7 +646,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
           Expediente Documentos ({documents.length})
         </button>
         <button className={`tab-btn ${activeTab === 'gallery' ? 'active' : ''}`} onClick={() => setActiveTab('gallery')}>
-          Bitácora y Avances ({gallery.length})
+          Bitácora y Avances ({progressLogs.length})
         </button>
       </div>
 
@@ -541,12 +780,22 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               <tbody>
                 {project.paymentPlan.map((pay) => {
                   const isPaid = pay.status === 'paid';
+                  const isPartial = pay.status === 'partial';
                   const isOverdue = pay.status === 'pending' && pay.dueDate && pay.dueDate < new Date().toISOString().split('T')[0];
 
+                  const milestonePayments = pay.payments || (pay.status === 'paid' ? [{ id: 'legacy', amount: pay.amount, date: pay.paidDate || pay.dueDate, method: 'Transferencia', files: [] }] : []);
+                  const hitoTotalPaid = milestonePayments.reduce((s, p) => s + p.amount, 0);
+                  const hitoRemaining = Math.max(0, pay.amount - hitoTotalPaid);
+
                   return (
-                    <tr key={pay.id} style={{ borderBottom: '1px solid var(--border-glass)', background: isPaid ? 'rgba(16,185,129,0.02)' : 'transparent' }}>
+                    <tr key={pay.id} style={{ borderBottom: '1px solid var(--border-glass)', background: isPaid ? 'rgba(16,185,129,0.02)' : isPartial ? 'rgba(245,158,11,0.02)' : 'transparent' }}>
                       <td style={{ padding: '15px 12px' }}>
                         <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{pay.name}</div>
+                        {isPartial && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                            Cobrado: <strong style={{ color: 'var(--primary-teal)' }}>{formatCurrency(hitoTotalPaid)}</strong> | Falta: <strong style={{ color: 'var(--primary-cyan)' }}>{formatCurrency(hitoRemaining)}</strong>
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '15px 12px', fontWeight: 600 }}>{pay.percentage}%</td>
                       <td style={{ padding: '15px 12px', fontWeight: 700, color: 'var(--text-primary)' }}>{formatCurrency(pay.amount)}</td>
@@ -556,6 +805,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                       <td style={{ padding: '15px 12px' }}>
                         {isPaid ? (
                           <span className="badge badge-completed" style={{ fontSize: '0.7rem' }}>Cobrado</span>
+                        ) : isPartial ? (
+                          <span className="badge badge-planning" style={{ fontSize: '0.7rem', background: 'rgba(245, 158, 11, 0.15)', color: '#fde047', borderColor: 'rgba(245, 158, 11, 0.3)' }}>Parcial</span>
                         ) : isOverdue ? (
                           <span className="badge badge-halted" style={{ fontSize: '0.7rem', background: 'rgba(244,63,94,0.15)', color: '#fda4af', borderColor: 'rgba(244,63,94,0.3)' }}>Vencido</span>
                         ) : (
@@ -564,17 +815,21 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                       </td>
                       <td style={{ padding: '15px 12px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                          {!isPaid ? (
-                            userRole !== 'viewer' ? (
-                              <button className="btn btn-success" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={() => handleMarkPaymentPaid(pay.id)}>
-                                Registrar Cobro
-                              </button>
-                            ) : (
-                              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Pendiente</span>
-                            )
-                          ) : (
-                            <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setShowReceipt(pay)}>
-                              <Eye size={12} /> Recibo
+                          <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => {
+                            setNewPayment({
+                              id: null,
+                              amount: hitoRemaining > 0 ? hitoRemaining.toString() : '',
+                              date: new Date().toISOString().split('T')[0],
+                              method: 'Transferencia',
+                              files: []
+                            });
+                            setShowHitoPayments(pay);
+                          }}>
+                            <Eye size={12} /> {userRole === 'viewer' ? 'Ver Cobros' : 'Gestionar Cobros'}
+                          </button>
+                          {isPaid && (
+                            <button className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setShowReceipt(pay)}>
+                              <Printer size={12} /> Recibo
                             </button>
                           )}
                         </div>
@@ -771,13 +1026,24 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               <p style={{ fontSize: '0.85rem' }}>Línea de tiempo del avance físico y registro multimedia.</p>
             </div>
             {userRole !== 'viewer' && (
-              <button className="btn btn-primary" onClick={() => setShowAddTimeline(true)}>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => {
+                  setTimelineData({
+                    id: null,
+                    description: '',
+                    uploadDate: new Date().toISOString().split('T')[0],
+                    media: []
+                  });
+                  setShowAddTimeline(true);
+                }}
+              >
                 <Plus size={16} /> Agregar Avance de Obra
               </button>
             )}
           </div>
 
-          {gallery.length === 0 ? (
+          {progressLogs.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)', border: '2px dashed var(--border-glass)', borderRadius: '12px' }}>
               <ImageIcon size={48} style={{ color: 'var(--text-muted)', marginBottom: '15px' }} />
               <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '5px' }}>Sin Registros de Avance</p>
@@ -785,41 +1051,76 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
             </div>
           ) : (
             <div className="timeline">
-              {gallery.map((item) => (
+              {progressLogs.map((item) => (
                 <div key={item.id} className="timeline-item">
                   <div className="timeline-dot"></div>
-                  <div className="timeline-content">
-                    <div className="timeline-meta">
-                      <span className="timeline-date">{item.uploadDate}</span>
+                  <div className="timeline-content" style={{ width: '100%' }}>
+                    <div className="timeline-meta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="timeline-date" style={{ fontSize: '0.85rem', color: 'var(--primary-cyan)', fontWeight: 600 }}>{item.uploadDate}</span>
                       {userRole !== 'viewer' && (
-                        <button 
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary-red)' }} 
-                          onClick={() => handleDeleteGallery(item.id)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <button 
+                            type="button"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }} 
+                            onClick={() => {
+                              setTimelineData({
+                                id: item.id,
+                                description: item.description,
+                                uploadDate: item.uploadDate,
+                                media: [...item.media]
+                              });
+                              setShowAddTimeline(true);
+                            }}
+                            title="Editar avance"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button 
+                            type="button"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary-red)' }} 
+                            onClick={() => handleDeleteProgressLog(item.id)}
+                            title="Eliminar avance"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       )}
                     </div>
-                    <p style={{ color: 'var(--text-primary)', fontSize: '0.95rem', marginBottom: '12px' }}>
+                    <p style={{ color: 'var(--text-primary)', fontSize: '0.95rem', marginBottom: '12px', marginTop: '6px' }}>
                       {item.description}
                     </p>
 
-                    {item.fileBase64 && (
-                      <div style={{ maxWidth: '300px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-glass)' }}>
-                        {item.fileType === 'video' ? (
-                          <video src={item.fileBase64} controls style={{ width: '100%', display: 'block' }} />
-                        ) : (
-                          <img 
-                            src={item.fileBase64} 
-                            alt="Avance de obra" 
-                            style={{ width: '100%', display: 'block', cursor: 'pointer' }}
-                            onClick={() => {
-                              const w = window.open();
-                              w.document.write(`<img src="${item.fileBase64}" style="max-width:100%; max-height:100vh; display:block; margin:auto;" />`);
-                              w.document.title = "Avance Obra";
-                            }}
-                          />
-                        )}
+                    {item.media && item.media.length > 0 && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '12px', marginTop: '10px' }}>
+                        {item.media.map((mediaItem, idx) => (
+                          <div key={idx} style={{ position: 'relative', height: '110px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-glass)', background: 'rgba(0,0,0,0.2)' }}>
+                            {mediaItem.fileType === 'video' ? (
+                              <video 
+                                src={mediaItem.fileBase64} 
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }} 
+                                onClick={() => {
+                                  const w = window.open();
+                                  w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><video src="${mediaItem.fileBase64}" controls style="max-width:100%; max-height:100vh; display:block;" /></div>`);
+                                  w.document.body.style.margin = '0';
+                                  w.document.title = "Video de Avance";
+                                }} 
+                              />
+                            ) : (
+                              <img 
+                                src={mediaItem.fileBase64} 
+                                alt="Avance" 
+                                loading="lazy"
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                                onClick={() => {
+                                  const w = window.open();
+                                  w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${mediaItem.fileBase64}" style="max-width:100%; max-height:100vh; display:block;" /></div>`);
+                                  w.document.body.style.margin = '0';
+                                  w.document.title = "Imagen de Avance";
+                                }}
+                              />
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -996,16 +1297,27 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         </div>
       )}
 
-      {/* TIMELINE ADD MODAL */}
+      {/* TIMELINE ADD/EDIT MODAL */}
       {showAddTimeline && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '500px' }}>
             <div className="modal-header">
-              <h3>Registrar Avance de Obra</h3>
+              <h3>{timelineData.id ? 'Editar Avance de Obra' : 'Registrar Avance de Obra'}</h3>
               <button className="btn-icon" onClick={() => setShowAddTimeline(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleAddTimelineSubmit}>
-              <div className="modal-body">
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <div className="form-group">
+                  <label>Fecha del Avance</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={timelineData.uploadDate}
+                    onChange={(e) => setTimelineData(prev => ({ ...prev, uploadDate: e.target.value }))}
+                    required
+                  />
+                </div>
+
                 <div className="form-group">
                   <label>Descripción del Avance</label>
                   <textarea
@@ -1019,21 +1331,75 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                 </div>
 
                 <div className="form-group">
-                  <label>Foto / Video del Avance</label>
+                  <label>Fotos / Videos del Avance (Puedes elegir múltiples)</label>
                   <input
                     type="file"
                     className="form-control"
                     accept="image/*,video/*"
-                    onChange={handleTimelineImageChange}
+                    multiple
+                    onChange={handleTimelineFilesChange}
                   />
                 </div>
+
+                {/* Previews of uploaded media in the log */}
+                {timelineData.media && timelineData.media.length > 0 && (
+                  <div>
+                    <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Archivos Seleccionados ({timelineData.media.length})
+                    </label>
+                    <div style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', 
+                      gap: '10px', 
+                      marginTop: '8px',
+                      maxHeight: '180px',
+                      overflowY: 'auto',
+                      padding: '5px',
+                      border: '1px solid var(--border-glass)',
+                      borderRadius: '8px',
+                      background: 'rgba(0,0,0,0.1)'
+                    }}>
+                      {timelineData.media.map((mediaItem, idx) => (
+                        <div key={idx} style={{ position: 'relative', height: '80px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-glass)' }}>
+                          {mediaItem.fileType === 'video' ? (
+                            <video src={mediaItem.fileBase64} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <img src={mediaItem.fileBase64} alt="Previa" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMedia(idx)}
+                            style={{
+                              position: 'absolute',
+                              top: '4px',
+                              right: '4px',
+                              background: 'rgba(244, 63, 94, 0.85)',
+                              border: 'none',
+                              borderRadius: '50%',
+                              color: 'white',
+                              width: '18px',
+                              height: '18px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                            title="Quitar archivo"
+                          >
+                            <X size={10} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowAddTimeline(false)}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={!timelineData.description.trim()}>
-                  Guardar Avance
+                  {timelineData.id ? 'Guardar Cambios' : 'Guardar Avance'}
                 </button>
               </div>
             </form>
@@ -1058,6 +1424,269 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
           onClose={() => setShowReceipt(null)}
         />
       )}
+
+      {/* GESTIONAR COBROS (PAGOS PARCIALES) MODAL */}
+      {showHitoPayments && (() => {
+        const milestonePayments = showHitoPayments.payments || (showHitoPayments.status === 'paid' ? [{ id: 'legacy', amount: showHitoPayments.amount, date: showHitoPayments.paidDate || showHitoPayments.dueDate, method: 'Transferencia', files: [] }] : []);
+        const hitoTotalPaid = milestonePayments.reduce((s, p) => s + p.amount, 0);
+        const hitoRemaining = Math.max(0, showHitoPayments.amount - hitoTotalPaid);
+
+        return (
+          <div className="modal-overlay animate-fade-in">
+            <div className="modal-content" style={{ maxWidth: '650px' }}>
+              <div className="modal-header">
+                <div style={{ textAlign: 'left' }}>
+                  <h3 style={{ margin: 0 }}>Gestionar Cobros - Hito</h3>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{showHitoPayments.name}</span>
+                </div>
+                <button className="btn-icon" onClick={() => setShowHitoPayments(null)}><X size={18} /></button>
+              </div>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '75vh', overflowY: 'auto' }}>
+                
+                {/* Milestone Balance Card */}
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid var(--border-glass)',
+                  borderRadius: '12px',
+                  padding: '15px 20px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: '15px',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ minWidth: '120px' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Monto del Hito</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: '4px' }}>{formatCurrency(showHitoPayments.amount)}</div>
+                  </div>
+                  <div style={{ minWidth: '120px' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Total Cobrado</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary-teal)', marginTop: '4px' }}>{formatCurrency(hitoTotalPaid)}</div>
+                  </div>
+                  <div style={{ minWidth: '120px' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Saldo Pendiente</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: hitoRemaining > 0 ? 'var(--primary-cyan)' : 'var(--text-muted)', marginTop: '4px' }}>{formatCurrency(hitoRemaining)}</div>
+                  </div>
+                </div>
+
+                {/* Form to add a new abono (Admins/Editors only and only if there's remaining balance) */}
+                {userRole !== 'viewer' && hitoRemaining > 0 && (
+                  <form onSubmit={handleSavePaymentSubmit} style={{ background: 'rgba(255, 109, 0, 0.02)', border: '1px dashed var(--border-glass-active)', padding: '18px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Registrar Nuevo Abono / Comprobante</h4>
+                    
+                    <div className="form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
+                      <div className="form-group">
+                        <label>Monto Recibido ($)</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          placeholder="Ej. 10000000"
+                          value={newPayment.amount}
+                          onChange={(e) => setNewPayment(prev => ({ ...prev, amount: e.target.value }))}
+                          max={hitoRemaining}
+                          required
+                        />
+                      </div>
+                      
+                      <div className="form-group">
+                        <label>Fecha de Pago</label>
+                        <input
+                          type="date"
+                          className="form-control"
+                          value={newPayment.date}
+                          onChange={(e) => setNewPayment(prev => ({ ...prev, date: e.target.value }))}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Método de Pago</label>
+                        <select
+                          className="form-control"
+                          value={newPayment.method}
+                          onChange={(e) => setNewPayment(prev => ({ ...prev, method: e.target.value }))}
+                        >
+                          <option value="Transferencia">Transferencia</option>
+                          <option value="Efectivo">Efectivo</option>
+                          <option value="Cheque">Cheque</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Comprobantes Adjuntos (PDF o Imagen)</label>
+                      <input
+                        type="file"
+                        className="form-control"
+                        accept="image/*,application/pdf"
+                        multiple
+                        onChange={handlePaymentFileChange}
+                      />
+                    </div>
+
+                    {/* Form File Previews */}
+                    {newPayment.files && newPayment.files.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '5px' }}>
+                        {newPayment.files.map((file, idx) => (
+                          <div key={idx} style={{ position: 'relative', height: '65px', width: '80px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-glass)', background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {file.fileType === 'pdf' ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', color: '#fda4af', fontWeight: 600 }}>
+                                <span style={{ fontSize: '1rem' }}>📄</span>
+                                <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '70px' }}>{file.fileName}</span>
+                              </div>
+                            ) : (
+                              <img src={file.fileBase64} alt="comprobante" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePaymentFile(idx)}
+                              style={{
+                                position: 'absolute',
+                                top: '2px',
+                                right: '2px',
+                                background: 'rgba(244,63,94,0.85)',
+                                border: 'none',
+                                borderRadius: '50%',
+                                color: 'white',
+                                width: '15px',
+                                height: '15px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '8px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <button type="submit" className="btn btn-success" style={{ padding: '8px', fontSize: '0.9rem', width: '100%', marginTop: '5px' }}>
+                      Registrar Cobro
+                    </button>
+                  </form>
+                )}
+
+                {/* Receipts list */}
+                <div>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '12px' }}>Historial de Cobros Recibidos</h4>
+                  {milestonePayments.length === 0 ? (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>
+                      No se han registrado pagos para este hito.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {milestonePayments.map((p, idx) => (
+                        <div key={p.id || idx} style={{
+                          background: 'rgba(255, 255, 255, 0.01)',
+                          border: '1px solid var(--border-glass)',
+                          borderRadius: '10px',
+                          padding: '12px 15px'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--primary-teal)' }}>
+                                  {formatCurrency(p.amount)}
+                                </span>
+                                <span style={{ fontSize: '0.75rem', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-secondary)' }}>
+                                  {p.method}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                Fecha envío/pago: <strong>{p.date}</strong>
+                              </div>
+                            </div>
+                            
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                className="btn btn-secondary" 
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                onClick={() => {
+                                  setShowReceipt({
+                                    ...showHitoPayments,
+                                    id: p.id,
+                                    paidDate: p.date,
+                                    amount: p.amount,
+                                    payments: [p] // Pass only this payment
+                                  });
+                                }}
+                              >
+                                <Printer size={12} /> Recibo
+                              </button>
+                              {userRole !== 'viewer' && (
+                                <button 
+                                  className="btn-icon" 
+                                  style={{ padding: '4px', color: 'var(--primary-red)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                  onClick={() => handleDeletePayment(p.id)}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Render files attached to this payment */}
+                          {p.files && p.files.length > 0 && (
+                            <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '10px' }}>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Comprobantes Adjuntos:</div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                {p.files.map((file, fIdx) => (
+                                  <div 
+                                    key={fIdx} 
+                                    onClick={() => {
+                                      const w = window.open();
+                                      if (file.fileType === 'pdf') {
+                                        w.document.write(`<embed width="100%" height="100%" src="${file.fileBase64}" type="application/pdf" />`);
+                                      } else {
+                                        w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${file.fileBase64}" style="max-width:100%; max-height:100vh;" /></div>`);
+                                      }
+                                      w.document.body.style.margin = '0';
+                                      w.document.title = file.fileName || 'Comprobante';
+                                    }}
+                                    style={{
+                                      background: 'rgba(255, 255, 255, 0.03)',
+                                      border: '1px solid var(--border-glass)',
+                                      borderRadius: '6px',
+                                      padding: '6px 10px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '8px',
+                                      fontSize: '0.75rem',
+                                      color: 'var(--text-primary)',
+                                      cursor: 'pointer',
+                                      transition: 'var(--transition-smooth)'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--primary-cyan)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-glass)'}
+                                  >
+                                    <span>{file.fileType === 'pdf' ? '📄' : '🖼️'}</span>
+                                    <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {file.fileName || `archivo_${fIdx + 1}`}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowHitoPayments(null)}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {/* ADD BUDGET ITEM MODAL */}
       {showAddBudgetItem && (
         <div className="modal-overlay">
@@ -1261,6 +1890,18 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
             </div>
           </div>
         </div>
+      )}
+
+      {/* EDIT PROJECT MODAL */}
+      {showEditProject && (
+        <ProjectForm
+          project={project}
+          onClose={() => setShowEditProject(false)}
+          onSave={async (updatedProj) => {
+            await onUpdate(updatedProj);
+            setShowEditProject(false);
+          }}
+        />
       )}
     </div>
   );

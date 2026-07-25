@@ -1,7 +1,7 @@
 // IndexedDB storage manager for Habitech Constructor
 
 const DB_NAME = 'HabitechDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export const initDB = () => {
   return new Promise((resolve, reject) => {
@@ -38,6 +38,11 @@ export const initDB = () => {
       // Progress gallery (photos & videos)
       if (!db.objectStoreNames.contains('gallery')) {
         db.createObjectStore('gallery', { keyPath: 'id', autoIncrement: true });
+      }
+
+      // Supabase Cache store
+      if (!db.objectStoreNames.contains('supabase_cache')) {
+        db.createObjectStore('supabase_cache', { keyPath: 'key' });
       }
     };
   });
@@ -217,4 +222,59 @@ export const saveGalleryItem = (projId, description, fileBase64, fileType) => {
 export const getGalleryForProject = async (projId) => {
   const gallery = await getAll('gallery');
   return gallery.filter(item => item.projectId === projId);
+};
+
+// Caching utility functions
+export const getCachedData = (key) => {
+  return new Promise(async (resolve) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction(['supabase_cache'], 'readonly');
+      const store = transaction.objectStore('supabase_cache');
+      const request = store.get(key);
+      request.onsuccess = () => {
+        if (request.result) {
+          resolve(request.result.data);
+        } else {
+          resolve(null);
+        }
+      };
+      request.onerror = () => resolve(null);
+    } catch (err) {
+      console.warn('Cache read error for key:', key, err);
+      resolve(null);
+    }
+  });
+};
+
+export const setCachedData = (key, data) => {
+  return new Promise(async (resolve) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction(['supabase_cache'], 'readwrite');
+      const store = transaction.objectStore('supabase_cache');
+      const request = store.put({ key, data, timestamp: Date.now() });
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => resolve(false);
+    } catch (err) {
+      console.warn('Cache write error for key:', key, err);
+      resolve(false);
+    }
+  });
+};
+
+export const clearCachedData = (key) => {
+  return new Promise(async (resolve) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction(['supabase_cache'], 'readwrite');
+      const store = transaction.objectStore('supabase_cache');
+      const request = store.delete(key);
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => resolve(false);
+    } catch (err) {
+      console.warn('Cache delete error for key:', key, err);
+      resolve(false);
+    }
+  });
 };

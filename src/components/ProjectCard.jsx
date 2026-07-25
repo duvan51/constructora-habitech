@@ -20,10 +20,13 @@ export default function ProjectCard({ project, onSelect }) {
     }
   };
 
-  // Calculate financial progression
-  const totalPaid = project.paymentPlan
-    .filter(p => p.status === 'paid')
-    .reduce((sum, p) => sum + p.amount, 0);
+  // Calculate financial progression (including partial payments)
+  const totalPaid = project.paymentPlan.reduce((sum, p) => {
+    const paidForHito = p.payments && p.payments.length > 0
+      ? p.payments.reduce((s, pay) => s + pay.amount, 0)
+      : (p.status === 'paid' ? p.amount : 0);
+    return sum + paidForHito;
+  }, 0);
 
   return (
     <div className="glass-panel glass-card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

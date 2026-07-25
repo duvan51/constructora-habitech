@@ -6,9 +6,12 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
   const totalBudget = projects.reduce((sum, p) => sum + p.totalCost, 0);
   
   const totalPaid = projects.reduce((sum, p) => {
-    const paidInProject = p.paymentPlan
-      .filter(pay => pay.status === 'paid')
-      .reduce((s, pay) => s + pay.amount, 0);
+    const paidInProject = p.paymentPlan.reduce((s, pay) => {
+      const paidForHito = pay.payments && pay.payments.length > 0
+        ? pay.payments.reduce((acc, pym) => acc + pym.amount, 0)
+        : (pay.status === 'paid' ? pay.amount : 0);
+      return s + paidForHito;
+    }, 0);
     return sum + paidInProject;
   }, 0);
 
@@ -36,7 +39,12 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
 
   projects.forEach(p => {
     p.paymentPlan.forEach(pay => {
-      if (pay.status === 'pending') {
+      const totalPaidForHito = pay.payments && pay.payments.length > 0
+        ? pay.payments.reduce((s, pym) => s + pym.amount, 0)
+        : (pay.status === 'paid' ? pay.amount : 0);
+      const remainingAmount = pay.amount - totalPaidForHito;
+
+      if (remainingAmount > 0) {
         const days = getDaysRemaining(pay.dueDate);
         if (days !== null) {
           if (days < 0) {
@@ -44,7 +52,7 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
               projectName: p.name,
               projectId: p.id,
               milestoneName: pay.name,
-              amount: pay.amount,
+              amount: remainingAmount,
               dueDate: pay.dueDate,
               type: 'overdue',
               days: Math.abs(days)
@@ -54,7 +62,7 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
               projectName: p.name,
               projectId: p.id,
               milestoneName: pay.name,
-              amount: pay.amount,
+              amount: remainingAmount,
               dueDate: pay.dueDate,
               type: 'today',
               days: 0
@@ -64,7 +72,7 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
               projectName: p.name,
               projectId: p.id,
               milestoneName: pay.name,
-              amount: pay.amount,
+              amount: remainingAmount,
               dueDate: pay.dueDate,
               type: 'upcoming',
               days
@@ -147,9 +155,12 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
           const x = 55 + idx * (barWidth * 2 + gap);
           const costHeight = (proj.totalCost / maxVal) * chartHeight;
           
-          const paidAmount = proj.paymentPlan
-            .filter(pay => pay.status === 'paid')
-            .reduce((sum, p) => sum + p.amount, 0);
+          const paidAmount = proj.paymentPlan.reduce((sum, pay) => {
+            const paidForHito = pay.payments && pay.payments.length > 0
+              ? pay.payments.reduce((s, pym) => s + pym.amount, 0)
+              : (pay.status === 'paid' ? pay.amount : 0);
+            return sum + paidForHito;
+          }, 0);
           const paidHeight = (paidAmount / maxVal) * chartHeight;
 
           const truncatedName = proj.name.length > 12 ? proj.name.substring(0, 12) + '...' : proj.name;
