@@ -88,6 +88,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
   // Custom Budget Item State
   const [showAddBudgetItem, setShowAddBudgetItem] = useState(false);
+  const [editingBudgetItemIndex, setEditingBudgetItemIndex] = useState(null);
   const [newBudgetItem, setNewBudgetItem] = useState({
     name: '',
     estimated: '',
@@ -119,6 +120,22 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       ...prev,
       estimated: pct > 0 ? Math.round((project.totalCost * pct) / 100) : ''
     }));
+  };
+
+  const handleOpenEditBudgetItem = (idx) => {
+    const item = project.budgetItems[idx];
+    setNewBudgetItem({
+      name: item.name,
+      estimated: item.estimated,
+      category: item.category
+    });
+    if (project.totalCost > 0) {
+      setCalcPercentage(((item.estimated / project.totalCost) * 100).toFixed(1));
+    } else {
+      setCalcPercentage('');
+    }
+    setEditingBudgetItemIndex(idx);
+    setShowAddBudgetItem(true);
   };
 
   const handleExpenseAmountChange = (e) => {
@@ -395,16 +412,34 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       return;
     }
 
-    const newItem = {
-      name: newBudgetItem.name.trim(),
-      estimated: est,
-      actual: 0,
-      category: newBudgetItem.category
-    };
+    let updatedBudgetItems;
+    if (editingBudgetItemIndex !== null) {
+      // Editing existing
+      updatedBudgetItems = project.budgetItems.map((item, idx) => {
+        if (idx === editingBudgetItemIndex) {
+          return {
+            ...item,
+            name: newBudgetItem.name.trim(),
+            estimated: est,
+            category: newBudgetItem.category
+          };
+        }
+        return item;
+      });
+    } else {
+      // Adding new
+      const newItem = {
+        name: newBudgetItem.name.trim(),
+        estimated: est,
+        actual: 0,
+        category: newBudgetItem.category
+      };
+      updatedBudgetItems = [...project.budgetItems, newItem];
+    }
 
     const updatedProject = {
       ...project,
-      budgetItems: [...project.budgetItems, newItem]
+      budgetItems: updatedBudgetItems
     };
 
     onUpdate(updatedProject);
@@ -415,6 +450,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       estimated: '',
       category: 'materials'
     });
+    setEditingBudgetItemIndex(null);
     setShowAddBudgetItem(false);
   };
 
@@ -861,7 +897,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               </div>
               {userRole !== 'viewer' && (
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button className="btn btn-secondary" onClick={() => { setShowAddBudgetItem(true); setCalcPercentage(''); }}>
+                  <button className="btn btn-secondary" onClick={() => { setEditingBudgetItemIndex(null); setNewBudgetItem({ name: '', estimated: '', category: 'materials' }); setCalcPercentage(''); setShowAddBudgetItem(true); }}>
                     <Plus size={16} /> Agregar Renglón
                   </button>
                   <button className="btn btn-primary" onClick={() => { setShowAddExpense(true); setExpensePercentage(''); }}>
@@ -889,14 +925,24 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                             {item.category === 'materials' ? 'Materiales' : item.category === 'labor' ? 'Mano de Obra' : 'Licencias/Otros'}
                           </span>
                           {userRole !== 'viewer' && (
-                            <button
-                              type="button"
-                              style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
-                              onClick={() => handleRemoveBudgetItem(idx)}
-                              title="Eliminar renglón presupuestario"
-                            >
-                              <Trash2 size={12} />
-                            </button>
+                            <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                              <button
+                                type="button"
+                                style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                onClick={() => handleOpenEditBudgetItem(idx)}
+                                title="Editar renglón presupuestario"
+                              >
+                                <Edit3 size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                onClick={() => handleRemoveBudgetItem(idx)}
+                                title="Eliminar renglón presupuestario"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           )}
                         </div>
                         <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '2px' }}>{item.name}</h4>
@@ -1699,7 +1745,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '500px' }}>
             <div className="modal-header">
-              <h3>Agregar Nuevo Renglón Presupuestario</h3>
+              <h3>{editingBudgetItemIndex !== null ? 'Editar Renglón Presupuestario' : 'Agregar Nuevo Renglón Presupuestario'}</h3>
               <button className="btn-icon" onClick={() => setShowAddBudgetItem(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleAddBudgetItemSubmit}>
@@ -1773,7 +1819,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Agregar Renglón
+                  {editingBudgetItemIndex !== null ? 'Guardar Cambios' : 'Agregar Renglón'}
                 </button>
               </div>
             </form>
