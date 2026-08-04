@@ -55,6 +55,11 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   const [activeTab, setActiveTab] = useState('general');
   const [documents, setDocuments] = useState([]);
   const [progressLogs, setProgressLogs] = useState([]);
+
+  console.log("ProjectDetail transactions count:", transactions.length);
+  console.log("ProjectDetail current project ID:", project.id);
+  console.log("ProjectDetail transactions for project:", transactions.filter(t => String(t.projectId) === String(project.id)));
+
   
   // Modal states
   const [showScanner, setShowScanner] = useState(false);
@@ -389,12 +394,15 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     try {
       if (editingExpenseId !== null) {
         // Editing existing expense
-        const oldTx = transactions.find(t => t.id === editingExpenseId);
+        const oldTx = transactions.find(t => String(t.id) === String(editingExpenseId));
         if (oldTx) {
           const oldAmt = oldTx.amount;
           // Find old budget item name from description
           const oldBudgetItemName = oldTx.description.split(' || ')[0];
-          const oldBudgetItem = updatedBudgetItems.find(item => item.name === oldBudgetItemName);
+          let oldBudgetItem = updatedBudgetItems.find(item => item.name === oldBudgetItemName);
+          if (!oldBudgetItem) {
+            oldBudgetItem = updatedBudgetItems.find(item => item.category === oldTx.category);
+          }
           if (oldBudgetItem) {
             oldBudgetItem.actual = Math.max(0, (oldBudgetItem.actual || 0) - oldAmt);
           }
@@ -466,8 +474,19 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     if (confirm(`¿Seguro que deseas eliminar el gasto "${exp.description.split(' || ')[1] || exp.description}" por valor de ${formatCurrency(exp.amount)}?`)) {
       try {
         const updatedBudgetItems = [...project.budgetItems];
-        const category = updatedBudgetItems[budgetItemIdx];
-        category.actual = Math.max(0, (category.actual || 0) - exp.amount);
+        
+        // Find which budget item to deduct from
+        const parts = exp.description.split(' || ');
+        let category = null;
+        if (parts[1]) {
+          category = updatedBudgetItems.find(item => item.name === parts[0]);
+        } else {
+          category = updatedBudgetItems[budgetItemIdx] || updatedBudgetItems.find(item => item.category === exp.category);
+        }
+
+        if (category) {
+          category.actual = Math.max(0, (category.actual || 0) - exp.amount);
+        }
 
         const updatedProject = {
           ...project,
@@ -1061,7 +1080,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                     {/* Gastos asociados a este renglón */}
                     {(() => {
                       const itemExpenses = transactions.filter(t => 
-                        t.projectId === project.id &&
+                        String(t.projectId) === String(project.id) &&
                         t.type === 'expense' &&
                         t.description.startsWith(item.name + ' || ')
                       );
@@ -1117,6 +1136,61 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                 );
               })}
             </div>
+
+            {/* Unclassified expenses (Legacy) */}
+            {(() => {
+              const unclassifiedExpenses = transactions.filter(t => {
+                if (String(t.projectId) !== String(project.id) || t.type !== 'expense') return false;
+                const belongsToAnyItem = project.budgetItems.some(item => t.description.startsWith(item.name + ' || '));
+                return !belongsToAnyItem;
+              });
+
+              if (unclassifiedExpenses.length === 0) return null;
+
+              return (
+                <div className="glass-panel" style={{ padding: '16px', borderRadius: '12px', background: 'rgba(245,158,11,0.02)', border: '1px dashed rgba(245,158,11,0.2)', marginBottom: '15px' }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--primary-orange)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    ⚠️ Gastos sin Clasificar en Renglón ({unclassifiedExpenses.length})
+                  </h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                    Estos gastos fueron registrados previamente. Haz clic en el lápiz para editarlos y asignarlos a un renglón presupuestario específico.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {unclassifiedExpenses.map((exp) => (
+                      <div key={exp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', padding: '6px 10px', borderRadius: '6px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{exp.description}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{exp.date}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(exp.amount)}</span>
+                          {userRole !== 'viewer' && (
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              <button 
+                                type="button" 
+                                style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                onClick={() => handleOpenEditExpense(exp, 0)}
+                                title="Asignar a un renglón"
+                              >
+                                <Edit3 size={11} />
+                              </button>
+                              <button 
+                                type="button" 
+                                style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                onClick={() => handleDeleteExpense(exp, 0)}
+                                title="Eliminar gasto"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Total Budget Summary card */}
             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid var(--border-glass)', paddingTop: '20px', marginTop: '10px', flexWrap: 'wrap', gap: '20px' }}>
