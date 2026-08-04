@@ -95,6 +95,10 @@ export default function ProjectForm({ project, onClose, onSave }) {
             const pct = parseFloat(value) || 0;
             updated.percentage = pct;
             updated.amount = Math.round((prev.totalCost * pct) / 100);
+          } else if (field === 'amount') {
+            const amt = parseFloat(value) || 0;
+            updated.amount = amt;
+            updated.percentage = prev.totalCost > 0 ? parseFloat(((amt / prev.totalCost) * 100).toFixed(2)) : 0;
           } else {
             updated[field] = value;
           }
@@ -106,8 +110,10 @@ export default function ProjectForm({ project, onClose, onSave }) {
     });
   };
 
-  // Calculate sum of plan percentages
-  const totalPercentage = formData.paymentPlan.reduce((sum, p) => sum + p.percentage, 0);
+  // Calculate sum of plan percentages and amounts
+  const totalPercentage = formData.paymentPlan.reduce((sum, p) => sum + (parseFloat(p.percentage) || 0), 0);
+  const totalAmount = formData.paymentPlan.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  const isPlanValid = Math.abs(totalPercentage - 100) < 0.1 || totalAmount === formData.totalCost;
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('es-CO', {
@@ -134,9 +140,9 @@ export default function ProjectForm({ project, onClose, onSave }) {
     }
 
     // Percentage check
-    if (totalPercentage !== 100) {
-      alert(`La suma de los porcentajes de los hitos de pago debe ser exactamente 100%. Actualmente es ${totalPercentage}%. Ajusta los porcentajes antes de continuar.`);
-      return;
+    if (!isPlanValid) {
+      const proceed = window.confirm(`⚠️ Advertencia: El plan de pagos no cubre el 100% del proyecto (suma de porcentajes: ${totalPercentage.toFixed(2)}%, suma de montos: ${formatCurrency(totalAmount)} de ${formatCurrency(formData.totalCost)}).\n\n¿Deseas guardar de todas formas?`);
+      if (!proceed) return;
     }
 
     // Check if any milestone lacks a name
@@ -361,9 +367,18 @@ export default function ProjectForm({ project, onClose, onSave }) {
                       />
                     </div>
 
-                    {/* Amount preview */}
-                    <div style={{ width: '130px', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {formatCurrency(milestone.amount)}
+                    {/* Amount input */}
+                    <div style={{ width: '150px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>$</span>
+                      <input
+                        type="number"
+                        className="form-control"
+                        placeholder="Monto"
+                        min="0"
+                        value={milestone.amount !== undefined && milestone.amount !== null ? milestone.amount : ''}
+                        onChange={(e) => handleMilestoneChange(milestone.id, 'amount', e.target.value)}
+                        required
+                      />
                     </div>
 
                     {/* Delete item */}
@@ -380,12 +395,12 @@ export default function ProjectForm({ project, onClose, onSave }) {
               </div>
 
               {/* Percentages validation display */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px', padding: '10px 15px', borderRadius: '8px', background: totalPercentage === 100 ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)', border: totalPercentage === 100 ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(245,158,11,0.2)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px', padding: '10px 15px', borderRadius: '8px', background: isPlanValid ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)', border: isPlanValid ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(245,158,11,0.2)' }}>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                   Total del Presupuesto Distribuido:
                 </span>
-                <span style={{ fontWeight: 700, fontSize: '0.95rem', color: totalPercentage === 100 ? 'var(--primary-teal)' : 'var(--primary-orange)' }}>
-                  {totalPercentage}% / 100% {totalPercentage === 100 ? '✓ Listo' : '⚠️ Pendiente'}
+                <span style={{ fontWeight: 700, fontSize: '0.95rem', color: isPlanValid ? 'var(--primary-teal)' : 'var(--primary-orange)' }}>
+                  {totalPercentage.toFixed(2)}% / 100% {isPlanValid ? '✓ Listo' : '⚠️ Pendiente'}
                 </span>
               </div>
             </div>
@@ -402,7 +417,7 @@ export default function ProjectForm({ project, onClose, onSave }) {
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary" disabled={totalPercentage !== 100}>
+            <button type="submit" className="btn btn-primary">
               <Save size={16} /> Guardar Cambios
             </button>
           </div>

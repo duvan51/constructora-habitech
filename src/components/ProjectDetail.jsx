@@ -451,6 +451,10 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
             const pct = parseFloat(value) || 0;
             item.percentage = pct;
             item.amount = Math.round((project.totalCost * pct) / 100);
+          } else if (field === 'amount') {
+            const amt = parseFloat(value) || 0;
+            item.amount = amt;
+            item.percentage = project.totalCost > 0 ? parseFloat(((amt / project.totalCost) * 100).toFixed(2)) : 0;
           } else {
             item[field] = value;
           }
@@ -481,10 +485,13 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   };
 
   const handleSavePaymentPlan = () => {
-    const totalPct = tempPaymentPlan.reduce((sum, p) => sum + p.percentage, 0);
-    if (totalPct !== 100) {
-      alert(`La suma total de los porcentajes de los hitos debe ser exactamente 100%. Actualmente es ${totalPct}%.`);
-      return;
+    const totalPct = tempPaymentPlan.reduce((sum, p) => sum + (parseFloat(p.percentage) || 0), 0);
+    const totalAmount = tempPaymentPlan.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const isPlanValid = Math.abs(totalPct - 100) < 0.1 || totalAmount === project.totalCost;
+
+    if (!isPlanValid) {
+      const proceed = window.confirm(`⚠️ Advertencia: El plan de pagos no cubre el 100% del proyecto (suma de porcentajes: ${totalPct.toFixed(2)}%, suma de montos: ${formatCurrency(totalAmount)} de ${formatCurrency(project.totalCost)}).\n\n¿Deseas guardar de todas formas?`);
+      if (!proceed) return;
     }
 
     const hasEmptyName = tempPaymentPlan.some(p => !p.name.trim());
@@ -1782,10 +1789,6 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               <button className="btn-icon" onClick={() => setShowEditPaymentPlan(false)}><X size={18} /></button>
             </div>
             <div className="modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
-              <div style={{ marginBottom: '15px', padding: '10px 15px', borderRadius: '8px', background: 'rgba(6, 182, 212, 0.05)', border: '1px solid rgba(6, 182, 212, 0.15)', fontSize: '0.85rem' }}>
-                <p>⚠️ <strong>Nota:</strong> Los hitos de pago ya cobrados se encuentran bloqueados para proteger los ingresos registrados en contabilidad. Solo puedes modificar, dividir o agregar hitos de pago pendientes.</p>
-              </div>
-
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <h4 style={{ fontSize: '0.95rem', color: 'var(--primary-cyan)' }}>Plan de Pagos Actual</h4>
                 <button type="button" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={handleAddTempPayment}>
@@ -1806,7 +1809,6 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                           className="form-control"
                           value={pay.name}
                           onChange={(e) => handleTempPaymentChange(pay.id, 'name', e.target.value)}
-                          disabled={isPaid}
                           placeholder="Concepto (ej: 50% Estructura)"
                           required
                         />
@@ -1819,7 +1821,6 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                           className="form-control"
                           value={pay.percentage}
                           onChange={(e) => handleTempPaymentChange(pay.id, 'percentage', e.target.value)}
-                          disabled={isPaid}
                           placeholder="%"
                           min="0"
                           max="100"
@@ -1835,30 +1836,38 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                           className="form-control"
                           value={pay.dueDate || ''}
                           onChange={(e) => handleTempPaymentChange(pay.id, 'dueDate', e.target.value)}
-                          disabled={isPaid}
                           required
                         />
                       </div>
 
-                      {/* Amount preview */}
-                      <div style={{ width: '120px', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600, color: isPaid ? 'var(--primary-teal)' : 'var(--text-primary)' }}>
-                        {formatCurrency(pay.amount)}
+                      {/* Amount input */}
+                      <div style={{ width: '150px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>$</span>
+                        <input
+                          type="number"
+                          className="form-control"
+                          value={pay.amount !== undefined && pay.amount !== null ? pay.amount : ''}
+                          onChange={(e) => handleTempPaymentChange(pay.id, 'amount', e.target.value)}
+                          placeholder="Monto"
+                          min="0"
+                          required
+                          style={isPaid ? { borderColor: 'rgba(16,185,129,0.3)', color: 'var(--primary-teal)', fontWeight: 600 } : {}}
+                        />
                       </div>
 
                       {/* Action / Delete */}
-                      <div style={{ width: '32px', textAlign: 'center' }}>
-                        {isPaid ? (
+                      <div style={{ width: '90px', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                        {isPaid && (
                           <span className="badge badge-completed" style={{ fontSize: '0.65rem', padding: '3px 6px' }}>Cobrado</span>
-                        ) : (
-                          <button 
-                            type="button" 
-                            className="btn-icon" 
-                            style={{ padding: '6px', color: 'var(--primary-red)', background: 'rgba(244,63,94,0.05)', borderColor: 'rgba(244,63,94,0.1)' }}
-                            onClick={() => handleRemoveTempPayment(pay.id)}
-                          >
-                            <Trash2 size={14} />
-                          </button>
                         )}
+                        <button 
+                          type="button" 
+                          className="btn-icon" 
+                          style={{ padding: '6px', color: 'var(--primary-red)', background: 'rgba(244,63,94,0.05)', borderColor: 'rgba(244,63,94,0.1)' }}
+                          onClick={() => handleRemoveTempPayment(pay.id)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -1867,14 +1876,16 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
               {/* Percentages validation display */}
               {(() => {
-                const totalTempPct = tempPaymentPlan.reduce((sum, p) => sum + p.percentage, 0);
+                const totalTempPct = tempPaymentPlan.reduce((sum, p) => sum + (parseFloat(p.percentage) || 0), 0);
+                const totalTempAmount = tempPaymentPlan.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+                const isPlanValid = Math.abs(totalTempPct - 100) < 0.1 || totalTempAmount === project.totalCost;
                 return (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px', padding: '10px 15px', borderRadius: '8px', background: totalTempPct === 100 ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)', border: totalTempPct === 100 ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(245,158,11,0.2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px', padding: '10px 15px', borderRadius: '8px', background: isPlanValid ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)', border: isPlanValid ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(245,158,11,0.2)' }}>
                     <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                       Total Distribuido del Plan:
                     </span>
-                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: totalTempPct === 100 ? 'var(--primary-teal)' : 'var(--primary-orange)' }}>
-                      {totalTempPct}% / 100% {totalTempPct === 100 ? '✓ Listo' : '⚠️ Ajustar a 100%'}
+                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: isPlanValid ? 'var(--primary-teal)' : 'var(--primary-orange)' }}>
+                      {totalTempPct.toFixed(2)}% / 100% {isPlanValid ? '✓ Listo' : '⚠️ Pendiente'}
                     </span>
                   </div>
                 );
@@ -1884,7 +1895,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               <button type="button" className="btn btn-secondary" onClick={() => setShowEditPaymentPlan(false)}>
                 Cancelar
               </button>
-              <button type="button" className="btn btn-primary" onClick={handleSavePaymentPlan} disabled={tempPaymentPlan.reduce((sum, p) => sum + p.percentage, 0) !== 100}>
+              <button type="button" className="btn btn-primary" onClick={handleSavePaymentPlan}>
                 Guardar Reestructuración
               </button>
             </div>
