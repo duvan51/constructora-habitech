@@ -294,6 +294,7 @@ export default function App() {
               onUpdate={handleSaveProject}
               logGlobalTransaction={logGlobalTransaction}
               userRole={currentUser.role}
+              transactions={transactions}
             />
             
             {currentUser.role !== 'viewer' && (

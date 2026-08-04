@@ -9,7 +9,8 @@ import {
   getProgressLogsForProject, 
   saveProgressLog, 
   deleteProgressLog,
-  deleteItem 
+  deleteItem,
+  saveItem
 } from '../db/supabase';
 import ScannerModal from './ScannerModal';
 import ReceiptModal from './ReceiptModal';
@@ -50,7 +51,7 @@ const compressImage = (base64Str, maxWidth = 1200, maxHeight = 1200, quality = 0
   });
 };
 
-export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTransaction, userRole }) {
+export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTransaction, userRole, transactions = [] }) {
   const [activeTab, setActiveTab] = useState('general');
   const [documents, setDocuments] = useState([]);
   const [progressLogs, setProgressLogs] = useState([]);
@@ -70,6 +71,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   
   // Expense Logging Form State
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [expenseData, setExpenseData] = useState({
     description: '',
     categoryIndex: 0,
@@ -360,7 +362,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   };
 
   // 2. Add Expense to a Budget Category
-  const handleAddExpenseSubmit = (e) => {
+  // 2. Add / Edit Expense to a Budget Category
+  const handleAddExpenseSubmit = async (e) => {
     e.preventDefault();
     const amt = parseFloat(expenseData.amount);
     if (!expenseData.description.trim() || amt <= 0) {
@@ -371,13 +374,6 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     const catIdx = expenseData.categoryIndex;
     const updatedBudgetItems = [...project.budgetItems];
     const category = updatedBudgetItems[catIdx];
-    
-    category.actual = (category.actual || 0) + amt;
-
-    const updatedProject = {
-      ...project,
-      budgetItems: updatedBudgetItems
-    };
 
     // Log in global ledger
     const newTx = {
@@ -385,22 +381,109 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       projectName: project.name,
       type: 'expense',
       category: category.category, // 'materials' | 'labor' | 'permits'
-      description: `Compra: ${expenseData.description} (Obra: ${project.name})`,
+      description: `${category.name} || Compra: ${expenseData.description} (Obra: ${project.name})`,
       amount: amt,
       date: expenseData.date
     };
 
-    logGlobalTransaction(newTx);
-    onUpdate(updatedProject);
+    try {
+      if (editingExpenseId !== null) {
+        // Editing existing expense
+        const oldTx = transactions.find(t => t.id === editingExpenseId);
+        if (oldTx) {
+          const oldAmt = oldTx.amount;
+          // Find old budget item name from description
+          const oldBudgetItemName = oldTx.description.split(' || ')[0];
+          const oldBudgetItem = updatedBudgetItems.find(item => item.name === oldBudgetItemName);
+          if (oldBudgetItem) {
+            oldBudgetItem.actual = Math.max(0, (oldBudgetItem.actual || 0) - oldAmt);
+          }
+        }
 
-    // Reset Form
+        // Add new amount to currently selected category
+        category.actual = (category.actual || 0) + amt;
+
+        // Save updated transaction in database
+        await saveItem('transactions', {
+          ...oldTx,
+          ...newTx,
+          id: editingExpenseId
+        });
+      } else {
+        // Creating new expense
+        category.actual = (category.actual || 0) + amt;
+
+        // Save new transaction
+        const txWithId = {
+          ...newTx,
+          id: `tx_${new Date().getTime()}`
+        };
+        await saveItem('transactions', txWithId);
+      }
+
+      const updatedProject = {
+        ...project,
+        budgetItems: updatedBudgetItems
+      };
+
+      await onUpdate(updatedProject);
+
+      // Reset Form
+      setExpenseData({
+        description: '',
+        categoryIndex: 0,
+        amount: '',
+        date: new Date().toISOString().split('T')[0]
+      });
+      setEditingExpenseId(null);
+      setShowAddExpense(false);
+    } catch (err) {
+      console.error(err);
+      alert('Error al guardar la transacción.');
+    }
+  };
+
+  const handleOpenEditExpense = (exp, budgetItemIdx) => {
+    const parts = exp.description.split(' || ');
+    const originalDesc = parts[1] ? parts[1].replace(`Compra: `, '').replace(` (Obra: ${project.name})`, '') : exp.description;
+
     setExpenseData({
-      description: '',
-      categoryIndex: 0,
-      amount: '',
-      date: new Date().toISOString().split('T')[0]
+      description: originalDesc,
+      categoryIndex: budgetItemIdx,
+      amount: exp.amount.toString(),
+      date: exp.date
     });
-    setShowAddExpense(false);
+    setEditingExpenseId(exp.id);
+    if (project.totalCost > 0) {
+      setExpensePercentage(((exp.amount / project.totalCost) * 100).toFixed(2));
+    } else {
+      setExpensePercentage('');
+    }
+    setShowAddExpense(true);
+  };
+
+  const handleDeleteExpense = async (exp, budgetItemIdx) => {
+    if (confirm(`¿Seguro que deseas eliminar el gasto "${exp.description.split(' || ')[1] || exp.description}" por valor de ${formatCurrency(exp.amount)}?`)) {
+      try {
+        const updatedBudgetItems = [...project.budgetItems];
+        const category = updatedBudgetItems[budgetItemIdx];
+        category.actual = Math.max(0, (category.actual || 0) - exp.amount);
+
+        const updatedProject = {
+          ...project,
+          budgetItems: updatedBudgetItems
+        };
+
+        // Delete from ledger
+        await deleteItem('transactions', exp.id);
+        
+        // Save project changes
+        await onUpdate(updatedProject);
+      } catch (err) {
+        console.error(err);
+        alert('Error al eliminar el gasto.');
+      }
+    }
   };
 
   // Add Custom Budget Item
@@ -900,7 +983,17 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                   <button className="btn btn-secondary" onClick={() => { setEditingBudgetItemIndex(null); setNewBudgetItem({ name: '', estimated: '', category: 'materials' }); setCalcPercentage(''); setShowAddBudgetItem(true); }}>
                     <Plus size={16} /> Agregar Renglón
                   </button>
-                  <button className="btn btn-primary" onClick={() => { setShowAddExpense(true); setExpensePercentage(''); }}>
+                  <button className="btn btn-primary" onClick={() => { 
+                    setEditingExpenseId(null); 
+                    setExpenseData({
+                      description: '',
+                      categoryIndex: 0,
+                      amount: '',
+                      date: new Date().toISOString().split('T')[0]
+                    });
+                    setExpensePercentage(''); 
+                    setShowAddExpense(true); 
+                  }}>
                     <Plus size={16} /> Registrar Compra / Gasto
                   </button>
                 </div>
@@ -964,6 +1057,62 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                       <span>Ejecución del renglón</span>
                       <span style={{ fontWeight: 700 }}>{percent}%</span>
                     </div>
+
+                    {/* Gastos asociados a este renglón */}
+                    {(() => {
+                      const itemExpenses = transactions.filter(t => 
+                        t.projectId === project.id &&
+                        t.type === 'expense' &&
+                        t.description.startsWith(item.name + ' || ')
+                      );
+
+                      if (itemExpenses.length === 0) return null;
+
+                      return (
+                        <div style={{ marginTop: '12px', borderTop: '1px dashed var(--border-glass)', paddingTop: '10px' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Gastos / Compras registrados:</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                            {itemExpenses.map((exp) => {
+                              const descParts = exp.description.split(' || ');
+                              const displayDesc = descParts[1] 
+                                ? descParts[1].replace('Compra: ', '').replace(` (Obra: ${project.name})`, '')
+                                : exp.description;
+                              return (
+                                <div key={exp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', padding: '6px 10px', borderRadius: '6px' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{displayDesc}</span>
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{exp.date}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(exp.amount)}</span>
+                                    {userRole !== 'viewer' && (
+                                      <div style={{ display: 'flex', gap: '4px' }}>
+                                        <button 
+                                          type="button" 
+                                          style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                          onClick={() => handleOpenEditExpense(exp, idx)}
+                                          title="Editar gasto"
+                                        >
+                                          <Edit3 size={11} />
+                                        </button>
+                                        <button 
+                                          type="button" 
+                                          style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                          onClick={() => handleDeleteExpense(exp, idx)}
+                                          title="Eliminar gasto"
+                                        >
+                                          <Trash2 size={11} />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -1189,8 +1338,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '500px' }}>
             <div className="modal-header">
-              <h3>Registrar Compra / Gasto en Obra</h3>
-              <button className="btn-icon" onClick={() => setShowAddExpense(false)}><X size={18} /></button>
+              <h3>{editingExpenseId !== null ? 'Editar Gasto / Compra' : 'Registrar Compra / Gasto en Obra'}</h3>
+              <button className="btn-icon" onClick={() => { setShowAddExpense(false); setEditingExpenseId(null); }}><X size={18} /></button>
             </div>
             <form onSubmit={handleAddExpenseSubmit}>
               <div className="modal-body">
@@ -1338,11 +1487,11 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddExpense(false)}>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowAddExpense(false); setEditingExpenseId(null); }}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Registrar Transacción
+                  {editingExpenseId !== null ? 'Guardar Cambios' : 'Registrar Transacción'}
                 </button>
               </div>
             </form>
