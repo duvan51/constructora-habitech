@@ -91,39 +91,14 @@ export default function Login({ onLoginSuccess }) {
           <div style={{
             background: 'rgba(255, 255, 255, 0.03)',
             border: '1px solid var(--border-glass)',
-            padding: '16px 24px',
+            padding: '20px',
             borderRadius: '20px',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
             boxShadow: 'var(--glow-cyan)'
           }}>
-            <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-              {/* Left Pillar of H */}
-              <path d="M 24 20 H 42 V 26 H 36 V 74 H 42 V 80 H 24 V 74 H 30 V 26 H 24 Z" fill="#FF6D00" />
-              {/* Right Pillar of H */}
-              <path d="M 58 20 H 76 V 26 H 70 V 74 H 76 V 80 H 58 V 74 H 64 V 26 H 58 Z" fill="#FF6D00" />
-              {/* Wavy bar in the middle */}
-              <path d="M 36 48 C 42 36, 58 64, 70 52 C 70 58, 58 70, 36 54 Z" fill="#FF6D00" />
-            </svg>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700, letterSpacing: '1px' }}>
-              CONSTRUCTORA E INMOBILIARIA
-            </div>
-            <div style={{ 
-              marginTop: '6px', 
-              padding: '4px 14px', 
-              border: '2px solid #FF6D00', 
-              borderRadius: '8px', 
-              display: 'inline-block',
-              fontWeight: 800,
-              fontSize: '1.2rem',
-              color: '#FF6D00',
-              letterSpacing: '0.5px'
-            }}>
-              HABITECH SAS
-            </div>
+            <img src="/logo.png" alt="Logo HABITECH SAS" style={{ height: '140px', objectFit: 'contain' }} />
           </div>
         </div>
 

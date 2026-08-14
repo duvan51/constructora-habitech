@@ -1,8 +1,8 @@
 import React from 'react';
 import { X, Printer, CheckCircle } from 'lucide-react';
 
-export default function ReceiptModal({ project, payment, onClose }) {
-  if (!project || !payment) return null;
+export default function ExpenseReceiptModal({ project, transaction, onClose }) {
+  if (!project || !transaction) return null;
 
   // Formatting helpers
   const formatCurrency = (value) => {
@@ -17,30 +17,37 @@ export default function ReceiptModal({ project, payment, onClose }) {
     window.print();
   };
 
-  // Calculate project financials up to this point
-  const totalPaid = project.paymentPlan.reduce((sum, p) => {
-    const paidForHito = p.payments && p.payments.length > 0
-      ? p.payments.reduce((s, pay) => s + pay.amount, 0)
-      : (p.status === 'paid' ? p.amount : 0);
-    return sum + paidForHito;
-  }, 0);
+  // Generate nice Receipt Number
+  const receiptNumber = `EGR-${project.id}-${transaction.id.toUpperCase().split('_')[1]?.substring(0, 6) || transaction.id.toUpperCase().substring(0, 6)}`;
 
-  const pendingBalance = project.totalCost - totalPaid;
+  // Parse transaction category label
+  const getCategoryLabel = (cat) => {
+    switch (cat) {
+      case 'materials': return 'Materiales';
+      case 'labor': return 'Mano de Obra';
+      case 'permits': return 'Licencias y Permisos';
+      default: return cat;
+    }
+  };
 
-  // Get payments list for this milestone
-  const milestonePayments = payment.payments || (payment.status === 'paid' ? [{ id: 'legacy', amount: payment.amount, date: payment.paidDate || payment.dueDate, method: 'Transferencia', files: [] }] : []);
-  const hitoTotalPaid = milestonePayments.reduce((s, p) => s + p.amount, 0);
-  const hitoRemaining = Math.max(0, payment.amount - hitoTotalPaid);
-
-  const receiptNumber = `RCP-${project.id}-${payment.id.toUpperCase()}`;
+  // Strip description text to show clean details
+  const getCleanDescription = () => {
+    if (!transaction.description) return '';
+    // If it contains "|| Compra: ", extract what is after it
+    if (transaction.description.includes('|| Compra:')) {
+      const parts = transaction.description.split('|| Compra:');
+      return parts[1]?.split('(Obra:')[0]?.trim() || transaction.description;
+    }
+    return transaction.description;
+  };
 
   return (
     <div className="modal-overlay">
       <div className="modal-content" style={{ maxWidth: '750px', background: 'var(--bg-secondary)' }}>
         <div className="modal-header">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CheckCircle size={22} style={{ color: 'var(--primary-teal)' }} />
-            Recibo de Caja Generado
+            <CheckCircle size={22} style={{ color: 'var(--primary-orange)' }} />
+            Comprobante de Egreso Generado
           </h3>
           <button className="btn-icon" onClick={onClose}><X size={18} /></button>
         </div>
@@ -63,12 +70,12 @@ export default function ReceiptModal({ project, payment, onClose }) {
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#111827' }}>RECIBO DE CAJA</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#111827' }}>COMPROBANTE DE EGRESO</div>
                 <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#FF6D00', marginTop: '3px' }}>
                   N° {receiptNumber}
                 </div>
                 <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '10px' }}>
-                  <strong>Fecha Emisión:</strong> {payment.paidDate || new Date().toISOString().split('T')[0]}
+                  <strong>Fecha Egreso:</strong> {transaction.date}
                 </div>
               </div>
             </div>
@@ -77,12 +84,11 @@ export default function ReceiptModal({ project, payment, onClose }) {
             <div className="receipt-details">
               <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px' }}>
                 <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#9ca3af', fontWeight: 700, marginBottom: '6px' }}>
-                  RECIBIDO DE (CLIENTE)
+                  ENTREGADO A / PAGADO A
                 </div>
-                <div style={{ fontWeight: 700, color: '#1f2937', fontSize: '1.05rem' }}>{project.clientName}</div>
+                <div style={{ fontWeight: 700, color: '#1f2937', fontSize: '1.05rem' }}>Proveedor / Compras de Obra</div>
                 <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '4px' }}>
-                  <strong>Tel:</strong> {project.clientPhone || 'N/A'}<br />
-                  <strong>Email:</strong> {project.clientEmail || 'N/A'}
+                  <strong>Concepto General:</strong> Compra de materiales y servicios relacionados.
                 </div>
               </div>
 
@@ -97,61 +103,37 @@ export default function ReceiptModal({ project, payment, onClose }) {
               </div>
             </div>
 
-            {/* Financial Ledger Table */}
+            {/* Itemized Table */}
             <table className="receipt-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px', marginBottom: '20px' }}>
               <thead>
                 <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb', color: '#374151', fontSize: '0.85rem', textAlign: 'left' }}>
-                  <th style={{ padding: '10px' }}>Concepto / Descripción del Pago</th>
-                  <th style={{ padding: '10px' }}>Fecha Pago</th>
-                  <th style={{ padding: '10px' }}>Método</th>
-                  <th style={{ padding: '10px', textAlign: 'right' }}>Valor Recibido</th>
+                  <th style={{ padding: '10px' }}>Detalle de la Transacción / Compra</th>
+                  <th style={{ padding: '10px' }}>Categoría Presupuesto</th>
+                  <th style={{ padding: '10px', textAlign: 'right' }}>Valor Retirado (Egreso)</th>
                 </tr>
               </thead>
               <tbody>
-                {milestonePayments.map((p, idx) => (
-                  <tr key={p.id || idx} style={{ borderBottom: '1px solid #e5e7eb', fontSize: '0.9rem', color: '#4b5563' }}>
-                    <td style={{ padding: '12px 10px' }}>
-                      <div style={{ fontWeight: 600, color: '#1f2937' }}>{payment.name}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '2px' }}>
-                        Abono Parcial #{idx + 1} ({payment.percentage}%)
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 10px' }}>{p.date}</td>
-                    <td style={{ padding: '12px 10px' }}>{p.method}</td>
-                    <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
-                      {formatCurrency(p.amount)}
-                    </td>
-                  </tr>
-                ))}
+                <tr style={{ borderBottom: '1px solid #e5e7eb', fontSize: '0.9rem', color: '#4b5563' }}>
+                  <td style={{ padding: '12px 10px' }}>
+                    <div style={{ fontWeight: 600, color: '#1f2937' }}>{getCleanDescription()}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '2px' }}>
+                      Egreso cargado a costos de obra
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 10px' }}>{getCategoryLabel(transaction.category)}</td>
+                  <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#ef4444' }}>
+                    {formatCurrency(transaction.amount)}
+                  </td>
+                </tr>
               </tbody>
             </table>
 
             {/* Financial Summary */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
               <div style={{ width: '100%', maxWidth: '340px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: '#4b5563' }}>Monto Sugerido del Hito:</span>
-                  <span style={{ fontWeight: 600, color: '#1f2937' }}>{formatCurrency(payment.amount)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: '#4b5563' }}>Total Cobrado Hito:</span>
-                  <span style={{ fontWeight: 700, color: '#10b981' }}>{formatCurrency(hitoTotalPaid)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderBottom: '1px dashed #e5e7eb', paddingBottom: '6px' }}>
-                  <span style={{ color: '#4b5563' }}>Restante por este Hito:</span>
-                  <span style={{ fontWeight: 700, color: '#f59e0b' }}>{formatCurrency(hitoRemaining)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: '#4b5563' }}>Total Contrato Obra:</span>
-                  <span style={{ fontWeight: 600, color: '#1f2937' }}>{formatCurrency(project.totalCost)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: '#4b5563' }}>Total Recaudado Acumulado:</span>
-                  <span style={{ fontWeight: 600, color: '#10b981' }}>{formatCurrency(totalPaid)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', borderTop: '2px solid #e5e7eb', paddingTop: '8px' }}>
-                  <span style={{ fontWeight: 700, color: '#1f2937' }}>Saldo Pendiente Obra:</span>
-                  <span style={{ fontWeight: 700, color: '#f59e0b' }}>{formatCurrency(pendingBalance)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', borderTop: '2px solid #e5e7eb', paddingTop: '8px' }}>
+                  <span style={{ fontWeight: 700, color: '#1f2937' }}>Valor Total del Egreso:</span>
+                  <span style={{ fontWeight: 700, color: '#ef4444' }}>{formatCurrency(transaction.amount)}</span>
                 </div>
               </div>
             </div>
@@ -170,9 +152,9 @@ export default function ReceiptModal({ project, payment, onClose }) {
                 <div style={{ fontSize: '0.75rem' }}>Firma Autorizada</div>
               </div>
               <div style={{ width: '45%', textAlign: 'center' }}>
-                <div style={{ height: '50px', borderBottom: '1px solid #9ca3af', marginBottom: '10px' }}></div>
-                <div style={{ fontWeight: 600 }}>{project.clientName}</div>
-                <div style={{ fontSize: '0.75rem' }}>Firma del Cliente</div>
+                <div style={{ height: '55px', borderBottom: '1px solid #9ca3af', marginBottom: '10px' }}></div>
+                <div style={{ fontWeight: 600 }}>Firma Beneficiario</div>
+                <div style={{ fontSize: '0.75rem' }}>Recibido Conforme</div>
               </div>
             </div>
           </div>
@@ -183,7 +165,7 @@ export default function ReceiptModal({ project, payment, onClose }) {
             Cerrar
           </button>
           <button type="button" className="btn btn-primary" onClick={handlePrint}>
-            <Printer size={16} /> Imprimir Recibo
+            <Printer size={16} /> Imprimir Egreso
           </button>
         </div>
       </div>

@@ -54,8 +54,8 @@ export default function ProjectCard({ project, onSelect }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <MapPin size={14} style={{ color: 'var(--primary-cyan)', flexShrink: 0 }} />
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={project.location?.address}>
-            <strong>Ubicación:</strong> {project.location?.address}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={project.location?.customAddress || project.location?.address}>
+            <strong>Ubicación:</strong> {project.location?.customAddress || project.location?.address}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

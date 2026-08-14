@@ -54,7 +54,13 @@ export default function ProjectForm({ project, onClose, onSave }) {
   };
 
   const handleLocationChange = (loc) => {
-    setFormData(prev => ({ ...prev, location: loc }));
+    setFormData(prev => ({ 
+      ...prev, 
+      location: {
+        ...loc,
+        customAddress: prev.location?.customAddress || ''
+      } 
+    }));
   };
 
   // Payment Plan Management Actions
@@ -313,6 +319,25 @@ export default function ProjectForm({ project, onClose, onSave }) {
                     onChange={handleInputChange}
                   />
                 </div>
+              </div>
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label>Dirección del Cliente (para Facturación/Recibos)</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Ej: Calle 4 #15-32, Barrio El Centro (Dirección dada por el cliente)"
+                  value={formData.location?.customAddress || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormData(prev => ({
+                      ...prev,
+                      location: {
+                        ...prev.location,
+                        customAddress: val
+                      }
+                    }));
+                  }}
+                />
               </div>
             </div>
 

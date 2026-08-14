@@ -15,6 +15,7 @@ import {
 import ScannerModal from './ScannerModal';
 import ReceiptModal from './ReceiptModal';
 import ProjectForm from './ProjectForm';
+import ExpenseReceiptModal from './ExpenseReceiptModal';
 import { getCachedData, setCachedData } from '../db/storage';
 
 // Client-side image compression helper
@@ -51,10 +52,32 @@ const compressImage = (base64Str, maxWidth = 1200, maxHeight = 1200, quality = 0
   });
 };
 
+const getDocTypeBadge = (type) => {
+  switch (type) {
+    case 'contract':
+      return { label: 'Contrato Cliente', bg: 'rgba(99,102,241,0.15)', color: '#a5b4fc' };
+    case 'provider_contract':
+      return { label: 'Contrato Proveedor', bg: 'rgba(168,85,247,0.15)', color: '#d8b4fe' };
+    case 'insurance':
+      return { label: 'Seguro / Póliza', bg: 'rgba(244,63,94,0.15)', color: '#fda4af' };
+    case 'payment_receipt':
+      return { label: 'Comprobante Pago', bg: 'rgba(16,185,129,0.15)', color: '#6ee7b7' };
+    case 'blueprint':
+      return { label: 'Plano / Diseño', bg: 'rgba(6,182,212,0.15)', color: '#67e8f9' };
+    case 'permit':
+      return { label: 'Licencia / Permiso', bg: 'rgba(245,158,11,0.15)', color: '#fde047' };
+    default:
+      return { label: 'Documento', bg: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)' };
+  }
+};
+
 export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTransaction, userRole, transactions = [] }) {
   const [activeTab, setActiveTab] = useState('general');
   const [documents, setDocuments] = useState([]);
   const [progressLogs, setProgressLogs] = useState([]);
+  const [activeViewDocument, setActiveViewDocument] = useState(null);
+  const [isEditingDoc, setIsEditingDoc] = useState(false);
+  const [editingDocData, setEditingDocData] = useState({ name: '', type: '' });
 
   console.log("ProjectDetail transactions count:", transactions.length);
   console.log("ProjectDetail current project ID:", project.id);
@@ -64,6 +87,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   // Modal states
   const [showScanner, setShowScanner] = useState(false);
   const [showReceipt, setShowReceipt] = useState(null); // holds payment object
+  const [showExpenseReceipt, setShowExpenseReceipt] = useState(null); // holds expense transaction object
   const [showHitoPayments, setShowHitoPayments] = useState(null); // holds the active payment plan hito object
   const [showEditProject, setShowEditProject] = useState(false); // toggle project edit modal
   const [newPayment, setNewPayment] = useState({
@@ -718,6 +742,28 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     }
   };
 
+  const handleSaveDocMetadata = async (e) => {
+    e.preventDefault();
+    if (!editingDocData.name.trim()) {
+      alert('Por favor ingresa un nombre para el documento.');
+      return;
+    }
+    try {
+      const updatedDoc = {
+        ...activeViewDocument,
+        name: editingDocData.name.trim(),
+        type: editingDocData.type
+      };
+      await saveItem('documents', updatedDoc);
+      setIsEditingDoc(false);
+      setActiveViewDocument(updatedDoc);
+      await loadFiles();
+    } catch (err) {
+      console.error('Error saving document metadata:', err);
+      alert('Ocurrió un error al actualizar los datos del documento.');
+    }
+  };
+
   const handleDeleteProgressLog = async (id) => {
     if (confirm('¿Estás seguro de eliminar este registro de avance?')) {
       try {
@@ -847,7 +893,12 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                 Ubicación Satelital
               </h3>
               <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
-                <strong>Dirección:</strong> {project.location?.address || 'Sin dirección registrada'}
+                <strong>Dirección:</strong> {project.location?.customAddress || project.location?.address || 'Sin dirección registrada'}
+                {project.location?.customAddress && project.location?.address && (
+                  <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    <strong>Ref. Mapa:</strong> {project.location.address}
+                  </span>
+                )}
               </p>
               
               {/* Simple read-only static iframe map preview or dynamic OSM embed */}
@@ -1104,26 +1155,36 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                                   </div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(exp.amount)}</span>
-                                    {userRole !== 'viewer' && (
-                                      <div style={{ display: 'flex', gap: '4px' }}>
-                                        <button 
-                                          type="button" 
-                                          style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
-                                          onClick={() => handleOpenEditExpense(exp, idx)}
-                                          title="Editar gasto"
-                                        >
-                                          <Edit3 size={11} />
-                                        </button>
-                                        <button 
-                                          type="button" 
-                                          style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
-                                          onClick={() => handleDeleteExpense(exp, idx)}
-                                          title="Eliminar gasto"
-                                        >
-                                          <Trash2 size={11} />
-                                        </button>
-                                      </div>
-                                    )}
+                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                      <button 
+                                        type="button" 
+                                        style={{ background: 'none', border: 'none', color: 'var(--primary-orange)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                        onClick={() => setShowExpenseReceipt(exp)}
+                                        title="Imprimir comprobante de egreso"
+                                      >
+                                        <Printer size={11} />
+                                      </button>
+                                      {userRole !== 'viewer' && (
+                                        <>
+                                          <button 
+                                            type="button" 
+                                            style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                            onClick={() => handleOpenEditExpense(exp, idx)}
+                                            title="Editar gasto"
+                                          >
+                                            <Edit3 size={11} />
+                                          </button>
+                                          <button 
+                                            type="button" 
+                                            style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                            onClick={() => handleDeleteExpense(exp, idx)}
+                                            title="Eliminar gasto"
+                                          >
+                                            <Trash2 size={11} />
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -1164,26 +1225,36 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(exp.amount)}</span>
-                          {userRole !== 'viewer' && (
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              <button 
-                                type="button" 
-                                style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
-                                onClick={() => handleOpenEditExpense(exp, 0)}
-                                title="Asignar a un renglón"
-                              >
-                                <Edit3 size={11} />
-                              </button>
-                              <button 
-                                type="button" 
-                                style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
-                                onClick={() => handleDeleteExpense(exp, 0)}
-                                title="Eliminar gasto"
-                              >
-                                <Trash2 size={11} />
-                              </button>
-                            </div>
-                          )}
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button 
+                              type="button" 
+                              style={{ background: 'none', border: 'none', color: 'var(--primary-orange)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                              onClick={() => setShowExpenseReceipt(exp)}
+                              title="Imprimir comprobante de egreso"
+                            >
+                              <Printer size={11} />
+                            </button>
+                            {userRole !== 'viewer' && (
+                              <>
+                                <button 
+                                  type="button" 
+                                  style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                  onClick={() => handleOpenEditExpense(exp, 0)}
+                                  title="Asignar a un renglón"
+                                >
+                                  <Edit3 size={11} />
+                                </button>
+                                <button 
+                                  type="button" 
+                                  style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                  onClick={() => handleDeleteExpense(exp, 0)}
+                                  title="Eliminar gasto"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1241,18 +1312,14 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               {documents.map((doc) => (
                 <div key={doc.id} className="glass-panel" style={{ padding: '15px', display: 'flex', flexDirection: 'column', height: '100%', background: 'rgba(255,255,255,0.02)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                    <span className="badge" style={{ 
-                      fontSize: '0.65rem',
-                      background: doc.type === 'contract' ? 'rgba(99,102,241,0.15)' : doc.type === 'payment_receipt' ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)',
-                      color: doc.type === 'contract' ? '#a5b4fc' : doc.type === 'payment_receipt' ? '#6ee7b7' : 'var(--text-secondary)'
-                    }}>
-                      {doc.type === 'contract' ? 'Contrato' : doc.type === 'payment_receipt' ? 'Pago' : 'Documento'}
-                    </span>
-                    {userRole !== 'viewer' && (
-                      <button className="btn-icon" style={{ padding: '3px', background: 'none', border: 'none' }} onClick={() => handleDeleteDoc(doc.id)}>
-                        <Trash2 size={13} style={{ color: 'var(--primary-red)' }} />
-                      </button>
-                    )}
+                    {(() => {
+                      const badge = getDocTypeBadge(doc.type);
+                      return (
+                        <span className="badge" style={{ fontSize: '0.65rem', background: badge.bg, color: badge.color }}>
+                          {badge.label}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px', wordBreak: 'break-word', flex: 1 }}>
@@ -1268,23 +1335,23 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                       href={doc.fileBase64} 
                       download={doc.name}
                       className="btn btn-secondary" 
-                      style={{ padding: '6px', fontSize: '0.8rem', flex: 1, textDecoration: 'none', textAlign: 'center' }}
+                      style={{ padding: '6px', fontSize: '0.8rem', flex: 1, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title="Descargar"
                     >
                       <Download size={14} />
                     </a>
-                    {doc.fileBase64.startsWith('data:image/') && (
-                      <button 
-                        className="btn btn-primary" 
-                        style={{ padding: '6px', fontSize: '0.8rem', flex: 1 }}
-                        onClick={() => {
-                          const w = window.open();
-                          w.document.write(`<img src="${doc.fileBase64}" style="max-width:100%; max-height:100vh; display:block; margin:auto;" />`);
-                          w.document.title = doc.name;
-                        }}
-                      >
-                        <Eye size={14} />
-                      </button>
-                    )}
+                    <button 
+                      type="button"
+                      className="btn btn-primary" 
+                      style={{ padding: '6px', fontSize: '0.8rem', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onClick={() => {
+                        setActiveViewDocument(doc);
+                        setIsEditingDoc(false);
+                      }}
+                      title="Ver Documento"
+                    >
+                      <Eye size={14} />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -1698,6 +1765,15 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
           project={project}
           payment={showReceipt}
           onClose={() => setShowReceipt(null)}
+        />
+      )}
+
+      {/* PRINTABLE EXPENSE RECEIPT MODAL */}
+      {showExpenseReceipt && (
+        <ExpenseReceiptModal
+          project={project}
+          transaction={showExpenseReceipt}
+          onClose={() => setShowExpenseReceipt(null)}
         />
       )}
 
@@ -2182,6 +2258,165 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
             setShowEditProject(false);
           }}
         />
+      )}
+
+      {/* DOCUMENT VIEWER MODAL */}
+      {activeViewDocument && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '800px', background: 'var(--bg-secondary)' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={20} style={{ color: 'var(--primary-cyan)' }} />
+                {isEditingDoc ? 'Editar Datos del Documento' : 'Visualizador de Documentos'}
+              </h3>
+              <button 
+                type="button"
+                className="btn-icon" 
+                onClick={() => { 
+                  setActiveViewDocument(null); 
+                  setIsEditingDoc(false); 
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {isEditingDoc ? (
+                <form onSubmit={handleSaveDocMetadata} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div className="form-group">
+                    <label>Nombre del Documento / Contrato</label>
+                    <input 
+                      type="text" 
+                      className="form-control"
+                      value={editingDocData.name}
+                      onChange={(e) => setEditingDocData({ ...editingDocData, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Tipo de Documento</label>
+                    <select 
+                      className="form-control"
+                      value={editingDocData.type}
+                      onChange={(e) => setEditingDocData({ ...editingDocData, type: e.target.value })}
+                    >
+                      <option value="contract">Contrato de Cliente</option>
+                      <option value="provider_contract">Contrato de Proveedor / Contratista</option>
+                      <option value="insurance">Pólizas / Seguros</option>
+                      <option value="payment_receipt">Comprobante de Pago</option>
+                      <option value="blueprint">Plano / Diseño</option>
+                      <option value="permit">Licencia o Permiso</option>
+                      <option value="other">Otro Documento</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                      <Save size={16} /> Guardar Cambios
+                    </button>
+                    <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setIsEditingDoc(false)}>
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)', padding: '10px 15px', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+                    <div>
+                      <h4 style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '1rem' }}>{activeViewDocument.name}</h4>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>Subido el: {activeViewDocument.uploadDate}</p>
+                    </div>
+                    {(() => {
+                      const badge = getDocTypeBadge(activeViewDocument.type);
+                      return (
+                        <span className="badge" style={{ fontSize: '0.75rem', background: badge.bg, color: badge.color, padding: '4px 10px' }}>
+                          {badge.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
+
+                  <div style={{ 
+                    background: '#0b0f19', 
+                    borderRadius: '8px', 
+                    border: '1px solid var(--border-glass)',
+                    minHeight: '350px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    padding: '10px'
+                  }}>
+                    {activeViewDocument.fileBase64.startsWith('data:application/pdf') ? (
+                      <embed 
+                        src={activeViewDocument.fileBase64} 
+                        type="application/pdf" 
+                        width="100%" 
+                        height="450px" 
+                        style={{ borderRadius: '6px', border: 'none' }}
+                      />
+                    ) : activeViewDocument.fileBase64.startsWith('data:image/') ? (
+                      <img 
+                        src={activeViewDocument.fileBase64} 
+                        alt={activeViewDocument.name} 
+                        style={{ maxWidth: '100%', maxHeight: '480px', objectFit: 'contain', borderRadius: '6px' }}
+                      />
+                    ) : (
+                      <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
+                        <Info size={36} style={{ color: 'var(--text-muted)', marginBottom: '10px' }} />
+                        <p style={{ fontSize: '0.85rem' }}>La vista previa no está disponible para este formato.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <a 
+                      href={activeViewDocument.fileBase64} 
+                      download={activeViewDocument.name}
+                      className="btn btn-secondary" 
+                      style={{ padding: '8px 16px', fontSize: '0.85rem', flex: 1, textDecoration: 'none', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    >
+                      <Download size={15} /> Descargar
+                    </a>
+                    {userRole !== 'viewer' && (
+                      <>
+                        <button 
+                          type="button" 
+                          className="btn btn-secondary" 
+                          style={{ padding: '8px 16px', fontSize: '0.85rem', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                          onClick={() => {
+                            setIsEditingDoc(true);
+                            setEditingDocData({
+                              name: activeViewDocument.name,
+                              type: activeViewDocument.type
+                            });
+                          }}
+                        >
+                          <Edit3 size={15} /> Editar Datos
+                        </button>
+                        <button 
+                          type="button" 
+                          className="btn btn-danger" 
+                          style={{ padding: '8px 16px', fontSize: '0.85rem', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                          onClick={async () => {
+                            if (confirm('¿Estás seguro de eliminar este documento del expediente?')) {
+                              await deleteItem('documents', activeViewDocument.id);
+                              setActiveViewDocument(null);
+                              await loadFiles();
+                            }
+                          }}
+                        >
+                          <Trash2 size={15} /> Eliminar
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

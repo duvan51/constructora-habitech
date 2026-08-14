@@ -168,6 +168,8 @@ export default function ScannerModal({ projectId, onClose, onSave }) {
                 onChange={(e) => setDocType(e.target.value)}
               >
                 <option value="contract">Contrato de Cliente</option>
+                <option value="provider_contract">Contrato de Proveedor / Contratista</option>
+                <option value="insurance">Pólizas / Seguros</option>
                 <option value="payment_receipt">Comprobante de Pago</option>
                 <option value="blueprint">Plano / Diseño</option>
                 <option value="permit">Licencia o Permiso</option>

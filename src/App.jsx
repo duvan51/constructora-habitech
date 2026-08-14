@@ -8,6 +8,7 @@ import Ledger from './components/Ledger';
 import Login from './components/Login';
 import UserManagement from './components/UserManagement';
 import ApiSettings from './components/ApiSettings';
+import ProjectManagement from './components/ProjectManagement';
 import { 
   seedMockData, 
   getAll, 
@@ -213,7 +214,8 @@ export default function App() {
   const filteredProjects = projects.filter(p => 
     p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
     p.clientName.toLowerCase().includes(projectSearch.toLowerCase()) ||
-    p.location.address.toLowerCase().includes(projectSearch.toLowerCase())
+    (p.location.address || '').toLowerCase().includes(projectSearch.toLowerCase()) ||
+    (p.location.customAddress || '').toLowerCase().includes(projectSearch.toLowerCase())
   );
 
   if (loading) {
@@ -393,6 +395,19 @@ export default function App() {
                 userRole={currentUser.role}
                 onSave={handleSavePortfolioItem}
                 onDelete={handleDeletePortfolioItem}
+              />
+            )}
+
+            {/* Project Management View */}
+            {currentTab === 'management' && (
+              <ProjectManagement 
+                projects={projects}
+                onUpdateProject={handleSaveProject}
+                onViewProject={(id) => {
+                  setSelectedProjectId(id);
+                  setTab('projects');
+                }}
+                userRole={currentUser.role}
               />
             )}
 
