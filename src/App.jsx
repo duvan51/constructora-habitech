@@ -9,6 +9,7 @@ import Login from './components/Login';
 import UserManagement from './components/UserManagement';
 import ApiSettings from './components/ApiSettings';
 import ProjectManagement from './components/ProjectManagement';
+import QuoteCalculator from './components/QuoteCalculator';
 import { 
   seedMockData, 
   getAll, 
@@ -409,6 +410,11 @@ export default function App() {
                 }}
                 userRole={currentUser.role}
               />
+            )}
+
+            {/* Quote Calculator View */}
+            {currentTab === 'quote' && (
+              <QuoteCalculator />
             )}
 
             {/* API & System Settings View */}

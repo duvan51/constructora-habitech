@@ -1,5 +1,4 @@
-import React from 'react';
-import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, CheckSquare } from 'lucide-react';
+import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, CheckSquare, Calculator } from 'lucide-react';
 
 export default function Sidebar({ currentTab, setTab, projectCount, currentUser, onLogout, isOpen, onClose }) {
   const menuItems = [
@@ -7,7 +6,8 @@ export default function Sidebar({ currentTab, setTab, projectCount, currentUser,
     { id: 'projects', name: 'Obras y Proyectos', icon: <HardHat size={18} />, count: projectCount },
     { id: 'management', name: 'Gestión de Obras', icon: <CheckSquare size={18} /> },
     { id: 'portfolio', name: 'Portafolio Proyectos', icon: <Briefcase size={18} /> },
-    { id: 'ledger', name: 'Libro de Caja', icon: <DollarSign size={18} /> }
+    { id: 'ledger', name: 'Libro de Caja', icon: <DollarSign size={18} /> },
+    { id: 'quote', name: 'Cotizador Habitech', icon: <Calculator size={18} /> }
   ];
 
   if (currentUser && currentUser.role === 'admin') {
