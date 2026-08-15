@@ -73,6 +73,9 @@ export default function QuoteCalculator() {
   const [adjustmentAmount, setAdjustmentAmount] = useState('0');
   const [notes, setNotes] = useState('Garantía de construcción de 5 años estructural. Validez de esta cotización de 30 días.');
 
+  // Modal open state for printing
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
   // Auto-calculate areas when dimensions change
   useEffect(() => {
     if (houseAreaMode === 'dims') {
@@ -271,44 +274,6 @@ export default function QuoteCalculator() {
 
   return (
     <div className="quote-calculator-view animate-fade-in">
-      {/* Dynamic CSS styles for clean printing layout */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media print {
-          body {
-            background: white !important;
-            color: black !important;
-          }
-          .sidebar-component, .no-print, header, .btn, button, input, select, textarea {
-            display: none !important;
-          }
-          .printable-area, .printable-area * {
-            visibility: visible !important;
-          }
-          .printable-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            color: #111827 !important;
-            background: white !important;
-            box-shadow: none !important;
-            border: none !important;
-            border-radius: 0 !important;
-            padding: 30px 10px !important;
-            margin: 0 !important;
-          }
-          .printable-area th {
-            background: #f3f4f6 !important;
-            color: #111827 !important;
-            border-bottom: 2px solid #d1d5db !important;
-          }
-          .printable-area td {
-            border-bottom: 1px solid #e5e7eb !important;
-            color: #374151 !important;
-          }
-        }
-      `}} />
-
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
         <div>
           <h1>Cotizador de Construcción</h1>
@@ -324,7 +289,7 @@ export default function QuoteCalculator() {
           >
             <Edit size={16} /> {isEditingPrices ? 'Cerrar Precios' : 'Configurar Precios M2'}
           </button>
-          <button className="btn btn-primary" onClick={handlePrint} disabled={subtotalBeforeDiscount === 0}>
+          <button className="btn btn-primary" onClick={() => setShowPrintModal(true)} disabled={subtotalBeforeDiscount === 0}>
             <Printer size={16} /> Imprimir Cotización
           </button>
         </div>
@@ -817,16 +782,16 @@ export default function QuoteCalculator() {
 
         </div>
 
-        {/* Right Side: WYSIWYG realistic print preview */}
+        {/* Right Side: Live preview (NOT printable class, strictly screen container) */}
         <div style={{ position: 'sticky', top: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Previsualización del Documento Impreso (A4)</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--primary-orange)' }}>* Margen de Ajuste Prorrateado</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Previsualización del Documento (Vista de Pantalla)</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--primary-orange)' }}>* Margen Prorrateado Aplicado</span>
           </div>
 
           {/* Document Sheet Layout Container */}
-          <div className="printable-area" style={{ 
+          <div style={{ 
             background: 'white', 
             color: '#111827', 
             borderRadius: '12px', 
@@ -1052,32 +1017,14 @@ export default function QuoteCalculator() {
                 </div>
               </div>
 
-              {/* Blueprint Page Break (Print) or separator (Screen) */}
+              {/* Blueprint Page Break (Screen Preview) */}
               {blueprintImg && (
                 <div style={{ 
                   borderTop: '2px dashed #e5e7eb', 
                   marginTop: '30px', 
                   paddingTop: '20px', 
-                  pageBreakBefore: 'always', 
                   position: 'relative' 
                 }}>
-                  {/* Blueprint Watermark Logo */}
-                  <div style={{
-                    position: 'absolute',
-                    top: '40%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%) rotate(-15deg)',
-                    opacity: 0.03,
-                    pointerEvents: 'none',
-                    zIndex: 0,
-                    width: '250px',
-                    height: '250px',
-                    backgroundImage: 'url(/logo.png)',
-                    backgroundSize: 'contain',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat'
-                  }} />
-                  
                   <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #111827', paddingBottom: '10px', marginBottom: '20px' }}>
                       <img src="/logo.png" alt="Logo HABITECH" style={{ height: '40px', objectFit: 'contain' }} />
@@ -1094,9 +1041,6 @@ export default function QuoteCalculator() {
                         style={{ maxWidth: '100%', maxHeight: '450px', objectFit: 'contain', display: 'block', margin: 'auto' }} 
                       />
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic', marginTop: '8px' }}>
-                      El plano arquitectónico adjunto forma parte integral de la oferta comercial.
-                    </div>
                   </div>
                 </div>
               )}
@@ -1107,6 +1051,260 @@ export default function QuoteCalculator() {
 
       </div>
 
+      {/* PRINTABLE ACTUAL MODAL OVERLAY (HAVE SAME STRUCTURE AND CLASSES AS RECEIPTS TO GUARANTEE PRINTABILITY) */}
+      {showPrintModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '780px', background: 'var(--bg-secondary)' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={22} style={{ color: 'var(--primary-cyan)' }} />
+                Presupuesto Generado
+              </h3>
+              <button className="btn-icon" onClick={() => setShowPrintModal(false)}><X size={18} /></button>
+            </div>
+
+            <div className="modal-body" style={{ padding: '25px', maxHeight: '75vh', overflowY: 'auto' }}>
+              <div className="printable-area receipt-container" style={{ position: 'relative', overflow: 'hidden' }}>
+                
+                {/* Watermark Logo */}
+                <div style={{
+                  position: 'absolute',
+                  top: '45%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%) rotate(-15deg)',
+                  opacity: 0.04,
+                  pointerEvents: 'none',
+                  zIndex: 0,
+                  width: '320px',
+                  height: '320px',
+                  backgroundImage: 'url(/logo.png)',
+                  backgroundSize: 'contain',
+                  backgroundPosition: 'center',
+                  backgroundRepeat: 'no-repeat'
+                }} />
+
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                  {/* Header */}
+                  <div className="receipt-header">
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <img src="/logo.png" alt="Logo HABITECH" style={{ height: '70px', objectFit: 'contain' }} />
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#4b5563', lineHeight: '1.3' }}>
+                        Grupo empresarial habitech sas<br />
+                        NIT: 902067080-1<br />
+                        Dirección: km 4 via villavicencio acacias, lote 1 barrio la nohora<br />
+                        Celular: 3124147911<br />
+                        Villavicencio - Meta
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#111827' }}>PRESUPUESTO DE OBRA</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#FF6D00', marginTop: '4px' }}>
+                        COT-{Date.now().toString().substring(5, 11)}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '10px' }}>
+                        <strong>Fecha:</strong> {clientData.date}<br />
+                        <strong>Validez:</strong> 30 días
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Client Info */}
+                  <div className="receipt-details">
+                    <div style={{ background: '#f9fafb', padding: '12px', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
+                      <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>COTIZADO A</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1f2937' }}>{clientData.name || '(Sin Nombre)'}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#4b5563' }}>
+                        <strong>Celular:</strong> {clientData.phone || '(No registrado)'}
+                      </div>
+                    </div>
+                    <div style={{ background: '#f9fafb', padding: '12px', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
+                      <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>DETALLES DEL PROYECTO</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1f2937' }}>{clientData.project || '(Sin Destino)'}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#4b5563' }}>
+                        <strong>Ubicación:</strong> Colombia
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Table */}
+                  <table className="receipt-table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '0.85rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #d1d5db', color: '#111827' }}>
+                        <th style={{ padding: '8px 6px', fontWeight: 700 }}>Descripción de la Actividad / Item</th>
+                        {quoteMode === 'm2' && <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'center' }}>Medidas / Cantidad</th>}
+                        {quoteMode === 'm2' && <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right' }}>Valor Unitario</th>}
+                        <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Mode A */}
+                      {quoteMode === 'm2' && (
+                        <>
+                          {houseArea > 0 && (
+                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '10px 6px' }}>
+                                <div style={{ fontWeight: 700, color: '#1f2937' }}>Área de Vivienda ({getFinishTypeLabel(finishType)})</div>
+                              </td>
+                              <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                                {houseDims.width && houseDims.length ? `${houseDims.width}m x ${houseDims.length}m` : ''} ({houseDims.area} m²)
+                              </td>
+                              <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedHouseRate)}</td>
+                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedHouseSubtotal)}</td>
+                            </tr>
+                          )}
+                          {includeSlab && slabArea > 0 && (
+                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '10px 6px' }}>
+                                <div style={{ fontWeight: 700, color: '#1f2937' }}>Placa de Niveles / Entrepiso</div>
+                              </td>
+                              <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                                {slabDims.width && slabDims.length ? `${slabDims.width}m x ${slabDims.length}m` : ''} ({slabDims.area} m²)
+                              </td>
+                              <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedSlabRate)}</td>
+                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedSlabSubtotal)}</td>
+                            </tr>
+                          )}
+                          {includeCorridors && corridorArea > 0 && (
+                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '10px 6px' }}>
+                                <div style={{ fontWeight: 700, color: '#1f2937' }}>Corredores Exteriores</div>
+                              </td>
+                              <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                                {corridorDims.width && corridorDims.length ? `${corridorDims.width}m x ${corridorDims.length}m` : ''} ({corridorDims.area} m²)
+                              </td>
+                              <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedCorridorRate)}</td>
+                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedCorridorSubtotal)}</td>
+                            </tr>
+                          )}
+                          {includeStairs && stairsCount > 0 && (
+                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '10px 6px' }}>
+                                <div style={{ fontWeight: 700, color: '#1f2937' }}>Escalera de Niveles</div>
+                              </td>
+                              <td style={{ padding: '10px 6px', textAlign: 'center' }}>{stairsQty} Unidad(es)</td>
+                              <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedStairsRate)}</td>
+                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedStairsSubtotal)}</td>
+                            </tr>
+                          )}
+                        </>
+                      )}
+
+                      {/* Mode B */}
+                      {quoteMode === 'concepts' && (
+                        <>
+                          {concepts.filter(c => c.included).map((concept) => (
+                            <tr key={concept.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '10px 6px' }}>
+                                <div style={{ fontWeight: 700, color: '#1f2937' }}>{concept.name}</div>
+                              </td>
+                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>
+                                {formatCurrency(Math.round(concept.amount * factor))}
+                              </td>
+                            </tr>
+                          ))}
+                        </>
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* Totals */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+                    <div style={{ width: '100%', maxWidth: '280px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4b5563' }}>
+                        <span>Subtotal:</span>
+                        <span>{formatCurrency(subtotalBeforeDiscount)}</span>
+                      </div>
+                      {parseFloat(discountPercent) > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 600 }}>
+                          <span>Descuento ({discountPercent}%):</span>
+                          <span>- {formatCurrency(discountVal)}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 800, borderTop: '1.5px solid #111827', paddingTop: '8px', color: '#111827' }}>
+                        <span>TOTAL ESTIMADO:</span>
+                        <span>{formatCurrency(totalQuote)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', marginBottom: '30px' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '3px' }}>CONDICIONES DE CONTRATACIÓN</div>
+                    <p style={{ fontSize: '0.75rem', color: '#4b5563', lineHeight: '1.3', margin: 0, whiteSpace: 'pre-wrap' }}>
+                      {notes}
+                    </p>
+                  </div>
+
+                  {/* Signatures */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ width: '45%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div style={{ height: '45px', borderBottom: '1px solid #9ca3af', marginBottom: '5px', display: 'flex', justifyContent: 'center', alignItems: 'flex-end', width: '100%', position: 'relative' }}>
+                        <img 
+                          src="/firma_representante.png" 
+                          alt="Firma Autorizada" 
+                          style={{ maxHeight: '60px', position: 'absolute', bottom: '-10px', mixBlendMode: 'multiply' }} 
+                        />
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: '0.75rem' }}>Grupo empresarial habitech sas</div>
+                      <div style={{ fontSize: '0.65rem', color: '#6b7280' }}>Firma Autorizada</div>
+                    </div>
+                    
+                    <div style={{ width: '45%', textAlign: 'center' }}>
+                      <div style={{ height: '45px', borderBottom: '1px solid #9ca3af', marginBottom: '5px' }}></div>
+                      <div style={{ fontWeight: 700, fontSize: '0.75rem' }}>Aceptación del Cliente</div>
+                      <div style={{ fontSize: '0.65rem', color: '#6b7280' }}>Firma y Cédula</div>
+                    </div>
+                  </div>
+
+                  {/* Blueprint Page Break (Inside modal printed area) */}
+                  {blueprintImg && (
+                    <div style={{ 
+                      borderTop: '2px dashed #e5e7eb', 
+                      marginTop: '30px', 
+                      paddingTop: '20px', 
+                      pageBreakBefore: 'always', 
+                      position: 'relative' 
+                    }}>
+                      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #111827', paddingBottom: '10px', marginBottom: '20px' }}>
+                          <img src="/logo.png" alt="Logo HABITECH" style={{ height: '40px', objectFit: 'contain' }} />
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#111827' }}>ANEXO TÉCNICO: PLANO DE LA OBRA</div>
+                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Cliente: {clientData.name || '(Sin Nombre)'}</div>
+                          </div>
+                        </div>
+
+                        <div style={{ border: '1px solid #d1d5db', borderRadius: '8px', padding: '10px', background: '#fafafa', display: 'inline-block', maxWidth: '100%' }}>
+                          <img 
+                            src={blueprintImg} 
+                            alt="Plano de Construcción" 
+                            style={{ maxWidth: '100%', maxHeight: '450px', objectFit: 'contain', display: 'block', margin: 'auto' }} 
+                          />
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic', marginTop: '8px' }}>
+                          El plano arquitectónico adjunto forma parte integral de la oferta comercial.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ background: 'rgba(255,255,255,0.02)' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowPrintModal(false)}>
+                Cerrar
+              </button>
+              <button type="button" className="btn btn-primary" onClick={handlePrint}>
+                <Printer size={16} /> Enviar a Impresora
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
