@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Save, Edit, HelpCircle, Check, FileText, Printer, Undo } from 'lucide-react';
+import { Calculator, Save, Edit, Trash2, Plus, FileText, Printer, Undo, Image, X } from 'lucide-react';
 
 const DEFAULT_PRICES = {
   obra_blanca_tradicional: 1500000,
@@ -13,6 +13,15 @@ const DEFAULT_PRICES = {
   escalera: 3000000
 };
 
+const INITIAL_CONCEPTS = [
+  { id: 'c1', name: 'Obra Gris / Estructural (según acabado seleccionado)', amount: 15000000, included: true },
+  { id: 'c2', name: 'Pintura y Estucado de Interiores y Exteriores', amount: 3500000, included: true },
+  { id: 'c3', name: 'Instalaciones Hidráulicas y Griferías de Baño/Cocina', amount: 4500000, included: true },
+  { id: 'c4', name: 'Instalaciones Eléctricas, Cableado y Luminarias', amount: 4800000, included: true },
+  { id: 'c5', name: 'Sistema de Aguas Negras, Desagües y Conexiones', amount: 3000000, included: true },
+  { id: 'c6', name: 'Acabados Especiales (Enchapados, Carpintería y Pisos)', amount: 6500000, included: true }
+];
+
 export default function QuoteCalculator() {
   // Base prices (stored in localStorage)
   const [prices, setPrices] = useState(() => {
@@ -23,7 +32,10 @@ export default function QuoteCalculator() {
   const [isEditingPrices, setIsEditingPrices] = useState(false);
   const [tempPrices, setTempPrices] = useState({ ...prices });
 
-  // Quote input states
+  // Mode Selection: 'm2' (Area-based) or 'concepts' (Itemized project)
+  const [quoteMode, setQuoteMode] = useState('m2');
+
+  // Client Info
   const [clientData, setClientData] = useState({
     name: '',
     phone: '',
@@ -31,24 +43,30 @@ export default function QuoteCalculator() {
     date: new Date().toISOString().split('T')[0]
   });
 
-  // Main House Config
+  // Blueprint Plan Image
+  const [blueprintImg, setBlueprintImg] = useState(null);
+
+  // M2 Mode States
   const [finishType, setFinishType] = useState('obra_blanca_tradicional');
-  const [houseAreaMode, setHouseAreaMode] = useState('dims'); // 'dims' | 'direct'
+  const [houseAreaMode, setHouseAreaMode] = useState('dims'); 
   const [houseDims, setHouseDims] = useState({ width: '', length: '', area: '' });
-
-  // Slab Config (Placa de niveles)
+  
   const [includeSlab, setIncludeSlab] = useState(false);
-  const [slabAreaMode, setSlabAreaMode] = useState('dims'); // 'dims' | 'direct'
+  const [slabAreaMode, setSlabAreaMode] = useState('dims');
   const [slabDims, setSlabDims] = useState({ width: '', length: '', area: '' });
-
-  // Corridors Config (Corredores exteriores)
+  
   const [includeCorridors, setIncludeCorridors] = useState(false);
-  const [corridorAreaMode, setCorridorAreaMode] = useState('dims'); // 'dims' | 'direct'
+  const [corridorAreaMode, setCorridorAreaMode] = useState('dims');
   const [corridorDims, setCorridorDims] = useState({ width: '', length: '', area: '' });
-
-  // Stairs Config
+  
   const [includeStairs, setIncludeStairs] = useState(false);
   const [stairsQty, setStairsQty] = useState('1');
+
+  // Concepts Mode States
+  const [concepts, setConcepts] = useState(() => {
+    const saved = localStorage.getItem('habitech_quote_concepts');
+    return saved ? JSON.parse(saved) : INITIAL_CONCEPTS;
+  });
 
   // Additional settings
   const [discountPercent, setDiscountPercent] = useState('0');
@@ -79,7 +97,41 @@ export default function QuoteCalculator() {
     }
   }, [corridorDims.width, corridorDims.length, corridorAreaMode]);
 
-  // Formatter helpers
+  // Keep first concept name aligned with chosen finish type on concept mode
+  useEffect(() => {
+    if (quoteMode === 'concepts') {
+      setConcepts(prev => {
+        const updated = [...prev];
+        if (updated[0]) {
+          updated[0].name = `Obra Estructural / Acabado: ${getFinishTypeLabel(finishType)}`;
+        }
+        return updated;
+      });
+    }
+  }, [finishType, quoteMode]);
+
+  // Save concepts state changes
+  useEffect(() => {
+    localStorage.setItem('habitech_quote_concepts', JSON.stringify(concepts));
+  }, [concepts]);
+
+  // File Upload base64 helper
+  const handleBlueprintUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setBlueprintImg(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeBlueprint = () => {
+    setBlueprintImg(null);
+  };
+
+  // Currency Formatter
   const formatCurrency = (val) => {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
@@ -120,24 +172,67 @@ export default function QuoteCalculator() {
     }
   };
 
-  // Calculations
-  const houseArea = parseFloat(houseDims.area) || 0;
-  const houseRate = prices[finishType] || 0;
-  const houseSubtotal = houseArea * houseRate;
+  // Concepts Mode Actions
+  const handleConceptChange = (id, field, value) => {
+    setConcepts(prev => prev.map(c => {
+      if (c.id === id) {
+        return {
+          ...c,
+          [field]: field === 'amount' ? (parseFloat(value) || 0) : value
+        };
+      }
+      return c;
+    }));
+  };
 
-  const slabArea = includeSlab ? (parseFloat(slabDims.area) || 0) : 0;
-  const slabRate = prices.placa_niveles || 0;
-  const slabSubtotal = slabArea * slabRate;
+  const handleConceptToggle = (id) => {
+    setConcepts(prev => prev.map(c => {
+      if (c.id === id) {
+        return { ...c, included: !c.included };
+      }
+      return c;
+    }));
+  };
 
-  const corridorArea = includeCorridors ? (parseFloat(corridorDims.area) || 0) : 0;
-  const corridorRate = prices.corredores_exteriores || 0;
-  const corridorSubtotal = corridorArea * corridorRate;
+  const handleAddConcept = () => {
+    const newId = 'c_' + Date.now();
+    setConcepts(prev => [
+      ...prev,
+      { id: newId, name: 'Nuevo Concepto Personalizado', amount: 1000000, included: true }
+    ]);
+  };
 
-  const stairsCount = includeStairs ? (parseInt(stairsQty) || 0) : 0;
-  const stairsRate = prices.escalera || 0;
-  const stairsSubtotal = stairsCount * stairsRate;
+  const handleDeleteConcept = (id) => {
+    setConcepts(prev => prev.filter(c => c.id !== id));
+  };
 
-  const subtotalBeforeDiscount = houseSubtotal + slabSubtotal + corridorSubtotal + stairsSubtotal;
+  // Math Calculations
+  let subtotalBeforeDiscount = 0;
+  
+  if (quoteMode === 'm2') {
+    const houseArea = parseFloat(houseDims.area) || 0;
+    const houseRate = prices[finishType] || 0;
+    const houseSubtotal = houseArea * houseRate;
+
+    const slabArea = includeSlab ? (parseFloat(slabDims.area) || 0) : 0;
+    const slabRate = prices.placa_niveles || 0;
+    const slabSubtotal = slabArea * slabRate;
+
+    const corridorArea = includeCorridors ? (parseFloat(corridorDims.area) || 0) : 0;
+    const corridorRate = prices.corredores_exteriores || 0;
+    const corridorSubtotal = corridorArea * corridorRate;
+
+    const stairsCount = includeStairs ? (parseInt(stairsQty) || 0) : 0;
+    const stairsRate = prices.escalera || 0;
+    const stairsSubtotal = stairsCount * stairsRate;
+
+    subtotalBeforeDiscount = houseSubtotal + slabSubtotal + corridorSubtotal + stairsSubtotal;
+  } else {
+    subtotalBeforeDiscount = concepts
+      .filter(c => c.included)
+      .reduce((sum, c) => sum + c.amount, 0);
+  }
+
   const discountVal = (subtotalBeforeDiscount * (parseFloat(discountPercent) || 0)) / 100;
   const totalQuote = subtotalBeforeDiscount - discountVal;
 
@@ -192,7 +287,7 @@ export default function QuoteCalculator() {
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
         <div>
           <h1>Cotizador de Construcción</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Realiza presupuestos instantáneos según el área de obra y tipo de acabados.</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Genera cotizaciones por metros cuadrados (M²) o desgloses detallados por capítulos de obra.</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button 
@@ -204,7 +299,7 @@ export default function QuoteCalculator() {
           >
             <Edit size={16} /> {isEditingPrices ? 'Cerrar Precios' : 'Configurar Precios M2'}
           </button>
-          <button className="btn btn-primary" onClick={handlePrint} disabled={houseArea === 0}>
+          <button className="btn btn-primary" onClick={handlePrint} disabled={subtotalBeforeDiscount === 0}>
             <Printer size={16} /> Imprimir Cotización
           </button>
         </div>
@@ -215,7 +310,7 @@ export default function QuoteCalculator() {
         <div className="glass-panel no-print animate-fade-in" style={{ padding: '20px', marginBottom: '20px', background: 'rgba(255, 109, 0, 0.04)', border: '1px solid rgba(255, 109, 0, 0.2)' }}>
           <h3 style={{ color: 'var(--primary-orange)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
             <Calculator size={18} />
-            Editar Precios de Referencia (Valor por M² o Unidad)
+            Editar Precios de Referencia M² (Persistentes)
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '15px', marginBottom: '15px' }}>
             {Object.keys(tempPrices).map((key) => (
@@ -252,6 +347,29 @@ export default function QuoteCalculator() {
         {/* Left Side: Inputs */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
+          {/* Main Config Mode */}
+          <div className="glass-panel" style={{ padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Tipo de Cotización:</span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                type="button" 
+                className={`btn ${quoteMode === 'm2' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                onClick={() => setQuoteMode('m2')}
+              >
+                Por Metros (M²)
+              </button>
+              <button 
+                type="button" 
+                className={`btn ${quoteMode === 'concepts' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                onClick={() => setQuoteMode('concepts')}
+              >
+                Por Capítulos / Obra
+              </button>
+            </div>
+          </div>
+
           {/* Client Information */}
           <div className="glass-panel" style={{ padding: '20px' }}>
             <h3 style={{ marginBottom: '15px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
@@ -291,205 +409,339 @@ export default function QuoteCalculator() {
             </div>
           </div>
 
-          {/* Main House calculations */}
+          {/* Plan/Blueprint Upload */}
           <div className="glass-panel" style={{ padding: '20px' }}>
-            <h3 style={{ marginBottom: '15px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Área Principal (Casa)</span>
-              <span className="badge" style={{ background: 'var(--primary-cyan)', color: '#0b0f19', fontSize: '0.7rem' }}>Requerido</span>
+            <h3 style={{ marginBottom: '12px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Image size={18} style={{ color: 'var(--primary-cyan)' }} />
+              Plano de la Obra (Anexo)
             </h3>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
+              Sube una imagen del plano arquitectónico para anexarlo automáticamente en la cotización impresa.
+            </p>
+            
+            {blueprintImg ? (
+              <div style={{ position: 'relative', border: '1px solid var(--border-glass)', borderRadius: '8px', overflow: 'hidden', height: '140px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <img src={blueprintImg} alt="Plano Subido" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
+                <button 
+                  type="button" 
+                  onClick={removeBlueprint}
+                  style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(239, 68, 68, 0.8)', border: 'none', borderRadius: '50%', color: 'white', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  id="blueprint-upload-input" 
+                  style={{ display: 'none' }} 
+                  onChange={handleBlueprintUpload}
+                />
+                <label 
+                  htmlFor="blueprint-upload-input" 
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100px', border: '1.5px dashed var(--border-glass)', borderRadius: '8px', cursor: 'pointer', background: 'rgba(255,255,255,0.01)', transition: 'var(--transition-smooth)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.01)'}
+                >
+                  <Plus size={24} style={{ color: 'var(--primary-cyan)', marginBottom: '6px' }} />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Cargar Imagen del Plano</span>
+                </label>
+              </div>
+            )}
+          </div>
 
-            <div className="form-row" style={{ marginBottom: '15px' }}>
-              <div className="form-group">
-                <label>Clase de Acabado (M²)</label>
+          {/* MODE A: M2 Form Fields */}
+          {quoteMode === 'm2' && (
+            <>
+              {/* House calculations */}
+              <div className="glass-panel" style={{ padding: '20px' }}>
+                <h3 style={{ marginBottom: '15px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Área Principal (Casa)</span>
+                  <span className="badge" style={{ background: 'var(--primary-cyan)', color: '#0b0f19', fontSize: '0.7rem' }}>Requerido</span>
+                </h3>
+
+                <div className="form-row" style={{ marginBottom: '15px' }}>
+                  <div className="form-group">
+                    <label>Clase de Acabado (M²)</label>
+                    <select
+                      className="form-control"
+                      value={finishType}
+                      onChange={(e) => setFinishType(e.target.value)}
+                    >
+                      <option value="obra_blanca_tradicional">Obra Blanca Tradicional ({formatCurrency(prices.obra_blanca_tradicional)})</option>
+                      <option value="obra_gris_tradicional">Obra Gris Tradicional ({formatCurrency(prices.obra_gris_tradicional)})</option>
+                      <option value="obra_negra_tradicional">Obra Negra Tradicional ({formatCurrency(prices.obra_negra_tradicional)})</option>
+                      <option value="obra_blanca_prefabricado">Obra Blanca Prefabricado ({formatCurrency(prices.obra_blanca_prefabricado)})</option>
+                      <option value="obra_gris_prefabricado">Obra Gris Prefabricado ({formatCurrency(prices.obra_gris_prefabricado)})</option>
+                      <option value="obra_blanca_liviano">Obra Blanca Liviano ({formatCurrency(prices.obra_blanca_liviano)})</option>
+                    </select>
+                  </div>
+                  
+                  <div className="form-group" style={{ maxWidth: '160px' }}>
+                    <label>Método de Entrada</label>
+                    <select
+                      className="form-control"
+                      value={houseAreaMode}
+                      onChange={(e) => setHouseAreaMode(e.target.value)}
+                    >
+                      <option value="dims">Por Medidas</option>
+                      <option value="direct">M² Directo</option>
+                    </select>
+                  </div>
+                </div>
+
+                {houseAreaMode === 'dims' ? (
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Ancho (Metros)</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        placeholder="Ej. 10"
+                        value={houseDims.width}
+                        onChange={(e) => setHouseDims({ ...houseDims, width: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Largo (Metros)</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        placeholder="Ej. 5"
+                        value={houseDims.length}
+                        onChange={(e) => setHouseDims({ ...houseDims, length: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group" style={{ maxWidth: '100px' }}>
+                      <label>Área Total</label>
+                      <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)', borderRadius: '8px', fontSize: '0.95rem', fontWeight: 700, textAlign: 'center' }}>
+                        {houseDims.area || 0} m²
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="form-group">
+                    <label>Ingresar Área Total (M²)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Ej. 75"
+                      value={houseDims.area}
+                      onChange={(e) => setHouseDims({ ...houseDims, area: e.target.value })}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Adicionales */}
+              <div className="glass-panel" style={{ padding: '20px' }}>
+                <h3 style={{ marginBottom: '15px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
+                  Adicionales de Obra (Opcional)
+                </h3>
+
+                {/* Placa de niveles */}
+                <div style={{ marginBottom: '15px', borderBottom: '1px dashed var(--border-glass)', paddingBottom: '15px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={includeSlab}
+                      onChange={(e) => setIncludeSlab(e.target.checked)}
+                    />
+                    Incluir Placa de Niveles / Entrepiso ({formatCurrency(prices.placa_niveles)}/m²)
+                  </label>
+                  
+                  {includeSlab && (
+                    <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem' }}>Método de Entrada</label>
+                        <select className="form-control" value={slabAreaMode} onChange={(e) => setSlabAreaMode(e.target.value)}>
+                          <option value="dims">Por Medidas</option>
+                          <option value="direct">M² Directo</option>
+                        </select>
+                      </div>
+                      {slabAreaMode === 'dims' ? (
+                        <>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Ancho (m)</label>
+                            <input type="number" className="form-control" value={slabDims.width} onChange={(e) => setSlabDims({ ...slabDims, width: e.target.value })} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Largo (m)</label>
+                            <input type="number" className="form-control" value={slabDims.length} onChange={(e) => setSlabDims({ ...slabDims, length: e.target.value })} />
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ flex: 2 }}>
+                          <label style={{ fontSize: '0.75rem' }}>Área (m²)</label>
+                          <input type="number" className="form-control" value={slabDims.area} onChange={(e) => setSlabDims({ ...slabDims, area: e.target.value })} />
+                        </div>
+                      )}
+                      <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)', borderRadius: '8px', fontWeight: 700 }}>
+                        {slabDims.area || 0} m²
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Corredores Exteriores */}
+                <div style={{ marginBottom: '15px', borderBottom: '1px dashed var(--border-glass)', paddingBottom: '15px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={includeCorridors}
+                      onChange={(e) => setIncludeCorridors(e.target.checked)}
+                    />
+                    Incluir Corredores Exteriores ({formatCurrency(prices.corredores_exteriores)}/m²)
+                  </label>
+                  
+                  {includeCorridors && (
+                    <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem' }}>Método de Entrada</label>
+                        <select className="form-control" value={corridorAreaMode} onChange={(e) => setCorridorAreaMode(e.target.value)}>
+                          <option value="dims">Por Medidas</option>
+                          <option value="direct">M² Directo</option>
+                        </select>
+                      </div>
+                      {corridorAreaMode === 'dims' ? (
+                        <>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Ancho (m)</label>
+                            <input type="number" className="form-control" value={corridorDims.width} onChange={(e) => setCorridorDims({ ...corridorDims, width: e.target.value })} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Largo (m)</label>
+                            <input type="number" className="form-control" value={corridorDims.length} onChange={(e) => setCorridorDims({ ...corridorDims, length: e.target.value })} />
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ flex: 2 }}>
+                          <label style={{ fontSize: '0.75rem' }}>Área (m²)</label>
+                          <input type="number" className="form-control" value={corridorDims.area} onChange={(e) => setCorridorDims({ ...corridorDims, area: e.target.value })} />
+                        </div>
+                      )}
+                      <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)', borderRadius: '8px', fontWeight: 700 }}>
+                        {corridorDims.area || 0} m²
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Escaleras */}
+                <div style={{ marginBottom: '5px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer', marginBottom: '10px' }}>
+                    <input
+                      type="checkbox"
+                      checked={includeStairs}
+                      onChange={(e) => setIncludeStairs(e.target.checked)}
+                    />
+                    Incluir Escaleras de Niveles ({formatCurrency(prices.escalera)}/unidad)
+                  </label>
+
+                  {includeStairs && (
+                    <div className="form-group" style={{ maxWidth: '140px' }}>
+                      <label style={{ fontSize: '0.75rem' }}>Cantidad Escaleras</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        min="1"
+                        value={stairsQty}
+                        onChange={(e) => setStairsQty(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* MODE B: Itemized Project Concepts Form */}
+          {quoteMode === 'concepts' && (
+            <div className="glass-panel" style={{ padding: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
+                <h3 style={{ fontSize: '1rem' }}>Desglose por Capítulos / Actividades</h3>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  onClick={handleAddConcept}
+                >
+                  <Plus size={12} /> Agregar Renglón
+                </button>
+              </div>
+
+              {/* Finishing Select (Obra Blanca / Gris / Negra) for First Concept */}
+              <div className="form-group" style={{ marginBottom: '15px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', padding: '12px', borderRadius: '8px' }}>
+                <label>1. Tipo Acabado Estructural (Casa)</label>
                 <select
                   className="form-control"
                   value={finishType}
                   onChange={(e) => setFinishType(e.target.value)}
                 >
-                  <option value="obra_blanca_tradicional">Obra Blanca Tradicional ({formatCurrency(prices.obra_blanca_tradicional)})</option>
-                  <option value="obra_gris_tradicional">Obra Gris Tradicional ({formatCurrency(prices.obra_gris_tradicional)})</option>
-                  <option value="obra_negra_tradicional">Obra Negra Tradicional ({formatCurrency(prices.obra_negra_tradicional)})</option>
-                  <option value="obra_blanca_prefabricado">Obra Blanca Prefabricado ({formatCurrency(prices.obra_blanca_prefabricado)})</option>
-                  <option value="obra_gris_prefabricado">Obra Gris Prefabricado ({formatCurrency(prices.obra_gris_prefabricado)})</option>
-                  <option value="obra_blanca_liviano">Obra Blanca Liviano ({formatCurrency(prices.obra_blanca_liviano)})</option>
+                  <option value="obra_blanca_tradicional">Obra Blanca Tradicional</option>
+                  <option value="obra_gris_tradicional">Obra Gris Tradicional</option>
+                  <option value="obra_negra_tradicional">Obra Negra Tradicional</option>
+                  <option value="obra_blanca_prefabricado">Obra Blanca Prefabricado</option>
+                  <option value="obra_gris_prefabricado">Obra Gris Prefabricado</option>
+                  <option value="obra_blanca_liviano">Obra Blanca Liviano</option>
                 </select>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>Este acabado actualizará automáticamente la descripción de la primera actividad.</p>
               </div>
-              
-              <div className="form-group" style={{ maxWidth: '160px' }}>
-                <label>Método de Entrada</label>
-                <select
-                  className="form-control"
-                  value={houseAreaMode}
-                  onChange={(e) => setHouseAreaMode(e.target.value)}
-                >
-                  <option value="dims">Por Medidas</option>
-                  <option value="direct">M² Directo</option>
-                </select>
-              </div>
-            </div>
 
-            {houseAreaMode === 'dims' ? (
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Ancho (Metros)</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    placeholder="Ej. 10"
-                    value={houseDims.width}
-                    onChange={(e) => setHouseDims({ ...houseDims, width: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Largo (Metros)</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    placeholder="Ej. 5"
-                    value={houseDims.length}
-                    onChange={(e) => setHouseDims({ ...houseDims, length: e.target.value })}
-                  />
-                </div>
-                <div className="form-group" style={{ maxWidth: '100px' }}>
-                  <label>Área Total</label>
-                  <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)', borderRadius: '8px', fontSize: '0.95rem', fontWeight: 700, textAlign: 'center' }}>
-                    {houseArea} m²
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="form-group">
-                <label>Ingresar Área Total (M²)</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  placeholder="Ej. 75"
-                  value={houseDims.area}
-                  onChange={(e) => setHouseDims({ ...houseDims, area: e.target.value })}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Adicionales */}
-          <div className="glass-panel" style={{ padding: '20px' }}>
-            <h3 style={{ marginBottom: '15px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
-              Adicionales de Obra (Opcional)
-            </h3>
-
-            {/* Placa de niveles */}
-            <div style={{ marginBottom: '15px', borderBottom: '1px dashed var(--border-glass)', paddingBottom: '15px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={includeSlab}
-                  onChange={(e) => setIncludeSlab(e.target.checked)}
-                />
-                Incluir Placa de Niveles / Entrepiso ({formatCurrency(prices.placa_niveles)}/m²)
-              </label>
-              
-              {includeSlab && (
-                <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: '0.75rem' }}>Método de Entrada</label>
-                    <select className="form-control" value={slabAreaMode} onChange={(e) => setSlabAreaMode(e.target.value)}>
-                      <option value="dims">Por Medidas</option>
-                      <option value="direct">M² Directo</option>
-                    </select>
-                  </div>
-                  {slabAreaMode === 'dims' ? (
-                    <>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: '0.75rem' }}>Ancho (m)</label>
-                        <input type="number" className="form-control" value={slabDims.width} onChange={(e) => setSlabDims({ ...slabDims, width: e.target.value })} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: '0.75rem' }}>Largo (m)</label>
-                        <input type="number" className="form-control" value={slabDims.length} onChange={(e) => setSlabDims({ ...slabDims, length: e.target.value })} />
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ flex: 2 }}>
-                      <label style={{ fontSize: '0.75rem' }}>Área (m²)</label>
-                      <input type="number" className="form-control" value={slabDims.area} onChange={(e) => setSlabDims({ ...slabDims, area: e.target.value })} />
+              {/* Dynamic Concepts Checklist */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {concepts.map((concept, idx) => (
+                  <div key={concept.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: concept.included ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.005)', border: '1px solid var(--border-glass)', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={concept.included}
+                          onChange={() => handleConceptToggle(concept.id)}
+                        />
+                        Actividad #{idx + 1} {concept.included ? '(Incluida)' : '(Omitida)'}
+                      </label>
+                      {idx > 5 && (
+                        <button 
+                          type="button" 
+                          style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0' }}
+                          onClick={() => handleDeleteConcept(concept.id)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
-                  )}
-                  <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)', borderRadius: '8px', fontWeight: 700 }}>
-                    {slabArea} m²
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Corredores Exteriores */}
-            <div style={{ marginBottom: '15px', borderBottom: '1px dashed var(--border-glass)', paddingBottom: '15px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={includeCorridors}
-                  onChange={(e) => setIncludeCorridors(e.target.checked)}
-                />
-                Incluir Corredores Exteriores ({formatCurrency(prices.corredores_exteriores)}/m²)
-              </label>
-              
-              {includeCorridors && (
-                <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: '0.75rem' }}>Método de Entrada</label>
-                    <select className="form-control" value={corridorAreaMode} onChange={(e) => setCorridorAreaMode(e.target.value)}>
-                      <option value="dims">Por Medidas</option>
-                      <option value="direct">M² Directo</option>
-                    </select>
-                  </div>
-                  {corridorAreaMode === 'dims' ? (
-                    <>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: '0.75rem' }}>Ancho (m)</label>
-                        <input type="number" className="form-control" value={corridorDims.width} onChange={(e) => setCorridorDims({ ...corridorDims, width: e.target.value })} />
+                    {concept.included && (
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          className="form-control"
+                          style={{ flex: 2, fontSize: '0.85rem' }}
+                          value={concept.name}
+                          onChange={(e) => handleConceptChange(concept.id, 'name', e.target.value)}
+                          placeholder="Descripción del concepto"
+                          required
+                        />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: '100px' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>$</span>
+                          <input
+                            type="number"
+                            className="form-control"
+                            style={{ fontSize: '0.85rem' }}
+                            value={concept.amount}
+                            onChange={(e) => handleConceptChange(concept.id, 'amount', e.target.value)}
+                            required
+                          />
+                        </div>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: '0.75rem' }}>Largo (m)</label>
-                        <input type="number" className="form-control" value={corridorDims.length} onChange={(e) => setCorridorDims({ ...corridorDims, length: e.target.value })} />
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ flex: 2 }}>
-                      <label style={{ fontSize: '0.75rem' }}>Área (m²)</label>
-                      <input type="number" className="form-control" value={corridorDims.area} onChange={(e) => setCorridorDims({ ...corridorDims, area: e.target.value })} />
-                    </div>
-                  )}
-                  <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)', borderRadius: '8px', fontWeight: 700 }}>
-                    {corridorArea} m²
+                    )}
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
-
-            {/* Escaleras */}
-            <div style={{ marginBottom: '5px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer', marginBottom: '10px' }}>
-                <input
-                  type="checkbox"
-                  checked={includeStairs}
-                  onChange={(e) => setIncludeStairs(e.target.checked)}
-                />
-                Incluir Escaleras de Niveles ({formatCurrency(prices.escalera)}/unidad)
-              </label>
-
-              {includeStairs && (
-                <div className="form-group" style={{ maxWidth: '140px' }}>
-                  <label style={{ fontSize: '0.75rem' }}>Cantidad Escaleras</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    min="1"
-                    value={stairsQty}
-                    onChange={(e) => setStairsQty(e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
+          )}
 
           {/* Descuentos y notas */}
           <div className="glass-panel" style={{ padding: '20px' }}>
@@ -521,100 +773,236 @@ export default function QuoteCalculator() {
 
         </div>
 
-        {/* Right Side: Live Invoice Preview (Screen) */}
-        <div style={{ position: 'sticky', top: '20px' }}>
-          <div className="glass-panel" style={{ padding: '20px 25px', background: '#0b0f19', border: '1px solid var(--border-glass)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
-              <h3 style={{ fontSize: '1rem', color: 'var(--primary-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <FileText size={18} /> Resumen de Presupuesto
-              </h3>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Vista Previa en Vivo</span>
-            </div>
+        {/* Right Side: WYSIWYG realistic print preview */}
+        <div style={{ position: 'sticky', top: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Previsualización del Documento Impreso (A4)</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--primary-orange)' }}>* Marca de Agua Activada</span>
+          </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.85rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Cliente:</span>
-                <span style={{ fontWeight: 600 }}>{clientData.name || 'Sin registrar'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Ubicación:</span>
-                <span style={{ fontWeight: 600 }}>{clientData.project || 'Sin registrar'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Fecha:</span>
-                <span>{clientData.date}</span>
-              </div>
+          {/* Document Sheet Layout Container */}
+          <div style={{ 
+            background: 'white', 
+            color: '#111827', 
+            borderRadius: '12px', 
+            boxShadow: '0 15px 40px rgba(0,0,0,0.6)', 
+            padding: '30px', 
+            fontSize: '0.85rem', 
+            fontFamily: 'system-ui, sans-serif',
+            minHeight: '680px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            
+            {/* Watermark Logo */}
+            <div style={{
+              position: 'absolute',
+              top: '45%',
+              left: '50%',
+              transform: 'translate(-50%, -50%) rotate(-15deg)',
+              opacity: 0.04,
+              pointerEvents: 'none',
+              zIndex: 0,
+              width: '320px',
+              height: '320px',
+              backgroundImage: 'url(/logo.png)',
+              backgroundSize: 'contain',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
+            }} />
 
-              {/* Subtotal Items lists */}
-              <div style={{ borderTop: '1px dashed var(--border-glass)', borderBottom: '1px dashed var(--border-glass)', padding: '10px 0', margin: '8px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                
-                {/* House line */}
-                {houseArea > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <div>
-                      <div>{getFinishTypeLabel(finishType)}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{houseArea} m² x {formatCurrency(houseRate)}</div>
-                    </div>
-                    <span style={{ fontWeight: 600 }}>{formatCurrency(houseSubtotal)}</span>
+            {/* Content Wrapper (guarantees layering on top of watermark) */}
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              
+              {/* Sheet Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #111827', paddingBottom: '15px', marginBottom: '20px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
+                    <img src="/logo.png" alt="Logo HABITECH" style={{ height: '55px', objectFit: 'contain' }} />
                   </div>
-                )}
-
-                {/* Slab line */}
-                {includeSlab && slabArea > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <div>
-                      <div>Placa de Niveles</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{slabArea} m² x {formatCurrency(slabRate)}</div>
-                    </div>
-                    <span style={{ fontWeight: 600 }}>{formatCurrency(slabSubtotal)}</span>
+                  <div style={{ fontSize: '0.75rem', color: '#4b5563', lineHeight: '1.3' }}>
+                    Grupo empresarial habitech sas<br />
+                    NIT: 902067080-1<br />
+                    Dirección: km 4 via villavicencio acacias, lote 1 barrio la nohora<br />
+                    Celular: 3124147911<br />
+                    Villavicencio - Meta
                   </div>
-                )}
-
-                {/* Corredores line */}
-                {includeCorridors && corridorArea > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <div>
-                      <div>Corredores Exteriores</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{corridorArea} m² x {formatCurrency(corridorRate)}</div>
-                    </div>
-                    <span style={{ fontWeight: 600 }}>{formatCurrency(corridorSubtotal)}</span>
-                  </div>
-                )}
-
-                {/* Stairs line */}
-                {includeStairs && stairsCount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <div>
-                      <div>Escalera de Conexión</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{stairsCount} und x {formatCurrency(stairsRate)}</div>
-                    </div>
-                    <span style={{ fontWeight: 600 }}>{formatCurrency(stairsSubtotal)}</span>
-                  </div>
-                )}
-
-                {houseArea === 0 && (
-                  <div style={{ textAlign: 'center', padding: '15px 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                    Ingresa las dimensiones o área de la casa para calcular.
-                  </div>
-                )}
-              </div>
-
-              {/* Pricing Math */}
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Subtotal:</span>
-                <span>{formatCurrency(subtotalBeforeDiscount)}</span>
-              </div>
-              {parseFloat(discountPercent) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
-                  <span>Descuento ({discountPercent}%):</span>
-                  <span>- {formatCurrency(discountVal)}</span>
                 </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: 800, borderTop: '2px solid var(--border-glass)', paddingTop: '10px', marginTop: '5px' }}>
-                <span style={{ color: 'var(--text-primary)' }}>TOTAL ESTIMADO:</span>
-                <span style={{ color: 'var(--primary-cyan)' }}>{formatCurrency(totalQuote)}</span>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>PRESUPUESTO DE OBRA</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#FF6D00', marginTop: '4px' }}>
+                    COT-{Date.now().toString().substring(5, 11)}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#4b5563', marginTop: '8px' }}>
+                    <strong>Fecha:</strong> {clientData.date}<br />
+                    <strong>Validez:</strong> 30 días
+                  </div>
+                </div>
               </div>
+
+              {/* Client Info block */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '10px 12px', marginBottom: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>COTIZADO A</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1f2937' }}>{clientData.name || '(Sin Nombre)'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#4b5563' }}>
+                    <strong>Celular:</strong> {clientData.phone || '(No registrado)'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>DETALLES DEL PROYECTO</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1f2937' }}>{clientData.project || '(Sin Destino)'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#4b5563' }}>
+                    <strong>Ubicación:</strong> Colombia
+                  </div>
+                </div>
+              </div>
+
+              {/* Items Breakdown Table */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '0.8rem', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #d1d5db', color: '#111827' }}>
+                    <th style={{ padding: '8px 6px', fontWeight: 700 }}>Descripción de la Actividad / Item</th>
+                    {quoteMode === 'm2' && <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'center' }}>Medidas</th>}
+                    <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Mode A: Render M2 rows */}
+                  {quoteMode === 'm2' && (
+                    <>
+                      {/* House Row */}
+                      {(parseFloat(houseDims.area) || 0) > 0 && (
+                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ padding: '10px 6px' }}>
+                            <div style={{ fontWeight: 700, color: '#1f2937' }}>Área de Vivienda ({getFinishTypeLabel(finishType)})</div>
+                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Construcción principal en m² x {formatCurrency(prices[finishType])}</div>
+                          </td>
+                          <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                            {houseDims.width && houseDims.length ? `${houseDims.width}m x ${houseDims.length}m` : ''} ({houseDims.area} m²)
+                          </td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency((parseFloat(houseDims.area) || 0) * prices[finishType])}</td>
+                        </tr>
+                      )}
+
+                      {/* Slab Row */}
+                      {includeSlab && (parseFloat(slabDims.area) || 0) > 0 && (
+                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ padding: '10px 6px' }}>
+                            <div style={{ fontWeight: 700, color: '#1f2937' }}>Placa de Niveles / Entrepiso</div>
+                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Cimentación aérea por m² x {formatCurrency(prices.placa_niveles)}</div>
+                          </td>
+                          <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                            {slabDims.width && slabDims.length ? `${slabDims.width}m x ${slabDims.length}m` : ''} ({slabDims.area} m²)
+                          </td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency((parseFloat(slabDims.area) || 0) * prices.placa_niveles)}</td>
+                        </tr>
+                      )}
+
+                      {/* Corridors Row */}
+                      {includeCorridors && (parseFloat(corridorDims.area) || 0) > 0 && (
+                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ padding: '10px 6px' }}>
+                            <div style={{ fontWeight: 700, color: '#1f2937' }}>Corredores Exteriores</div>
+                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Pasillos perimetrales transitables m² x {formatCurrency(prices.corredores_exteriores)}</div>
+                          </td>
+                          <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                            {corridorDims.width && corridorDims.length ? `${corridorDims.width}m x ${corridorDims.length}m` : ''} ({corridorDims.area} m²)
+                          </td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency((parseFloat(corridorDims.area) || 0) * prices.corredores_exteriores)}</td>
+                        </tr>
+                      )}
+
+                      {/* Stairs Row */}
+                      {includeStairs && (parseInt(stairsQty) || 0) > 0 && (
+                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ padding: '10px 6px' }}>
+                            <div style={{ fontWeight: 700, color: '#1f2937' }}>Escalera de Niveles</div>
+                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Conectores de niveles en concreto o metal</div>
+                          </td>
+                          <td style={{ padding: '10px 6px', textAlign: 'center' }}>{stairsQty} Unidad(es)</td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency((parseInt(stairsQty) || 0) * prices.escalera)}</td>
+                        </tr>
+                      )}
+                    </>
+                  )}
+
+                  {/* Mode B: Render custom concepts rows */}
+                  {quoteMode === 'concepts' && (
+                    <>
+                      {concepts.filter(c => c.included).map((concept) => (
+                        <tr key={concept.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ padding: '10px 6px' }}>
+                            <div style={{ fontWeight: 700, color: '#1f2937' }}>{concept.name}</div>
+                          </td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>
+                            {formatCurrency(concept.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </>
+                  )}
+
+                  {subtotalBeforeDiscount === 0 && (
+                    <tr>
+                      <td colSpan={quoteMode === 'm2' ? 3 : 2} style={{ textAlign: 'center', padding: '20px', color: '#9ca3af' }}>
+                        Sin conceptos registrados. Llena la información en el panel izquierdo.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {/* Financial Totals */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+                <div style={{ width: '100%', maxWidth: '280px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4b5563' }}>
+                    <span>Subtotal:</span>
+                    <span>{formatCurrency(subtotalBeforeDiscount)}</span>
+                  </div>
+                  {parseFloat(discountPercent) > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 600 }}>
+                      <span>Descuento ({discountPercent}%):</span>
+                      <span>- {formatCurrency(discountVal)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 800, borderTop: '1.5px solid #111827', paddingTop: '8px', color: '#111827' }}>
+                    <span>TOTAL ESTIMADO:</span>
+                    <span>{formatCurrency(totalQuote)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Terms and conditions */}
+              <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', marginBottom: '30px' }}>
+                <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '3px' }}>CONDICIONES DE CONTRATACIÓN</div>
+                <p style={{ fontSize: '0.75rem', color: '#4b5563', lineHeight: '1.3', margin: 0, whiteSpace: 'pre-wrap' }}>
+                  {notes}
+                </p>
+              </div>
+
+              {/* Signature Blocks */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ width: '45%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ height: '45px', borderBottom: '1px solid #9ca3af', marginBottom: '5px', display: 'flex', justifyContent: 'center', alignItems: 'flex-end', width: '100%', position: 'relative' }}>
+                    <img 
+                      src="/firma_representante.png" 
+                      alt="Firma Autorizada" 
+                      style={{ maxHeight: '60px', position: 'absolute', bottom: '-10px', mixBlendMode: 'multiply' }} 
+                    />
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '0.75rem' }}>Grupo empresarial habitech sas</div>
+                  <div style={{ fontSize: '0.65rem', color: '#6b7280' }}>Firma Autorizada</div>
+                </div>
+                
+                <div style={{ width: '45%', textAlign: 'center' }}>
+                  <div style={{ height: '45px', borderBottom: '1px solid #9ca3af', marginBottom: '5px' }}></div>
+                  <div style={{ fontWeight: 700, fontSize: '0.75rem' }}>Aceptación del Cliente</div>
+                  <div style={{ fontSize: '0.65rem', color: '#6b7280' }}>Firma y Cédula</div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -624,162 +1012,249 @@ export default function QuoteCalculator() {
       {/* PRINTABLE ACTUAL PAGE WRAPPER (HIDDEN ON SCREEN, VISIBLE ON PRINT) */}
       <div className="printable-quote-page" style={{ display: 'none', background: 'white', color: '#111827', fontFamily: 'system-ui, sans-serif' }}>
         
-        {/* Invoice Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #111827', paddingBottom: '20px', marginBottom: '25px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
-              <img src="/logo.png" alt="Logo HABITECH" style={{ height: '70px', objectFit: 'contain' }} />
-            </div>
-            <div style={{ fontSize: '0.8rem', color: '#4b5563', lineHeight: '1.3' }}>
-              Grupo empresarial habitech sas<br />
-              NIT: 902067080-1<br />
-              Dirección: km 4 via villavicencio acacias, lote 1 barrio la nohora<br />
-              Celular: 3124147911<br />
-              Villavicencio - Meta
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>PRESUPUESTO DE OBRA</div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#FF6D00', marginTop: '4px' }}>
-              COT-{Date.now().toString().substring(5, 11)}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '10px' }}>
-              <strong>Fecha:</strong> {clientData.date}<br />
-              <strong>Validez:</strong> 30 días
-            </div>
-          </div>
-        </div>
+        {/* Printable Watermark Logo */}
+        <div style={{
+          position: 'absolute',
+          top: '35%',
+          left: '50%',
+          transform: 'translate(-50%, -50%) rotate(-15deg)',
+          opacity: 0.04,
+          pointerEvents: 'none',
+          zIndex: 0,
+          width: '380px',
+          height: '380px',
+          backgroundImage: 'url(/logo.png)',
+          backgroundSize: 'contain',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }} />
 
-        {/* Client Metadata block */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '15px', marginBottom: '25px' }}>
-          <div>
-            <div style={{ fontSize: '0.7rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '3px' }}>COTIZADO A</div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1f2937' }}>{clientData.name || '(Sin Nombre)'}</div>
-            <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '3px' }}>
-              <strong>Celular:</strong> {clientData.phone || '(No registrado)'}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.7rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '3px' }}>DETALLES DEL PROYECTO</div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1f2937' }}>{clientData.project || '(Sin Destino)'}</div>
-            <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '3px' }}>
-              <strong>Ubicación:</strong> Colombia
-            </div>
-          </div>
-        </div>
-
-        {/* Table of components breakdown */}
-        <table className="table-print-border" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '25px', fontSize: '0.9rem', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #d1d5db', color: '#111827' }}>
-              <th style={{ padding: '10px', fontWeight: 700 }}>Descripción del Item / Servicio</th>
-              <th style={{ padding: '10px', fontWeight: 700, textAlign: 'center' }}>Área / Cantidad</th>
-              <th style={{ padding: '10px', fontWeight: 700, textAlign: 'right' }}>Valor Unitario (M²)</th>
-              <th style={{ padding: '10px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* House Line */}
-            {houseArea > 0 && (
-              <tr>
-                <td style={{ padding: '12px 10px' }}>
-                  <div style={{ fontWeight: 700, color: '#1f2937' }}>Construcción de Área Principal (Casa)</div>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Acabado: {getFinishTypeLabel(finishType)}</div>
-                </td>
-                <td style={{ padding: '12px 10px', textAlign: 'center' }}>{houseArea} m²</td>
-                <td style={{ padding: '12px 10px', textAlign: 'right' }}>{formatCurrency(houseRate)}</td>
-                <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency(houseSubtotal)}</td>
-              </tr>
-            )}
-
-            {/* Slab Line */}
-            {includeSlab && slabArea > 0 && (
-              <tr>
-                <td style={{ padding: '12px 10px' }}>
-                  <div style={{ fontWeight: 700, color: '#1f2937' }}>Placa de Niveles / Entrepiso</div>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Cimentación aérea para pisos superiores</div>
-                </td>
-                <td style={{ padding: '12px 10px', textAlign: 'center' }}>{slabArea} m²</td>
-                <td style={{ padding: '12px 10px', textAlign: 'right' }}>{formatCurrency(slabRate)}</td>
-                <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency(slabSubtotal)}</td>
-              </tr>
-            )}
-
-            {/* Corredors Line */}
-            {includeCorridors && corridorArea > 0 && (
-              <tr>
-                <td style={{ padding: '12px 10px' }}>
-                  <div style={{ fontWeight: 700, color: '#1f2937' }}>Corredores Exteriores</div>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Zona exterior transitable perimetral</div>
-                </td>
-                <td style={{ padding: '12px 10px', textAlign: 'center' }}>{corridorArea} m²</td>
-                <td style={{ padding: '12px 10px', textAlign: 'right' }}>{formatCurrency(corridorRate)}</td>
-                <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency(corridorSubtotal)}</td>
-              </tr>
-            )}
-
-            {/* Stairs Line */}
-            {includeStairs && stairsCount > 0 && (
-              <tr>
-                <td style={{ padding: '12px 10px' }}>
-                  <div style={{ fontWeight: 700, color: '#1f2937' }}>Escalera de Niveles</div>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Estructura de conexión metálica o concreto</div>
-                </td>
-                <td style={{ padding: '12px 10px', textAlign: 'center' }}>{stairsCount} Unidad(es)</td>
-                <td style={{ padding: '12px 10px', textAlign: 'right' }}>{formatCurrency(stairsRate)}</td>
-                <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency(stairsSubtotal)}</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-        {/* Pricing Summary */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '30px' }}>
-          <div style={{ width: '100%', maxWidth: '320px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4b5563' }}>
-              <span>Subtotal:</span>
-              <span>{formatCurrency(subtotalBeforeDiscount)}</span>
-            </div>
-            {parseFloat(discountPercent) > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 600 }}>
-                <span>Descuento ({discountPercent}%):</span>
-                <span>- {formatCurrency(discountVal)}</span>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {/* Invoice Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #111827', paddingBottom: '20px', marginBottom: '25px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
+                <img src="/logo.png" alt="Logo HABITECH" style={{ height: '70px', objectFit: 'contain' }} />
               </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.15rem', fontWeight: 800, borderTop: '2px solid #111827', paddingTop: '10px', color: '#111827' }}>
-              <span>TOTAL ESTIMADO:</span>
-              <span>{formatCurrency(totalQuote)}</span>
+              <div style={{ fontSize: '0.8rem', color: '#4b5563', lineHeight: '1.3' }}>
+                Grupo empresarial habitech sas<br />
+                NIT: 902067080-1<br />
+                Dirección: km 4 via villavicencio acacias, lote 1 barrio la nohora<br />
+                Celular: 3124147911<br />
+                Villavicencio - Meta
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>PRESUPUESTO DE OBRA</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#FF6D00', marginTop: '4px' }}>
+                COT-{Date.now().toString().substring(5, 11)}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '10px' }}>
+                <strong>Fecha:</strong> {clientData.date}<br />
+                <strong>Validez:</strong> 30 días
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Terms and conditions block */}
-        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '15px', marginBottom: '40px' }}>
-          <div style={{ fontSize: '0.75rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '5px' }}>CONDICIONES DE CONTRATACIÓN</div>
-          <p style={{ fontSize: '0.8rem', color: '#4b5563', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>
-            {notes}
-          </p>
-        </div>
-
-        {/* Signature Area */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px' }}>
-          <div style={{ width: '45%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ height: '60px', borderBottom: '1px solid #9ca3af', marginBottom: '8px', display: 'flex', justifyContent: 'center', alignItems: 'flex-end', width: '100%', position: 'relative' }}>
-              <img 
-                src="/firma_representante.png" 
-                alt="Firma Autorizada" 
-                style={{ maxHeight: '80px', position: 'absolute', bottom: '-15px', mixBlendMode: 'multiply' }} 
-              />
+          {/* Client Metadata block */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '15px', marginBottom: '25px' }}>
+            <div>
+              <div style={{ fontSize: '0.7rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '3px' }}>COTIZADO A</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1f2937' }}>{clientData.name || '(Sin Nombre)'}</div>
+              <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '3px' }}>
+                <strong>Celular:</strong> {clientData.phone || '(No registrado)'}
+              </div>
             </div>
-            <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>Grupo empresarial habitech sas</div>
-            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Firma Autorizada</div>
+            <div>
+              <div style={{ fontSize: '0.7rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '3px' }}>DETALLES DEL PROYECTO</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1f2937' }}>{clientData.project || '(Sin Destino)'}</div>
+              <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '3px' }}>
+                <strong>Ubicación:</strong> Colombia
+              </div>
+            </div>
           </div>
-          
-          <div style={{ width: '45%', textAlign: 'center' }}>
-            <div style={{ height: '60px', borderBottom: '1px solid #9ca3af', marginBottom: '8px' }}></div>
-            <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>Aceptación de la Oferta (Cliente)</div>
-            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Firma y Cédula</div>
+
+          {/* Table of components breakdown */}
+          <table className="table-print-border" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '25px', fontSize: '0.9rem', textAlign: 'left' }}>
+            <thead>
+              <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #d1d5db', color: '#111827' }}>
+                <th style={{ padding: '10px', fontWeight: 700 }}>Descripción del Item / Servicio</th>
+                {quoteMode === 'm2' && <th style={{ padding: '10px', fontWeight: 700, textAlign: 'center' }}>Medidas / Cantidad</th>}
+                <th style={{ padding: '10px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* Mode A: M2 breakdown */}
+              {quoteMode === 'm2' && (
+                <>
+                  {/* House Line */}
+                  {(parseFloat(houseDims.area) || 0) > 0 && (
+                    <tr>
+                      <td style={{ padding: '12px 10px' }}>
+                        <div style={{ fontWeight: 700, color: '#1f2937' }}>Construcción de Área Principal (Casa)</div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Acabado: {getFinishTypeLabel(finishType)} (M² x {formatCurrency(prices[finishType])})</div>
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'center' }}>
+                        {houseDims.width && houseDims.length ? `${houseDims.width}m x ${houseDims.length}m` : ''} ({houseDims.area} m²)
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency((parseFloat(houseDims.area) || 0) * prices[finishType])}</td>
+                    </tr>
+                  )}
+
+                  {/* Slab Line */}
+                  {includeSlab && (parseFloat(slabDims.area) || 0) > 0 && (
+                    <tr>
+                      <td style={{ padding: '12px 10px' }}>
+                        <div style={{ fontWeight: 700, color: '#1f2937' }}>Placa de Niveles / Entrepiso</div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Cimentación aérea para niveles superiores (M² x {formatCurrency(prices.placa_niveles)})</div>
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'center' }}>
+                        {slabDims.width && slabDims.length ? `${slabDims.width}m x ${slabDims.length}m` : ''} ({slabDims.area} m²)
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency((parseFloat(slabDims.area) || 0) * prices.placa_niveles)}</td>
+                    </tr>
+                  )}
+
+                  {/* Corredors Line */}
+                  {includeCorridors && (parseFloat(corridorDims.area) || 0) > 0 && (
+                    <tr>
+                      <td style={{ padding: '12px 10px' }}>
+                        <div style={{ fontWeight: 700, color: '#1f2937' }}>Corredores Exteriores</div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Zona exterior transitable perimetral (M² x {formatCurrency(prices.corredores_exteriores)})</div>
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'center' }}>
+                        {corridorDims.width && corridorDims.length ? `${corridorDims.width}m x ${corridorDims.length}m` : ''} ({corridorDims.area} m²)
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency((parseFloat(corridorDims.area) || 0) * prices.corredores_exteriores)}</td>
+                    </tr>
+                  )}
+
+                  {/* Stairs Line */}
+                  {includeStairs && (parseInt(stairsQty) || 0) > 0 && (
+                    <tr>
+                      <td style={{ padding: '12px 10px' }}>
+                        <div style={{ fontWeight: 700, color: '#1f2937' }}>Escalera de Niveles</div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Estructura de conexión aérea (Unidad x {formatCurrency(prices.escalera)})</div>
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'center' }}>{stairsQty} Unidad(es)</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency((parseInt(stairsQty) || 0) * prices.escalera)}</td>
+                    </tr>
+                  )}
+                </>
+              )}
+
+              {/* Mode B: Custom concepts breakdown */}
+              {quoteMode === 'concepts' && (
+                <>
+                  {concepts.filter(c => c.included).map((concept) => (
+                    <tr key={concept.id}>
+                      <td style={{ padding: '12px 10px' }}>
+                        <div style={{ fontWeight: 700, color: '#1f2937' }}>{concept.name}</div>
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>
+                        {formatCurrency(concept.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </>
+              )}
+            </tbody>
+          </table>
+
+          {/* Pricing Summary */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '30px' }}>
+            <div style={{ width: '100%', maxWidth: '320px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4b5563' }}>
+                <span>Subtotal:</span>
+                <span>{formatCurrency(subtotalBeforeDiscount)}</span>
+              </div>
+              {parseFloat(discountPercent) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 600 }}>
+                  <span>Descuento ({discountPercent}%):</span>
+                  <span>- {formatCurrency(discountVal)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.15rem', fontWeight: 800, borderTop: '2px solid #111827', paddingTop: '10px', color: '#111827' }}>
+                <span>TOTAL ESTIMADO:</span>
+                <span>{formatCurrency(totalQuote)}</span>
+              </div>
+            </div>
           </div>
+
+          {/* Terms and conditions block */}
+          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '15px', marginBottom: '40px' }}>
+            <div style={{ fontSize: '0.75rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '5px' }}>CONDICIONES DE CONTRATACIÓN</div>
+            <p style={{ fontSize: '0.8rem', color: '#4b5563', lineHeight: '1.4', margin: 0, whiteSpace: 'pre-wrap' }}>
+              {notes}
+            </p>
+          </div>
+
+          {/* Signature Area */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px' }}>
+            <div style={{ width: '45%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ height: '60px', borderBottom: '1px solid #9ca3af', marginBottom: '8px', display: 'flex', justifyContent: 'center', alignItems: 'flex-end', width: '100%', position: 'relative' }}>
+                <img 
+                  src="/firma_representante.png" 
+                  alt="Firma Autorizada" 
+                  style={{ maxHeight: '80px', position: 'absolute', bottom: '-15px', mixBlendMode: 'multiply' }} 
+                />
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>Grupo empresarial habitech sas</div>
+              <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Firma Autorizada</div>
+            </div>
+            
+            <div style={{ width: '45%', textAlign: 'center' }}>
+              <div style={{ height: '60px', borderBottom: '1px solid #9ca3af', marginBottom: '8px' }}></div>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>Aceptación de la Oferta (Cliente)</div>
+              <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Firma y Cédula</div>
+            </div>
+          </div>
+
+          {/* PRINT BLUEPRINT PAGE BREAK */}
+          {blueprintImg && (
+            <div style={{ pageBreakBefore: 'always', paddingTop: '30px', position: 'relative' }}>
+              {/* Blueprint Watermark Logo */}
+              <div style={{
+                position: 'absolute',
+                top: '40%',
+                left: '50%',
+                transform: 'translate(-50%, -50%) rotate(-15deg)',
+                opacity: 0.03,
+                pointerEvents: 'none',
+                zIndex: 0,
+                width: '350px',
+                height: '350px',
+                backgroundImage: 'url(/logo.png)',
+                backgroundSize: 'contain',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat'
+              }} />
+              
+              <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+                {/* Blueprint Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #111827', paddingBottom: '15px', marginBottom: '30px' }}>
+                  <img src="/logo.png" alt="Logo HABITECH" style={{ height: '55px', objectFit: 'contain' }} />
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#111827' }}>ANEXO TÉCNICO: PLANO DE LA OBRA</div>
+                    <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Cliente: {clientData.name || '(Sin Nombre)'}</div>
+                  </div>
+                </div>
+
+                {/* Blueprint Rendering */}
+                <div style={{ border: '1px solid #d1d5db', borderRadius: '10px', padding: '15px', background: '#fafafa', display: 'inline-block', maxWidth: '100%', marginBottom: '20px' }}>
+                  <img 
+                    src={blueprintImg} 
+                    alt="Plano de Construcción" 
+                    style={{ maxWidth: '100%', maxHeight: '650px', objectFit: 'contain', display: 'block', margin: 'auto' }} 
+                  />
+                </div>
+                
+                <div style={{ fontSize: '0.8rem', color: '#6b7280', fontStyle: 'italic', marginTop: '10px' }}>
+                  El plano arquitectónico adjunto forma parte integral de la oferta comercial y los términos técnicos aprobados.
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>
