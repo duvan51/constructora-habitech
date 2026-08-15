@@ -127,13 +127,13 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
     if (projects.length === 0) return <p>No hay datos suficientes para graficar.</p>;
     
     const chartHeight = 160;
-    const chartWidth = 450;
-    const barWidth = 30;
-    const gap = 45;
+    const barWidth = 25;
+    const gap = 35;
+    const chartWidth = Math.max(450, projects.length * (barWidth * 2 + gap) + 60);
     const maxVal = Math.max(...projects.map(p => Math.max(p.totalCost, 10000000)), 50000000);
 
     return (
-      <svg viewBox={`0 0 ${chartWidth} ${chartHeight + 40}`} width="100%" height="200" style={{ overflow: 'visible' }}>
+      <svg viewBox={`0 0 ${chartWidth} ${chartHeight + 40}`} width="100%" height="200" style={{ overflow: 'visible', minWidth: `${chartWidth}px` }}>
         {/* Y Axis Grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
           const y = chartHeight - ratio * chartHeight + 10;
@@ -367,25 +367,29 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
       {/* Charts Section */}
       <div className="grid-2">
         <div className="glass-panel" style={{ padding: '22px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
             <h3 style={{ fontSize: '1.1rem' }}>Presupuestos vs Cobros reales</h3>
             <div style={{ display: 'flex', gap: '12px', fontSize: '0.75rem' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '10px', height: '10px', background: 'var(--primary-indigo)', borderRadius: '2px' }}></span>Presupuesto</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '10px', height: '10px', background: 'var(--primary-cyan)', borderRadius: '2px' }}></span>Cobrado</span>
             </div>
           </div>
-          {renderSVGChart1()}
+          <div style={{ width: '100%', overflowX: 'auto' }}>
+            {renderSVGChart1()}
+          </div>
         </div>
 
         <div className="glass-panel" style={{ padding: '22px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
             <h3 style={{ fontSize: '1.1rem' }}>Tendencia de Caja (Histórico Mensual)</h3>
             <div style={{ display: 'flex', gap: '12px', fontSize: '0.75rem' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '10px', height: '1.5px', background: 'var(--primary-teal)', display: 'inline-block' }}></span>Cobros</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '10px', height: '1.5px', background: 'var(--primary-red)', display: 'inline-block' }}></span>Gastos</span>
             </div>
           </div>
-          {renderSVGChart2()}
+          <div style={{ width: '100%', overflowX: 'auto' }}>
+            {renderSVGChart2()}
+          </div>
         </div>
       </div>
 
