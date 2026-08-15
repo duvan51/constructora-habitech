@@ -374,6 +374,7 @@ export default function ProjectForm({ project, onClose, onSave }) {
                         placeholder="%"
                         min="0"
                         max="100"
+                        step="0.01"
                         value={milestone.percentage || ''}
                         onChange={(e) => handleMilestoneChange(milestone.id, 'percentage', e.target.value)}
                         required

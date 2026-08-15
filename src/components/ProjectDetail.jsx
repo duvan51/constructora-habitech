@@ -2169,6 +2169,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                           placeholder="%"
                           min="0"
                           max="100"
+                          step="0.01"
                           required
                         />
                         <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>%</span>
