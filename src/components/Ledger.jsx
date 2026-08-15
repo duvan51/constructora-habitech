@@ -4,6 +4,8 @@ import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, Cr
 export default function Ledger({ transactions, projects, onAddTransaction, userRole }) {
   const [filterType, setFilterType] = useState('all'); // 'all' | 'income' | 'expense'
   const [filterProject, setFilterProject] = useState('all'); // 'all' | projectId
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
 
   // New Transaction Form State
@@ -76,7 +78,17 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
   const filteredTxs = transactions.filter(t => {
     const typeMatch = filterType === 'all' || t.type === filterType;
     const projectMatch = filterProject === 'all' || t.projectId === filterProject;
-    return typeMatch && projectMatch;
+    
+    // Date range filter
+    let dateMatch = true;
+    if (startDate) {
+      dateMatch = dateMatch && (t.date >= startDate);
+    }
+    if (endDate) {
+      dateMatch = dateMatch && (t.date <= endDate);
+    }
+    
+    return typeMatch && projectMatch && dateMatch;
   });
 
   // Financial calculations based on filter or overall
@@ -180,6 +192,43 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
+
+        {/* Date Range Filters */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Desde:</span>
+          <input
+            type="date"
+            className="form-control"
+            style={{ width: 'auto', padding: '6px 12px' }}
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Hasta:</span>
+          <input
+            type="date"
+            className="form-control"
+            style={{ width: 'auto', padding: '6px 12px' }}
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </div>
+
+        {/* Clear Date Filters Button */}
+        {(startDate || endDate) && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ padding: '6px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+            onClick={() => {
+              setStartDate('');
+              setEndDate('');
+            }}
+          >
+            <X size={12} /> Limpiar Fechas
+          </button>
+        )}
 
         <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
           Mostrando {filteredTxs.length} registros
