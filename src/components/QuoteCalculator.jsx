@@ -70,6 +70,7 @@ export default function QuoteCalculator() {
 
   // Additional settings
   const [discountPercent, setDiscountPercent] = useState('0');
+  const [adjustmentAmount, setAdjustmentAmount] = useState('0'); // Added global adjustment buffer
   const [notes, setNotes] = useState('Garantía de construcción de 5 años estructural. Validez de esta cotización de 30 días.');
 
   // Auto-calculate areas when dimensions change
@@ -206,32 +207,60 @@ export default function QuoteCalculator() {
     setConcepts(prev => prev.filter(c => c.id !== id));
   };
 
-  // Math Calculations
-  let subtotalBeforeDiscount = 0;
+  // Math Calculations (Pro-rated adjustment)
+  const adjAmt = parseFloat(adjustmentAmount) || 0;
   
+  let baseHouseSubtotal = 0;
+  let baseSlabSubtotal = 0;
+  let baseCorridorSubtotal = 0;
+  let baseStairsSubtotal = 0;
+  
+  let rawSubtotal = 0;
+  
+  const houseArea = parseFloat(houseDims.area) || 0;
+  const houseRate = prices[finishType] || 0;
+  baseHouseSubtotal = houseArea * houseRate;
+
+  const slabArea = includeSlab ? (parseFloat(slabDims.area) || 0) : 0;
+  const slabRate = prices.placa_niveles || 0;
+  baseSlabSubtotal = slabArea * slabRate;
+
+  const corridorArea = includeCorridors ? (parseFloat(corridorDims.area) || 0) : 0;
+  const corridorRate = prices.corredores_exteriores || 0;
+  baseCorridorSubtotal = corridorArea * corridorRate;
+
+  const stairsCount = includeStairs ? (parseInt(stairsQty) || 0) : 0;
+  const stairsRate = prices.escalera || 0;
+  baseStairsSubtotal = stairsCount * stairsRate;
+
   if (quoteMode === 'm2') {
-    const houseArea = parseFloat(houseDims.area) || 0;
-    const houseRate = prices[finishType] || 0;
-    const houseSubtotal = houseArea * houseRate;
-
-    const slabArea = includeSlab ? (parseFloat(slabDims.area) || 0) : 0;
-    const slabRate = prices.placa_niveles || 0;
-    const slabSubtotal = slabArea * slabRate;
-
-    const corridorArea = includeCorridors ? (parseFloat(corridorDims.area) || 0) : 0;
-    const corridorRate = prices.corredores_exteriores || 0;
-    const corridorSubtotal = corridorArea * corridorRate;
-
-    const stairsCount = includeStairs ? (parseInt(stairsQty) || 0) : 0;
-    const stairsRate = prices.escalera || 0;
-    const stairsSubtotal = stairsCount * stairsRate;
-
-    subtotalBeforeDiscount = houseSubtotal + slabSubtotal + corridorSubtotal + stairsSubtotal;
+    rawSubtotal = baseHouseSubtotal + baseSlabSubtotal + baseCorridorSubtotal + baseStairsSubtotal;
   } else {
-    subtotalBeforeDiscount = concepts
+    rawSubtotal = concepts
       .filter(c => c.included)
       .reduce((sum, c) => sum + c.amount, 0);
   }
+
+  // Calculate pro-rating factor
+  const factor = rawSubtotal > 0 ? (rawSubtotal + adjAmt) / rawSubtotal : 1;
+
+  // Prorated items for rendering (Rounded to nearest Colombian Peso to avoid cents)
+  const printedHouseRate = Math.round(houseRate * factor);
+  const printedHouseSubtotal = Math.round(baseHouseSubtotal * factor);
+  
+  const printedSlabRate = Math.round(slabRate * factor);
+  const printedSlabSubtotal = Math.round(baseSlabSubtotal * factor);
+  
+  const printedCorridorRate = Math.round(corridorRate * factor);
+  const printedCorridorSubtotal = Math.round(baseCorridorSubtotal * factor);
+  
+  const printedStairsRate = Math.round(stairsRate * factor);
+  const printedStairsSubtotal = Math.round(baseStairsSubtotal * factor);
+
+  // Sum of prorated lines
+  const subtotalBeforeDiscount = quoteMode === 'm2'
+    ? (printedHouseSubtotal + printedSlabSubtotal + printedCorridorSubtotal + printedStairsSubtotal)
+    : concepts.filter(c => c.included).reduce((sum, c) => sum + Math.round(c.amount * factor), 0);
 
   const discountVal = (subtotalBeforeDiscount * (parseFloat(discountPercent) || 0)) / 100;
   const totalQuote = subtotalBeforeDiscount - discountVal;
@@ -416,7 +445,7 @@ export default function QuoteCalculator() {
               Plano de la Obra (Anexo)
             </h3>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
-              Sube una imagen del plano arquitectónico para anexarlo automáticamente en la cotización impresa.
+              Sube una imagen del plano arquitectónico para anexarlo automáticamente en la cotización de impresión.
             </p>
             
             {blueprintImg ? (
@@ -746,19 +775,38 @@ export default function QuoteCalculator() {
           {/* Descuentos y notas */}
           <div className="glass-panel" style={{ padding: '20px' }}>
             <h3 style={{ marginBottom: '15px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
-              Descuentos y Condiciones
+              Descuentos, Margen y Notas
             </h3>
-            <div className="form-group" style={{ marginBottom: '12px', maxWidth: '150px' }}>
-              <label>Descuento (%)</label>
-              <input
-                type="number"
-                className="form-control"
-                min="0"
-                max="100"
-                value={discountPercent}
-                onChange={(e) => setDiscountPercent(e.target.value)}
-              />
+            
+            <div className="form-row" style={{ marginBottom: '12px' }}>
+              <div className="form-group">
+                <label>Ajuste / Margen Global ($)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>$</span>
+                  <input
+                    type="number"
+                    className="form-control"
+                    placeholder="Ej. 10000000"
+                    value={adjustmentAmount}
+                    onChange={(e) => setAdjustmentAmount(e.target.value)}
+                  />
+                </div>
+                <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>Este valor incrementará el total de la cotización y se distribuirá (prorrateará) proporcionalmente en los precios mostrados al cliente.</p>
+              </div>
+
+              <div className="form-group" style={{ maxWidth: '120px' }}>
+                <label>Descuento (%)</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  min="0"
+                  max="100"
+                  value={discountPercent}
+                  onChange={(e) => setDiscountPercent(e.target.value)}
+                />
+              </div>
             </div>
+
             <div className="form-group">
               <label>Notas de la Cotización</label>
               <textarea
@@ -778,7 +826,7 @@ export default function QuoteCalculator() {
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Previsualización del Documento Impreso (A4)</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--primary-orange)' }}>* Marca de Agua Activada</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--primary-orange)' }}>* Margen de Ajuste Prorrateado</span>
           </div>
 
           {/* Document Sheet Layout Container */}
@@ -864,7 +912,8 @@ export default function QuoteCalculator() {
                 <thead>
                   <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #d1d5db', color: '#111827' }}>
                     <th style={{ padding: '8px 6px', fontWeight: 700 }}>Descripción de la Actividad / Item</th>
-                    {quoteMode === 'm2' && <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'center' }}>Medidas</th>}
+                    {quoteMode === 'm2' && <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'center' }}>Medidas / Cantidad</th>}
+                    {quoteMode === 'm2' && <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right' }}>Valor Unitario</th>}
                     <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
                   </tr>
                 </thead>
@@ -873,56 +922,60 @@ export default function QuoteCalculator() {
                   {quoteMode === 'm2' && (
                     <>
                       {/* House Row */}
-                      {(parseFloat(houseDims.area) || 0) > 0 && (
+                      {houseArea > 0 && (
                         <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                           <td style={{ padding: '10px 6px' }}>
                             <div style={{ fontWeight: 700, color: '#1f2937' }}>Área de Vivienda ({getFinishTypeLabel(finishType)})</div>
-                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Construcción principal en m² x {formatCurrency(prices[finishType])}</div>
+                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Construcción principal en metros cuadrados</div>
                           </td>
                           <td style={{ padding: '10px 6px', textAlign: 'center' }}>
                             {houseDims.width && houseDims.length ? `${houseDims.width}m x ${houseDims.length}m` : ''} ({houseDims.area} m²)
                           </td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency((parseFloat(houseDims.area) || 0) * prices[finishType])}</td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedHouseRate)}</td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedHouseSubtotal)}</td>
                         </tr>
                       )}
 
                       {/* Slab Row */}
-                      {includeSlab && (parseFloat(slabDims.area) || 0) > 0 && (
+                      {includeSlab && slabArea > 0 && (
                         <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                           <td style={{ padding: '10px 6px' }}>
                             <div style={{ fontWeight: 700, color: '#1f2937' }}>Placa de Niveles / Entrepiso</div>
-                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Cimentación aérea por m² x {formatCurrency(prices.placa_niveles)}</div>
+                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Cimentación aérea para pisos superiores</div>
                           </td>
                           <td style={{ padding: '10px 6px', textAlign: 'center' }}>
                             {slabDims.width && slabDims.length ? `${slabDims.width}m x ${slabDims.length}m` : ''} ({slabDims.area} m²)
                           </td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency((parseFloat(slabDims.area) || 0) * prices.placa_niveles)}</td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedSlabRate)}</td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedSlabSubtotal)}</td>
                         </tr>
                       )}
 
-                      {/* Corridors Row */}
-                      {includeCorridors && (parseFloat(corridorDims.area) || 0) > 0 && (
+                      {/* Corredors Row */}
+                      {includeCorridors && corridorArea > 0 && (
                         <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                           <td style={{ padding: '10px 6px' }}>
                             <div style={{ fontWeight: 700, color: '#1f2937' }}>Corredores Exteriores</div>
-                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Pasillos perimetrales transitables m² x {formatCurrency(prices.corredores_exteriores)}</div>
+                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Pasillos perimetrales transitables</div>
                           </td>
                           <td style={{ padding: '10px 6px', textAlign: 'center' }}>
                             {corridorDims.width && corridorDims.length ? `${corridorDims.width}m x ${corridorDims.length}m` : ''} ({corridorDims.area} m²)
                           </td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency((parseFloat(corridorDims.area) || 0) * prices.corredores_exteriores)}</td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedCorridorRate)}</td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedCorridorSubtotal)}</td>
                         </tr>
                       )}
 
                       {/* Stairs Row */}
-                      {includeStairs && (parseInt(stairsQty) || 0) > 0 && (
+                      {includeStairs && stairsCount > 0 && (
                         <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                           <td style={{ padding: '10px 6px' }}>
                             <div style={{ fontWeight: 700, color: '#1f2937' }}>Escalera de Niveles</div>
                             <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Conectores de niveles en concreto o metal</div>
                           </td>
                           <td style={{ padding: '10px 6px', textAlign: 'center' }}>{stairsQty} Unidad(es)</td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency((parseInt(stairsQty) || 0) * prices.escalera)}</td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedStairsRate)}</td>
+                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedStairsSubtotal)}</td>
                         </tr>
                       )}
                     </>
@@ -937,7 +990,7 @@ export default function QuoteCalculator() {
                             <div style={{ fontWeight: 700, color: '#1f2937' }}>{concept.name}</div>
                           </td>
                           <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>
-                            {formatCurrency(concept.amount)}
+                            {formatCurrency(Math.round(concept.amount * factor))}
                           </td>
                         </tr>
                       ))}
@@ -946,7 +999,7 @@ export default function QuoteCalculator() {
 
                   {subtotalBeforeDiscount === 0 && (
                     <tr>
-                      <td colSpan={quoteMode === 'm2' ? 3 : 2} style={{ textAlign: 'center', padding: '20px', color: '#9ca3af' }}>
+                      <td colSpan={quoteMode === 'm2' ? 4 : 2} style={{ textAlign: 'center', padding: '20px', color: '#9ca3af' }}>
                         Sin conceptos registrados. Llena la información en el panel izquierdo.
                       </td>
                     </tr>
@@ -1080,6 +1133,7 @@ export default function QuoteCalculator() {
               <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #d1d5db', color: '#111827' }}>
                 <th style={{ padding: '10px', fontWeight: 700 }}>Descripción del Item / Servicio</th>
                 {quoteMode === 'm2' && <th style={{ padding: '10px', fontWeight: 700, textAlign: 'center' }}>Medidas / Cantidad</th>}
+                {quoteMode === 'm2' && <th style={{ padding: '10px', fontWeight: 700, textAlign: 'right' }}>Valor Unitario</th>}
                 <th style={{ padding: '10px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
               </tr>
             </thead>
@@ -1088,56 +1142,60 @@ export default function QuoteCalculator() {
               {quoteMode === 'm2' && (
                 <>
                   {/* House Line */}
-                  {(parseFloat(houseDims.area) || 0) > 0 && (
+                  {houseArea > 0 && (
                     <tr>
                       <td style={{ padding: '12px 10px' }}>
                         <div style={{ fontWeight: 700, color: '#1f2937' }}>Construcción de Área Principal (Casa)</div>
-                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Acabado: {getFinishTypeLabel(finishType)} (M² x {formatCurrency(prices[finishType])})</div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Acabado: {getFinishTypeLabel(finishType)}</div>
                       </td>
                       <td style={{ padding: '12px 10px', textAlign: 'center' }}>
                         {houseDims.width && houseDims.length ? `${houseDims.width}m x ${houseDims.length}m` : ''} ({houseDims.area} m²)
                       </td>
-                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency((parseFloat(houseDims.area) || 0) * prices[finishType])}</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right' }}>{formatCurrency(printedHouseRate)}</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency(printedHouseSubtotal)}</td>
                     </tr>
                   )}
 
                   {/* Slab Line */}
-                  {includeSlab && (parseFloat(slabDims.area) || 0) > 0 && (
+                  {includeSlab && slabArea > 0 && (
                     <tr>
                       <td style={{ padding: '12px 10px' }}>
                         <div style={{ fontWeight: 700, color: '#1f2937' }}>Placa de Niveles / Entrepiso</div>
-                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Cimentación aérea para niveles superiores (M² x {formatCurrency(prices.placa_niveles)})</div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Cimentación aérea para niveles superiores</div>
                       </td>
                       <td style={{ padding: '12px 10px', textAlign: 'center' }}>
                         {slabDims.width && slabDims.length ? `${slabDims.width}m x ${slabDims.length}m` : ''} ({slabDims.area} m²)
                       </td>
-                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency((parseFloat(slabDims.area) || 0) * prices.placa_niveles)}</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right' }}>{formatCurrency(printedSlabRate)}</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency(printedSlabSubtotal)}</td>
                     </tr>
                   )}
 
                   {/* Corredors Line */}
-                  {includeCorridors && (parseFloat(corridorDims.area) || 0) > 0 && (
+                  {includeCorridors && corridorArea > 0 && (
                     <tr>
                       <td style={{ padding: '12px 10px' }}>
                         <div style={{ fontWeight: 700, color: '#1f2937' }}>Corredores Exteriores</div>
-                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Zona exterior transitable perimetral (M² x {formatCurrency(prices.corredores_exteriores)})</div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Zona exterior transitable perimetral</div>
                       </td>
                       <td style={{ padding: '12px 10px', textAlign: 'center' }}>
                         {corridorDims.width && corridorDims.length ? `${corridorDims.width}m x ${corridorDims.length}m` : ''} ({corridorDims.area} m²)
                       </td>
-                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency((parseFloat(corridorDims.area) || 0) * prices.corredores_exteriores)}</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right' }}>{formatCurrency(printedCorridorRate)}</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency(printedCorridorSubtotal)}</td>
                     </tr>
                   )}
 
                   {/* Stairs Line */}
-                  {includeStairs && (parseInt(stairsQty) || 0) > 0 && (
+                  {includeStairs && stairsCount > 0 && (
                     <tr>
                       <td style={{ padding: '12px 10px' }}>
                         <div style={{ fontWeight: 700, color: '#1f2937' }}>Escalera de Niveles</div>
-                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Estructura de conexión aérea (Unidad x {formatCurrency(prices.escalera)})</div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>Estructura de conexión aérea</div>
                       </td>
                       <td style={{ padding: '12px 10px', textAlign: 'center' }}>{stairsQty} Unidad(es)</td>
-                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency((parseInt(stairsQty) || 0) * prices.escalera)}</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right' }}>{formatCurrency(printedStairsRate)}</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency(printedStairsSubtotal)}</td>
                     </tr>
                   )}
                 </>
@@ -1152,7 +1210,7 @@ export default function QuoteCalculator() {
                         <div style={{ fontWeight: 700, color: '#1f2937' }}>{concept.name}</div>
                       </td>
                       <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>
-                        {formatCurrency(concept.amount)}
+                        {formatCurrency(Math.round(concept.amount * factor))}
                       </td>
                     </tr>
                   ))}
