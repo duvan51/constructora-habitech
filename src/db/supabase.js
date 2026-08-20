@@ -100,13 +100,14 @@ const mapTransactionToCamel = (t) => {
     description: t.description,
     amount: parseFloat(t.amount) || 0,
     date: t.date,
+    receiptBase64: t.receipt_base64 || null,
     createdAt: t.created_at
   };
 };
 
 const mapTransactionToSnake = (t) => {
   if (!t) return null;
-  return {
+  const res = {
     id: t.id,
     project_id: t.projectId === 'general' ? null : t.projectId,
     project_name: t.projectName,
@@ -116,6 +117,10 @@ const mapTransactionToSnake = (t) => {
     amount: t.amount,
     date: t.date
   };
+  if (t.receiptBase64 !== undefined) {
+    res.receipt_base64 = t.receiptBase64;
+  }
+  return res;
 };
 
 const mapProjectToCamel = (p) => {

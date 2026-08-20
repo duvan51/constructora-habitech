@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   description TEXT NOT NULL,
   amount NUMERIC NOT NULL,
   date DATE NOT NULL,
+  receipt_base64 TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

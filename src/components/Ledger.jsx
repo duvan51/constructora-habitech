@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check } from 'lucide-react';
 
 export default function Ledger({ transactions, projects, onAddTransaction, userRole }) {
   const [filterType, setFilterType] = useState('all'); // 'all' | 'income' | 'expense'
@@ -7,6 +7,83 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+
+  const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'camera'
+  const [fileBase64, setFileBase64] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [previewReceipt, setPreviewReceipt] = useState(null);
+
+  // Camera states
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [stream, setStream] = useState(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [capturedImage, setCapturedImage] = useState('');
+
+  // Turn off camera stream when modal closes
+  useEffect(() => {
+    if (!showAddModal) {
+      stopCamera();
+    }
+  }, [showAddModal]);
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, [stream]);
+
+  const startCamera = async () => {
+    setCapturedImage('');
+    setFileBase64('');
+    setFileName('');
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+      setStream(mediaStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+      setCameraActive(true);
+    } catch (err) {
+      console.error('Error accessing camera:', err);
+      alert('No se pudo acceder a la cámara. Revisa los permisos o sube un archivo.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setCameraActive(false);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/png');
+    setCapturedImage(dataUrl);
+    setFileName(`soporte_${new Date().getTime()}.png`);
+    stopCamera();
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFileBase64(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // New Transaction Form State
   const [txData, setTxData] = useState({
@@ -57,7 +134,8 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
       category: txData.category,
       description: txData.description,
       amount: amt,
-      date: txData.date
+      date: txData.date,
+      receiptBase64: uploadMode === 'file' ? fileBase64 : capturedImage
     };
 
     onAddTransaction(newTx);
@@ -71,6 +149,10 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
       amount: '',
       date: new Date().toISOString().split('T')[0]
     });
+    setUploadMode('file');
+    setFileBase64('');
+    setFileName('');
+    setCapturedImage('');
     setShowAddModal(false);
   };
 
@@ -276,7 +358,31 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
                         {getCategoryLabel(tx.category)}
                       </td>
                       <td style={{ padding: '14px 12px', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                        {tx.description}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span>{tx.description}</span>
+                          {tx.receiptBase64 && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewReceipt(tx)}
+                              style={{
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid var(--border-glass)',
+                                color: 'var(--primary-cyan)',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                              }}
+                              title="Ver Comprobante / Foto"
+                            >
+                              <Paperclip size={10} /> Adjunto
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td style={{ 
                         padding: '14px 12px', 
@@ -398,9 +504,99 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
                     />
                   </div>
                 </div>
+
+                {/* Soporte / Comprobante de Pago o Foto */}
+                <div style={{ borderTop: '1px dashed var(--border-glass)', marginTop: '15px', paddingTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Adjuntar Soporte / Recibo (Opcional)</label>
+                  
+                  {/* Tabs */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', background: 'rgba(255,255,255,0.02)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ flex: 1, padding: '6px 12px', fontSize: '0.8rem', background: uploadMode === 'file' ? 'var(--bg-glass)' : 'transparent', border: uploadMode === 'file' ? '1px solid var(--border-glass-active)' : '1px solid transparent', color: uploadMode === 'file' ? 'var(--primary-cyan)' : 'var(--text-secondary)' }}
+                      onClick={() => { setUploadMode('file'); stopCamera(); }}
+                    >
+                      <Upload size={14} /> Archivo / Media
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ flex: 1, padding: '6px 12px', fontSize: '0.8rem', background: uploadMode === 'camera' ? 'var(--bg-glass)' : 'transparent', border: uploadMode === 'camera' ? '1px solid var(--border-glass-active)' : '1px solid transparent', color: uploadMode === 'camera' ? 'var(--primary-cyan)' : 'var(--text-secondary)' }}
+                      onClick={() => { setUploadMode('camera'); startCamera(); }}
+                    >
+                      <Camera size={14} /> Tomar Foto
+                    </button>
+                  </div>
+
+                  {uploadMode === 'file' ? (
+                    <div style={{ border: '1px dashed var(--border-glass)', borderRadius: '8px', padding: '20px 10px', textAlign: 'center' }}>
+                      <input
+                        type="file"
+                        id="tx-file-input"
+                        style={{ display: 'none' }}
+                        accept="image/*,application/pdf"
+                        onChange={handleFileChange}
+                      />
+                      <label htmlFor="tx-file-input" style={{ cursor: 'pointer', display: 'block' }}>
+                        <Upload size={24} style={{ color: 'var(--text-muted)', marginBottom: '8px' }} />
+                        <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>
+                          Examinar archivos...
+                        </p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>PDF o imágenes de recibos</p>
+                      </label>
+                      {fileName && (
+                        <div style={{ marginTop: '10px', fontSize: '0.85rem', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                          <Check size={12} /> {fileName}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                      {cameraActive && (
+                        <div style={{ position: 'relative', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--primary-cyan)' }}>
+                          <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            style={{ width: '100%', display: 'block', background: '#000' }}
+                          />
+                          <div style={{ position: 'absolute', bottom: '10px', left: '0', right: '0', display: 'flex', justifyContent: 'center' }}>
+                            <button type="button" className="btn btn-primary" onClick={capturePhoto} style={{ borderRadius: '50%', width: '42px', height: '42px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Camera size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {capturedImage && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '100%' }}>
+                          <div style={{ position: 'relative', width: '100%', maxWidth: '200px', border: '1px solid var(--border-glass)', borderRadius: '8px', overflow: 'hidden' }}>
+                            <img src={capturedImage} alt="Captured" style={{ width: '100%', display: 'block' }} />
+                            <div style={{ position: 'absolute', top: '5px', right: '5px', background: 'var(--primary-teal)', color: 'white', borderRadius: '50%', padding: '2px' }}>
+                              <Check size={12} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {!cameraActive && !capturedImage && (
+                        <button type="button" className="btn btn-secondary" onClick={startCamera} style={{ fontSize: '0.8rem' }}>
+                          <Camera size={14} /> Iniciar Cámara
+                        </button>
+                      )}
+                      {(cameraActive || capturedImage) && (
+                        <button type="button" className="btn btn-secondary" onClick={startCamera} style={{ fontSize: '0.8rem' }}>
+                          Reintentar Foto
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <canvas ref={canvasRef} style={{ display: 'none' }} />
+                </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddModal(false)}>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowAddModal(false); stopCamera(); }}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -408,6 +604,44 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* RECEIPT PREVIEW MODAL */}
+      {previewReceipt && (
+        <div className="modal-overlay" onClick={() => setPreviewReceipt(null)}>
+          <div className="modal-content" style={{ maxWidth: '600px', width: '90%', background: 'var(--bg-secondary)', padding: '20px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Paperclip size={20} style={{ color: 'var(--primary-cyan)' }} />
+                Comprobante Adjunto
+              </h3>
+              <button className="btn-icon" onClick={() => setPreviewReceipt(null)}><X size={18} /></button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '15px' }}>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '15px', textAlign: 'center' }}>
+                <strong>Movimiento:</strong> {previewReceipt.description} ({formatCurrency(previewReceipt.amount)})
+              </p>
+              {previewReceipt.receiptBase64.startsWith('data:application/pdf') ? (
+                <iframe 
+                  src={previewReceipt.receiptBase64} 
+                  title="Comprobante PDF" 
+                  style={{ width: '100%', height: '400px', border: 'none', borderRadius: '8px' }}
+                />
+              ) : (
+                <img 
+                  src={previewReceipt.receiptBase64} 
+                  alt="Comprobante" 
+                  style={{ maxWidth: '100%', maxHeight: '450px', objectFit: 'contain', borderRadius: '8px', border: '1px solid var(--border-glass)' }} 
+                />
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setPreviewReceipt(null)}>
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
