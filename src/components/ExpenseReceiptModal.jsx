@@ -109,9 +109,6 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
                 <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '4px' }}>
                   <strong>Dirección:</strong> {project.location?.customAddress || project.location?.address || 'Ubicación registrada'}
                 </div>
-                <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '4px' }}>
-                  <strong>Renglón Presupuestario Asociado:</strong> {getBudgetLine()}
-                </div>
               </div>
             </div>
 
@@ -151,6 +148,21 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
                   <span style={{ fontWeight: 700, color: '#ef4444' }}>{formatCurrency(transaction.amount)}</span>
                 </div>
               </div>
+            </div>
+
+            {/* Note / Associated Budget Line */}
+            <div style={{ 
+              background: '#f9fafb', 
+              padding: '12px 15px', 
+              borderRadius: '6px', 
+              borderLeft: '4px solid #FF6D00', 
+              fontSize: '0.85rem', 
+              color: '#374151',
+              marginBottom: '25px',
+              marginTop: '15px',
+              textAlign: 'left'
+            }}>
+              <strong>NOTA:</strong> Este egreso está asociado al renglón presupuestario: <strong>{getBudgetLine()}</strong>.
             </div>
 
             {/* Receipt Footer */}
