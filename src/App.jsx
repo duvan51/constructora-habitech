@@ -6,6 +6,7 @@ import ProjectDetail from './components/ProjectDetail';
 import ProjectForm from './components/ProjectForm';
 import Ledger from './components/Ledger';
 import Login from './components/Login';
+import LockScreen from './components/LockScreen';
 import UserManagement from './components/UserManagement';
 import ApiSettings from './components/ApiSettings';
 import ProjectManagement from './components/ProjectManagement';
@@ -25,6 +26,7 @@ import { getCachedData, setCachedData } from './db/storage';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
+  const [isLocked, setIsLocked] = useState(false);
   const [currentTab, setTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [projects, setProjects] = useState([]);
@@ -125,11 +127,13 @@ export default function App() {
 
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
+    setIsLocked(false);
     localStorage.setItem('habitech_user_session', JSON.stringify(user));
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setIsLocked(false);
     localStorage.removeItem('habitech_user_session');
     setTab('dashboard');
     setSelectedProjectId(null);
@@ -256,6 +260,43 @@ export default function App() {
   };
 
   const activeProject = projects.find(p => p.id === selectedProjectId);
+
+  // Inactivity tracking (5 minutes lock for non-admins)
+  useEffect(() => {
+    if (!currentUser || currentUser.role === 'admin' || isLocked) {
+      return;
+    }
+
+    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+    let timeoutId;
+
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setIsLocked(true);
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    const activityEvents = ['mousemove', 'keydown', 'mousedown', 'click', 'scroll', 'touchstart'];
+
+    const handleUserActivity = () => {
+      resetTimer();
+    };
+
+    activityEvents.forEach(event => {
+      window.addEventListener(event, handleUserActivity);
+    });
+
+    // Initialize timer
+    resetTimer();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      activityEvents.forEach(event => {
+        window.removeEventListener(event, handleUserActivity);
+      });
+    };
+  }, [currentUser, isLocked]);
 
   // Filtering projects
   const filteredProjects = projects.filter(p => 
@@ -477,6 +518,15 @@ export default function App() {
         <ProjectForm 
           onClose={() => setShowProjectForm(false)}
           onSave={handleSaveProject}
+        />
+      )}
+
+      {/* SECURITY LOCK SCREEN FOR INACTIVITY */}
+      {isLocked && currentUser && (
+        <LockScreen 
+          currentUser={currentUser}
+          onUnlock={() => setIsLocked(false)}
+          onLogout={handleLogout}
         />
       )}
     </div>
