@@ -41,6 +41,15 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
     return transaction.description;
   };
 
+  // Get the associated budget line (Renglón Presupuestario)
+  const getBudgetLine = () => {
+    if (!transaction.description) return 'No especificado';
+    if (transaction.description.includes(' || ')) {
+      return transaction.description.split(' || ')[0];
+    }
+    return 'Sin clasificar / General';
+  };
+
   return (
     <div className="modal-overlay">
       <div className="modal-content" style={{ maxWidth: '750px', background: 'var(--bg-secondary)' }}>
@@ -100,6 +109,9 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
                 <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '4px' }}>
                   <strong>Dirección:</strong> {project.location?.customAddress || project.location?.address || 'Ubicación registrada'}
                 </div>
+                <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '4px' }}>
+                  <strong>Renglón Presupuestario Asociado:</strong> {getBudgetLine()}
+                </div>
               </div>
             </div>
 
@@ -116,7 +128,10 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
                 <tr style={{ borderBottom: '1px solid #e5e7eb', fontSize: '0.9rem', color: '#4b5563' }}>
                   <td style={{ padding: '12px 10px' }}>
                     <div style={{ fontWeight: 600, color: '#1f2937' }}>{getCleanDescription()}</div>
-                    <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '2px' }}>
+                    <div style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '3px' }}>
+                      <strong>Renglón Presupuestario Asociado:</strong> {getBudgetLine()}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '2px' }}>
                       Egreso cargado a costos de obra
                     </div>
                   </td>
