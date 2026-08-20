@@ -1764,7 +1764,16 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         <ReceiptModal
           project={project}
           payment={showReceipt}
-          onClose={() => setShowReceipt(null)}
+          onClose={() => {
+            const hitoId = showReceipt.hitoId;
+            if (hitoId) {
+              const freshHito = project.paymentPlan.find(h => h.id === hitoId);
+              if (freshHito) {
+                setShowHitoPayments(freshHito);
+              }
+            }
+            setShowReceipt(null);
+          }}
         />
       )}
 
@@ -1959,11 +1968,13 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                                 onClick={() => {
                                   setShowReceipt({
                                     ...showHitoPayments,
+                                    hitoId: showHitoPayments.id, // Store the hito ID to restore it when closing receipt
                                     id: p.id,
                                     paidDate: p.date,
                                     amount: p.amount,
                                     payments: [p] // Pass only this payment
                                   });
+                                  setShowHitoPayments(null); // Close the gestionar cobros modal
                                 }}
                               >
                                 <Printer size={12} /> Recibo
