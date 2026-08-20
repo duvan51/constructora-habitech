@@ -209,6 +209,52 @@ export default function App() {
     }
   };
 
+  // Update transaction and adjust associated project budgets if applicable
+  const handleUpdateTransaction = async (updatedTx, oldTx) => {
+    try {
+      // 1. Save updated transaction
+      await saveItem('transactions', updatedTx);
+
+      // 2. Adjust budgets
+      // If old transaction was a project expense, subtract it
+      if (oldTx && oldTx.projectId !== 'general' && oldTx.type === 'expense') {
+        const freshProjects = await getAll('projects');
+        const oldProj = freshProjects.find(p => p.id === oldTx.projectId);
+        if (oldProj) {
+          const updatedBudget = oldProj.budgetItems.map(item => {
+            if (item.category === oldTx.category) {
+              return { ...item, actual: Math.max(0, (item.actual || 0) - oldTx.amount) };
+            }
+            return item;
+          });
+          const updatedProj = { ...oldProj, budgetItems: updatedBudget };
+          await saveItem('projects', updatedProj);
+        }
+      }
+
+      // If updated transaction is a project expense, add it
+      if (updatedTx.projectId !== 'general' && updatedTx.type === 'expense') {
+        const freshProjects = await getAll('projects');
+        const targetProj = freshProjects.find(p => p.id === updatedTx.projectId);
+        if (targetProj) {
+          const updatedBudget = targetProj.budgetItems.map(item => {
+            if (item.category === updatedTx.category) {
+              return { ...item, actual: (item.actual || 0) + updatedTx.amount };
+            }
+            return item;
+          });
+          const updatedProj = { ...targetProj, budgetItems: updatedBudget };
+          await saveItem('projects', updatedProj);
+        }
+      }
+
+      await loadData();
+    } catch (err) {
+      console.error('Error updating transaction:', err);
+      alert('Ocurrió un error al actualizar la transacción.');
+    }
+  };
+
   const activeProject = projects.find(p => p.id === selectedProjectId);
 
   // Filtering projects
@@ -380,6 +426,7 @@ export default function App() {
                 transactions={transactions} 
                 projects={projects}
                 onAddTransaction={handleAddManualTransaction}
+                onUpdateTransaction={handleUpdateTransaction}
                 userRole={currentUser.role}
               />
             )}

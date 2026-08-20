@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check } from 'lucide-react';
+import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check, Eye, Edit3 } from 'lucide-react';
 
-export default function Ledger({ transactions, projects, onAddTransaction, userRole }) {
+export default function Ledger({ transactions, projects, onAddTransaction, onUpdateTransaction, userRole }) {
   const [filterType, setFilterType] = useState('all'); // 'all' | 'income' | 'expense'
   const [filterProject, setFilterProject] = useState('all'); // 'all' | projectId
   const [startDate, setStartDate] = useState('');
@@ -19,6 +19,32 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
   const [stream, setStream] = useState(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [capturedImage, setCapturedImage] = useState('');
+
+  const [selectedTx, setSelectedTx] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTxData, setEditTxData] = useState(null);
+
+  // Sync edit form with selected transaction
+  useEffect(() => {
+    if (selectedTx) {
+      setEditTxData({
+        id: selectedTx.id,
+        projectId: selectedTx.projectId || 'general',
+        type: selectedTx.type,
+        category: selectedTx.category,
+        description: selectedTx.description,
+        amount: selectedTx.amount,
+        date: selectedTx.date,
+        receiptBase64: selectedTx.receiptBase64 || ''
+      });
+      setUploadMode('file');
+      setFileBase64(selectedTx.receiptBase64 || '');
+      setFileName(selectedTx.receiptBase64 ? 'Comprobante cargado' : '');
+      setCapturedImage('');
+    } else {
+      setEditTxData(null);
+    }
+  }, [selectedTx]);
 
   // Turn off camera stream when modal closes
   useEffect(() => {
@@ -154,6 +180,40 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
     setFileName('');
     setCapturedImage('');
     setShowAddModal(false);
+  };
+
+  const handleEditSubmit = (e) => {
+    e.preventDefault();
+    const amt = parseFloat(editTxData.amount);
+    if (!editTxData.description.trim() || amt <= 0) {
+      alert('Ingresa detalles y monto válidos.');
+      return;
+    }
+
+    // Lookup project name
+    let projName = 'Administración General';
+    if (editTxData.projectId !== 'general') {
+      const proj = projects.find(p => p.id === editTxData.projectId);
+      if (proj) projName = proj.name;
+    }
+
+    const updatedTx = {
+      ...selectedTx,
+      projectId: editTxData.projectId,
+      projectName: projName,
+      type: editTxData.type,
+      category: editTxData.category,
+      description: editTxData.description,
+      amount: amt,
+      date: editTxData.date,
+      receiptBase64: uploadMode === 'file' ? fileBase64 : capturedImage
+    };
+
+    onUpdateTransaction(updatedTx, selectedTx);
+    
+    // Close modal
+    setSelectedTx(null);
+    setIsEditing(false);
   };
 
   // Filtered transactions
@@ -334,6 +394,7 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Categoría</th>
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Concepto / Detalles</th>
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'right' }}>Monto</th>
+                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', width: '90px' }}>Ver / Editar</th>
                 </tr>
               </thead>
               <tbody>
@@ -391,6 +452,29 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
                         color: isInc ? 'var(--primary-teal)' : 'var(--primary-red)'
                       }}>
                         {isInc ? '+' : '-'} {formatCurrency(tx.amount)}
+                      </td>
+                      <td style={{ padding: '14px 12px', textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedTx(tx);
+                            setIsEditing(false);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--primary-cyan)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'color 0.2s'
+                          }}
+                          title="Ver detalle / Editar"
+                        >
+                          <Eye size={18} />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -642,6 +726,290 @@ export default function Ledger({ transactions, projects, onAddTransaction, userR
                 Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TRANSACTION DETAIL & EDIT MODAL */}
+      {selectedTx && editTxData && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '550px', width: '90%' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {isEditing ? (
+                  <>
+                    <Edit3 size={20} style={{ color: 'var(--primary-cyan)' }} />
+                    Editar Movimiento de Caja
+                  </>
+                ) : (
+                  <>
+                    <Eye size={20} style={{ color: 'var(--primary-cyan)' }} />
+                    Detalle de Transacción
+                  </>
+                )}
+              </h3>
+              <button className="btn-icon" onClick={() => { setSelectedTx(null); stopCamera(); }}><X size={18} /></button>
+            </div>
+
+            {isEditing ? (
+              <form onSubmit={handleEditSubmit}>
+                <div className="modal-body">
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Tipo de Flujo</label>
+                      <select
+                        className="form-control"
+                        value={editTxData.type}
+                        onChange={(e) => setEditTxData(prev => ({ ...prev, type: e.target.value }))}
+                      >
+                        <option value="expense">Salida / Egreso (Gasto)</option>
+                        <option value="income">Entrada / Ingreso (Cobro)</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Categoría</label>
+                      <select
+                        className="form-control"
+                        value={editTxData.category}
+                        onChange={(e) => setEditTxData(prev => ({ ...prev, category: e.target.value }))}
+                      >
+                        {editTxData.type === 'expense' ? (
+                          <>
+                            <option value="materials">Materiales y Suministros</option>
+                            <option value="labor">Mano de Obra</option>
+                            <option value="permits">Licencias o Impuestos</option>
+                            <option value="administrative">Administrativo / Oficina</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="client_payment">Cobro a Cliente</option>
+                            <option value="administrative">Otros Ingresos</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Asociar a Obra / Proyecto</label>
+                    <select
+                      className="form-control"
+                      value={editTxData.projectId}
+                      onChange={(e) => setEditTxData(prev => ({ ...prev, projectId: e.target.value }))}
+                    >
+                      <option value="general">Gasto Operativo General (No atado a obra)</option>
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Descripción / Concepto del Pago</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editTxData.description}
+                      onChange={(e) => setEditTxData(prev => ({ ...prev, description: e.target.value }))}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Valor ($)</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={editTxData.amount}
+                        onChange={(e) => setEditTxData(prev => ({ ...prev, amount: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Fecha</label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        value={editTxData.date}
+                        onChange={(e) => setEditTxData(prev => ({ ...prev, date: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Attachment in Edit Mode */}
+                  <div style={{ borderTop: '1px dashed var(--border-glass)', marginTop: '15px', paddingTop: '15px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Modificar Soporte / Recibo (Opcional)</label>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', background: 'rgba(255,255,255,0.02)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ flex: 1, padding: '6px 12px', fontSize: '0.8rem', background: uploadMode === 'file' ? 'var(--bg-glass)' : 'transparent', border: uploadMode === 'file' ? '1px solid var(--border-glass-active)' : '1px solid transparent', color: uploadMode === 'file' ? 'var(--primary-cyan)' : 'var(--text-secondary)' }}
+                        onClick={() => { setUploadMode('file'); stopCamera(); }}
+                      >
+                        <Upload size={14} /> Archivo / Media
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ flex: 1, padding: '6px 12px', fontSize: '0.8rem', background: uploadMode === 'camera' ? 'var(--bg-glass)' : 'transparent', border: uploadMode === 'camera' ? '1px solid var(--border-glass-active)' : '1px solid transparent', color: uploadMode === 'camera' ? 'var(--primary-cyan)' : 'var(--text-secondary)' }}
+                        onClick={() => { setUploadMode('camera'); startCamera(); }}
+                      >
+                        <Camera size={14} /> Tomar Foto
+                      </button>
+                    </div>
+
+                    {uploadMode === 'file' ? (
+                      <div style={{ border: '1px dashed var(--border-glass)', borderRadius: '8px', padding: '20px 10px', textAlign: 'center' }}>
+                        <input
+                          type="file"
+                          id="edit-tx-file-input"
+                          style={{ display: 'none' }}
+                          accept="image/*,application/pdf"
+                          onChange={handleFileChange}
+                        />
+                        <label htmlFor="edit-tx-file-input" style={{ cursor: 'pointer', display: 'block' }}>
+                          <Upload size={24} style={{ color: 'var(--text-muted)', marginBottom: '8px' }} />
+                          <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>
+                            Examinar archivos...
+                          </p>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>PDF o imágenes de recibos</p>
+                        </label>
+                        {fileName && (
+                          <div style={{ marginTop: '10px', fontSize: '0.85rem', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                            <Check size={12} /> {fileName}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                        {cameraActive && (
+                          <div style={{ position: 'relative', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--primary-cyan)' }}>
+                            <video
+                              ref={videoRef}
+                              autoPlay
+                              playsInline
+                              style={{ width: '100%', display: 'block', background: '#000' }}
+                            />
+                            <div style={{ position: 'absolute', bottom: '10px', left: '0', right: '0', display: 'flex', justifyContent: 'center' }}>
+                              <button type="button" className="btn btn-primary" onClick={capturePhoto} style={{ borderRadius: '50%', width: '42px', height: '42px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Camera size={18} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {capturedImage && (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '100%' }}>
+                            <div style={{ position: 'relative', width: '100%', maxWidth: '200px', border: '1px solid var(--border-glass)', borderRadius: '8px', overflow: 'hidden' }}>
+                              <img src={capturedImage} alt="Captured" style={{ width: '100%', display: 'block' }} />
+                              <div style={{ position: 'absolute', top: '5px', right: '5px', background: 'var(--primary-teal)', color: 'white', borderRadius: '50%', padding: '2px' }}>
+                                <Check size={12} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {!cameraActive && !capturedImage && (
+                          <button type="button" className="btn btn-secondary" onClick={startCamera} style={{ fontSize: '0.8rem' }}>
+                            <Camera size={14} /> Iniciar Cámara
+                          </button>
+                        )}
+                        {(cameraActive || capturedImage) && (
+                          <button type="button" className="btn btn-secondary" onClick={startCamera} style={{ fontSize: '0.8rem' }}>
+                            Reintentar Foto
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <canvas ref={canvasRef} style={{ display: 'none' }} />
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={() => { setIsEditing(false); stopCamera(); }}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn btn-primary">
+                    Guardar Cambios
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div>
+                <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px 10px', fontSize: '0.9rem' }}>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '3px' }}>Fecha</span>
+                        <strong style={{ color: 'var(--text-primary)' }}>{selectedTx.date}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '3px' }}>Tipo</span>
+                        {selectedTx.type === 'income' ? (
+                          <span className="badge badge-completed" style={{ fontSize: '0.7rem' }}>Entrada / Ingreso</span>
+                        ) : (
+                          <span className="badge badge-danger" style={{ fontSize: '0.7rem', background: 'rgba(244,63,94,0.15)', color: '#fda4af', border: '1px solid rgba(244,63,94,0.3)' }}>Salida / Egreso</span>
+                        )}
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '3px' }}>Proyecto / Obra</span>
+                        <strong style={{ color: 'var(--text-primary)' }}>{selectedTx.projectName}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '3px' }}>Categoría</span>
+                        <strong style={{ color: 'var(--text-primary)' }}>{getCategoryLabel(selectedTx.category)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '5px' }}>Detalles / Concepto</span>
+                    <div style={{ fontSize: '1rem', color: 'var(--text-primary)', padding: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', borderRadius: '6px', lineHeight: '1.4' }}>
+                      {selectedTx.description}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '5px' }}>Valor del Movimiento</span>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 800, color: selectedTx.type === 'income' ? 'var(--primary-teal)' : 'var(--primary-red)' }}>
+                      {selectedTx.type === 'income' ? '+' : '-'} {formatCurrency(selectedTx.amount)}
+                    </div>
+                  </div>
+
+                  {selectedTx.receiptBase64 && (
+                    <div style={{ borderTop: '1px dashed var(--border-glass)', paddingTop: '15px' }}>
+                      <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '8px' }}>Comprobante Adjunto</span>
+                      <div style={{ display: 'flex', justifyContent: 'center', background: '#000', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+                        {selectedTx.receiptBase64.startsWith('data:application/pdf') ? (
+                          <iframe 
+                            src={selectedTx.receiptBase64} 
+                            title="Comprobante PDF" 
+                            style={{ width: '100%', height: '300px', border: 'none' }}
+                          />
+                        ) : (
+                          <img 
+                            src={selectedTx.receiptBase64} 
+                            alt="Comprobante" 
+                            style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain' }} 
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={() => setSelectedTx(null)}>
+                    Cerrar
+                  </button>
+                  {userRole !== 'viewer' && (
+                    <button type="button" className="btn btn-primary" onClick={() => setIsEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Edit3 size={14} /> Editar
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
