@@ -216,8 +216,8 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
     setIsEditing(false);
   };
 
-  const handleAnularTransaction = (tx) => {
-    if (!confirm('¿Estás seguro de anular esta transacción? Su monto pasará a $0 y quedará registrada como anulada.')) {
+  const handleAnularTransaction = async (tx) => {
+    if (!await window.confirmDialog('¿Estás seguro de anular esta transacción? Su monto pasará a $0 y quedará registrada como anulada.')) {
       return;
     }
 

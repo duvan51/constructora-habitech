@@ -28,6 +28,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [isLocked, setIsLocked] = useState(false);
   const [currentTab, setTab] = useState('dashboard');
+  const [toasts, setToasts] = useState([]);
+  const [confirmData, setConfirmData] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [projects, setProjects] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -36,6 +38,40 @@ export default function App() {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [projectSearch, setProjectSearch] = useState('');
+
+  // Override window.alert and window.confirm with premium custom UI elements
+  useEffect(() => {
+    window.showToast = (message, type = 'info') => {
+      const id = Date.now() + Math.random();
+      setToasts(prev => [...prev, { id, message, type }]);
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, 4000);
+    };
+
+    window.alert = (message) => {
+      let type = 'info';
+      const lower = message.toLowerCase();
+      if (lower.includes('error') || lower.includes('falló') || lower.includes('no se pudo') || lower.includes('válido') || lower.includes('ingresa') || lower.includes('incorrecto') || lower.includes('error')) {
+        type = 'error';
+      } else if (lower.includes('guardado') || lower.includes('éxito') || lower.includes('creado') || lower.includes('actualizado') || lower.includes('eliminado') || lower.includes('correcto') || lower.includes('bien')) {
+        type = 'success';
+      }
+      window.showToast(message, type);
+    };
+
+    window.confirmDialog = (message) => {
+      return new Promise((resolve) => {
+        setConfirmData({
+          message,
+          resolve: (result) => {
+            setConfirmData(null);
+            resolve(result);
+          }
+        });
+      });
+    };
+  }, []);
 
   // Initial database setup and session recovery
   useEffect(() => {
@@ -114,7 +150,7 @@ export default function App() {
 
   const handleDeletePortfolioItem = async (id) => {
     if (currentUser.role === 'viewer') return;
-    if (confirm('¿Estás seguro de eliminar este proyecto del portafolio?')) {
+    if (await window.confirmDialog('¿Estás seguro de eliminar este proyecto del portafolio?')) {
       try {
         await deletePortfolioItem(id);
         await loadData();
@@ -154,7 +190,7 @@ export default function App() {
   // Delete a project completely
   const handleDeleteProject = async (projId) => {
     if (currentUser.role === 'viewer') return;
-    if (confirm('¿Estás seguro de eliminar esta obra? Todos sus datos se borrarán.')) {
+    if (await window.confirmDialog('¿Estás seguro de eliminar esta obra? Todos sus datos se borrarán.')) {
       try {
         await deleteItem('projects', projId);
         await loadData();
@@ -529,6 +565,141 @@ export default function App() {
           onLogout={handleLogout}
         />
       )}
+
+      {/* Toast notifications */}
+      <div style={{
+        position: 'fixed',
+        top: '20px',
+        right: '20px',
+        zIndex: 100000,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+        maxWidth: '350px',
+        width: '90%'
+      }}>
+        {toasts.map(toast => {
+          let bgColor = 'rgba(15, 23, 42, 0.9)';
+          let borderColor = 'rgba(255, 255, 255, 0.1)';
+          let iconColor = 'var(--primary-cyan)';
+          let icon = 'ℹ️';
+
+          if (toast.type === 'success') {
+            bgColor = 'rgba(16, 185, 129, 0.15)';
+            borderColor = 'rgba(16, 185, 129, 0.3)';
+            iconColor = '#34d399';
+            icon = '✅';
+          } else if (toast.type === 'error') {
+            bgColor = 'rgba(244, 63, 94, 0.15)';
+            borderColor = 'rgba(244, 63, 94, 0.3)';
+            iconColor = '#fda4af';
+            icon = '⚠️';
+          }
+
+          return (
+            <div 
+              key={toast.id} 
+              className="glass-panel"
+              style={{
+                background: bgColor,
+                borderColor: borderColor,
+                padding: '12px 16px',
+                borderRadius: '10px',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                animation: 'slideIn 0.3s ease-out forwards',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <span style={{ fontSize: '1.2rem', color: iconColor }}>{icon}</span>
+              <div style={{ flex: 1, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                {toast.message}
+              </div>
+              <button 
+                onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  padding: '2px',
+                  display: 'inline-flex',
+                  alignItems: 'center'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Custom Confirm Dialog Modal */}
+      {confirmData && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          zIndex: 999999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          boxSizing: 'border-box'
+        }}>
+          <div className="glass-panel" style={{
+            maxWidth: '420px',
+            width: '100%',
+            padding: '25px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            animation: 'modalFadeIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)' }}>
+              ⚠️ Confirmación Requerida
+            </h3>
+            <p style={{ margin: '0 0 20px 0', fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+              {confirmData.message}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => confirmData.resolve(false)}
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => confirmData.resolve(true)}
+                style={{ padding: '8px 20px', fontSize: '0.85rem' }}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideIn {
+          from { transform: translateX(120%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes modalFadeIn {
+          from { transform: scale(0.9); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }

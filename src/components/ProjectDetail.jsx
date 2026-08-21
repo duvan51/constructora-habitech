@@ -350,7 +350,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   };
 
   const handleDeletePayment = async (paymentId) => {
-    if (!confirm('¿Estás seguro de eliminar este comprobante de abono? El saldo se actualizará y la transacción asociada se borrará del libro de caja.')) return;
+    if (!await window.confirmDialog('¿Estás seguro de eliminar este comprobante de abono? El saldo se actualizará y la transacción asociada se borrará del libro de caja.')) return;
 
     const currentMilestone = project.paymentPlan.find(h => h.id === showHitoPayments.id);
     const existingPayments = currentMilestone.payments || (currentMilestone.status === 'paid' ? [{ id: 'legacy', amount: currentMilestone.amount, date: currentMilestone.paidDate || currentMilestone.dueDate, method: 'Transferencia', files: [] }] : []);
@@ -504,7 +504,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   };
 
   const handleDeleteExpense = async (exp, budgetItemIdx) => {
-    if (confirm(`¿Seguro que deseas eliminar el gasto "${exp.description.split(' || ')[1] || exp.description}" por valor de ${formatCurrency(exp.amount)}?`)) {
+    if (await window.confirmDialog(`¿Seguro que deseas eliminar el gasto "${exp.description.split(' || ')[1] || exp.description}" por valor de ${formatCurrency(exp.amount)}?`)) {
       try {
         const updatedBudgetItems = [...project.budgetItems];
         
@@ -598,13 +598,13 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   };
 
   // Remove Custom Budget Item
-  const handleRemoveBudgetItem = (idx) => {
+  const handleRemoveBudgetItem = async (idx) => {
     const item = project.budgetItems[idx];
     let msg = `¿Seguro que deseas eliminar el renglón presupuestario "${item.name}"?`;
     if (item.actual > 0) {
       msg = `¡Atención! El renglón "${item.name}" ya tiene gastos acumulados de ${formatCurrency(item.actual)}. Si lo eliminas, estos gastos seguirán en la contabilidad general pero no aparecerán aquí. ¿Deseas eliminarlo de todos modos?`;
     }
-    if (confirm(msg)) {
+    if (await window.confirmDialog(msg)) {
       const updatedBudgetItems = project.budgetItems.filter((_, i) => i !== idx);
       const updatedProject = {
         ...project,
@@ -663,13 +663,13 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     setTempPaymentPlan(prev => prev.filter(p => p.id !== id));
   };
 
-  const handleSavePaymentPlan = () => {
+  const handleSavePaymentPlan = async () => {
     const totalPct = tempPaymentPlan.reduce((sum, p) => sum + (parseFloat(p.percentage) || 0), 0);
     const totalAmount = tempPaymentPlan.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
     const isPlanValid = Math.abs(totalPct - 100) < 0.1 || totalAmount === project.totalCost;
 
     if (!isPlanValid) {
-      const proceed = window.confirm(`⚠️ Advertencia: El plan de pagos no cubre el 100% del proyecto (suma de porcentajes: ${totalPct.toFixed(2)}%, suma de montos: ${formatCurrency(totalAmount)} de ${formatCurrency(project.totalCost)}).\n\n¿Deseas guardar de todas formas?`);
+      const proceed = await window.confirmDialog(`⚠️ Advertencia: El plan de pagos no cubre el 100% del proyecto (suma de porcentajes: ${totalPct.toFixed(2)}%, suma de montos: ${formatCurrency(totalAmount)} de ${formatCurrency(project.totalCost)}).\n\n¿Deseas guardar de todas formas?`);
       if (!proceed) return;
     }
 
@@ -753,7 +753,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   };
 
   const handleDeleteDoc = async (id) => {
-    if (confirm('¿Estás seguro de eliminar este documento del expediente?')) {
+    if (await window.confirmDialog('¿Estás seguro de eliminar este documento del expediente?')) {
       await deleteItem('documents', id);
       loadFiles();
     }
@@ -782,7 +782,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   };
 
   const handleDeleteProgressLog = async (id) => {
-    if (confirm('¿Estás seguro de eliminar este registro de avance?')) {
+    if (await window.confirmDialog('¿Estás seguro de eliminar este registro de avance?')) {
       try {
         await deleteProgressLog(id);
         await loadFiles();
@@ -2429,7 +2429,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                           className="btn btn-danger" 
                           style={{ padding: '8px 16px', fontSize: '0.85rem', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                           onClick={async () => {
-                            if (confirm('¿Estás seguro de eliminar este documento del expediente?')) {
+                            if (await window.confirmDialog('¿Estás seguro de eliminar este documento del expediente?')) {
                               await deleteItem('documents', activeViewDocument.id);
                               setActiveViewDocument(null);
                               await loadFiles();

@@ -167,8 +167,8 @@ export default function QuoteCalculator() {
     setIsEditingPrices(false);
   };
 
-  const handleResetPrices = () => {
-    if (window.confirm('¿Deseas restaurar los precios predeterminados de fábrica?')) {
+  const handleResetPrices = async () => {
+    if (await window.confirmDialog('¿Deseas restaurar los precios predeterminados de fábrica?')) {
       setPrices(DEFAULT_PRICES);
       setTempPrices(DEFAULT_PRICES);
       localStorage.setItem('habitech_quote_prices', JSON.stringify(DEFAULT_PRICES));

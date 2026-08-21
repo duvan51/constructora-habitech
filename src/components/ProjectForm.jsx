@@ -129,7 +129,7 @@ export default function ProjectForm({ project, onClose, onSave }) {
     }).format(value);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!formData.name.trim()) {
@@ -147,7 +147,7 @@ export default function ProjectForm({ project, onClose, onSave }) {
 
     // Percentage check
     if (!isPlanValid) {
-      const proceed = window.confirm(`⚠️ Advertencia: El plan de pagos no cubre el 100% del proyecto (suma de porcentajes: ${totalPercentage.toFixed(2)}%, suma de montos: ${formatCurrency(totalAmount)} de ${formatCurrency(formData.totalCost)}).\n\n¿Deseas guardar de todas formas?`);
+      const proceed = await window.confirmDialog(`⚠️ Advertencia: El plan de pagos no cubre el 100% del proyecto (suma de porcentajes: ${totalPercentage.toFixed(2)}%, suma de montos: ${formatCurrency(totalAmount)} de ${formatCurrency(formData.totalCost)}).\n\n¿Deseas guardar de todas formas?`);
       if (!proceed) return;
     }
 

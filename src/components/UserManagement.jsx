@@ -77,7 +77,7 @@ export default function UserManagement({ currentUser }) {
       return;
     }
 
-    if (confirm(`¿Estás seguro de eliminar al usuario ${emailToDelete}? Esta acción no se puede deshacer.`)) {
+    if (await window.confirmDialog(`¿Estás seguro de eliminar al usuario ${emailToDelete}? Esta acción no se puede deshacer.`)) {
       setError('');
       setSuccess('');
       try {
