@@ -377,7 +377,16 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
     try {
       if (paymentId !== 'legacy') {
-        await deleteItem('transactions', `tx_pay_${paymentId}`);
+        const txId = `tx_pay_${paymentId}`;
+        const transactionToCancel = transactions.find(t => String(t.id) === String(txId));
+        if (transactionToCancel) {
+          const updatedTx = {
+            ...transactionToCancel,
+            description: `[CANCELADO] (Monto original: ${formatCurrency(transactionToCancel.amount)}) - ${transactionToCancel.description}`,
+            amount: 0
+          };
+          await saveItem('transactions', updatedTx);
+        }
       }
       await onUpdate(updatedProject);
 
@@ -517,8 +526,16 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
           budgetItems: updatedBudgetItems
         };
 
-        // Delete from ledger
-        await deleteItem('transactions', exp.id);
+        // Mark transaction as canceled in ledger
+        const transactionToCancel = transactions.find(t => String(t.id) === String(exp.id));
+        if (transactionToCancel) {
+          const updatedTx = {
+            ...transactionToCancel,
+            description: `[CANCELADO] (Monto original: ${formatCurrency(transactionToCancel.amount)}) - ${transactionToCancel.description}`,
+            amount: 0
+          };
+          await saveItem('transactions', updatedTx);
+        }
         
         // Save project changes
         await onUpdate(updatedProject);

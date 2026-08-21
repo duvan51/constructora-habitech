@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check, Eye, Edit3 } from 'lucide-react';
+import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check, Eye, Edit3, Trash2 } from 'lucide-react';
 
 export default function Ledger({ transactions, projects, onAddTransaction, onUpdateTransaction, userRole }) {
   const [filterType, setFilterType] = useState('all'); // 'all' | 'income' | 'expense'
@@ -216,6 +216,21 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
     setIsEditing(false);
   };
 
+  const handleAnularTransaction = (tx) => {
+    if (!confirm('¿Estás seguro de anular esta transacción? Su monto pasará a $0 y quedará registrada como anulada.')) {
+      return;
+    }
+
+    const updatedTx = {
+      ...tx,
+      description: `[ANULADO] (Monto original: ${formatCurrency(tx.amount)}) - ${tx.description}`,
+      amount: 0
+    };
+
+    onUpdateTransaction(updatedTx, tx);
+    setSelectedTx(null);
+  };
+
   // Filtered transactions
   const filteredTxs = transactions.filter(t => {
     const typeMatch = filterType === 'all' || t.type === filterType;
@@ -400,8 +415,13 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
               <tbody>
                 {filteredTxs.slice().reverse().map((tx) => {
                   const isInc = tx.type === 'income';
+                  const isCanceled = tx.description.startsWith('[CANCELADO]') || tx.description.startsWith('[ANULADO]');
                   return (
-                    <tr key={tx.id} style={{ borderBottom: '1px solid var(--border-glass)' }}>
+                    <tr key={tx.id} style={{ 
+                      borderBottom: '1px solid var(--border-glass)',
+                      opacity: isCanceled ? 0.55 : 1,
+                      background: isCanceled ? 'rgba(255, 255, 255, 0.01)' : 'transparent'
+                    }}>
                       <td style={{ padding: '14px 12px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                         {tx.date}
                       </td>
@@ -409,7 +429,9 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
                         {tx.projectName}
                       </td>
                       <td style={{ padding: '14px 12px' }}>
-                        {isInc ? (
+                        {isCanceled ? (
+                          <span className="badge" style={{ fontSize: '0.65rem', background: 'rgba(239, 68, 68, 0.12)', color: '#fca5a5', border: '1px solid rgba(239, 68, 68, 0.25)' }}>Anulado</span>
+                        ) : isInc ? (
                           <span className="badge badge-completed" style={{ fontSize: '0.65rem' }}>Entrada</span>
                         ) : (
                           <span className="badge badge-danger" style={{ fontSize: '0.65rem', background: 'rgba(244,63,94,0.15)', color: '#fda4af', border: '1px solid rgba(244,63,94,0.3)' }}>Salida</span>
@@ -418,9 +440,9 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
                       <td style={{ padding: '14px 12px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                         {getCategoryLabel(tx.category)}
                       </td>
-                      <td style={{ padding: '14px 12px', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                      <td style={{ padding: '14px 12px', fontSize: '0.9rem', color: isCanceled ? 'var(--text-muted)' : 'var(--text-primary)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <span>{tx.description}</span>
+                          <span style={{ textDecoration: isCanceled ? 'line-through' : 'none' }}>{tx.description}</span>
                           {tx.receiptBase64 && (
                             <button
                               type="button"
@@ -449,9 +471,10 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
                         padding: '14px 12px', 
                         textAlign: 'right', 
                         fontWeight: 700, 
-                        color: isInc ? 'var(--primary-teal)' : 'var(--primary-red)'
+                        color: isCanceled ? 'var(--text-muted)' : isInc ? 'var(--primary-teal)' : 'var(--primary-red)',
+                        textDecoration: isCanceled ? 'line-through' : 'none'
                       }}>
-                        {isInc ? '+' : '-'} {formatCurrency(tx.amount)}
+                        {isCanceled ? '' : isInc ? '+' : '-'} {formatCurrency(tx.amount)}
                       </td>
                       <td style={{ padding: '14px 12px', textAlign: 'center' }}>
                         <button
@@ -1002,6 +1025,23 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
                   <button type="button" className="btn btn-secondary" onClick={() => setSelectedTx(null)}>
                     Cerrar
                   </button>
+                  {userRole !== 'viewer' && !selectedTx.description.startsWith('[CANCELADO]') && !selectedTx.description.startsWith('[ANULADO]') && (
+                    <button 
+                      type="button" 
+                      className="btn" 
+                      onClick={() => handleAnularTransaction(selectedTx)}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '6px', 
+                        background: 'rgba(239, 68, 68, 0.1)', 
+                        color: '#fca5a5', 
+                        borderColor: 'rgba(239, 68, 68, 0.2)' 
+                      }}
+                    >
+                      <Trash2 size={14} /> Anular
+                    </button>
+                  )}
                   {userRole !== 'viewer' && (
                     <button type="button" className="btn btn-primary" onClick={() => setIsEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Edit3 size={14} /> Editar
