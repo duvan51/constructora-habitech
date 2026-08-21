@@ -6,6 +6,7 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
   const [filterProject, setFilterProject] = useState('all'); // 'all' | projectId
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [showCanceled, setShowCanceled] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
   const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'camera'
@@ -233,6 +234,11 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
 
   // Filtered transactions
   const filteredTxs = transactions.filter(t => {
+    const isCanceled = t.description.startsWith('[CANCELADO]') || t.description.startsWith('[ANULADO]');
+    if (!showCanceled && isCanceled) {
+      return false; // Hide canceled transactions by default
+    }
+
     const typeMatch = filterType === 'all' || t.type === filterType;
     const projectMatch = filterProject === 'all' || t.projectId === filterProject;
     
@@ -387,7 +393,38 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
           </button>
         )}
 
-        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+        {/* Toggle show canceled */}
+        <label style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px', 
+          fontSize: '0.85rem', 
+          color: 'var(--text-secondary)',
+          cursor: 'pointer',
+          userSelect: 'none',
+          padding: '6px 12px',
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid var(--border-glass)',
+          borderRadius: '8px',
+          transition: 'all 0.2s',
+          marginLeft: 'auto'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'}
+        onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-glass)'}
+        >
+          <input
+            type="checkbox"
+            checked={showCanceled}
+            onChange={(e) => setShowCanceled(e.target.checked)}
+            style={{ 
+              accentColor: 'var(--primary-cyan)',
+              cursor: 'pointer'
+            }}
+          />
+          <span>Mostrar Anulados</span>
+        </label>
+
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
           Mostrando {filteredTxs.length} registros
         </span>
       </div>
