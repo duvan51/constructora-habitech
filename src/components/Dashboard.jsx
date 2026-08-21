@@ -23,6 +23,21 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
 
   const netCash = totalPaid - totalExpenses; // Actual liquid cash in bank
 
+  // Project counts based on status and payments
+  const activeWorks = projects.filter(p => p.progress > 0 && p.progress < 100).length;
+  const projectedWorks = projects.filter(p => p.progress === 0).length;
+  const closingWorks = projects.filter(p => p.progress >= 85 && p.progress < 100).length;
+
+  const worksToCollect = projects.filter(p => {
+    const totalPaidInProj = p.paymentPlan.reduce((s, pay) => {
+      const paidForHito = pay.payments && pay.payments.length > 0
+        ? pay.payments.reduce((acc, pym) => acc + pym.amount, 0)
+        : (pay.status === 'paid' ? pay.amount : 0);
+      return s + paidForHito;
+    }, 0);
+    return p.totalCost > totalPaidInProj;
+  }).length;
+
   // Overdue and upcoming payments check
   const todayStr = new Date().toISOString().split('T')[0];
   const pendingMilestones = [];
@@ -343,6 +358,69 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
             <ArrowDownRight size={22} />
           </div>
         </div>
+      </div>
+
+      {/* Project Status Dashboard Row */}
+      <h2 style={{ fontSize: '1.2rem', marginTop: '30px', marginBottom: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
+        Estado de Obras y Proyectos
+      </h2>
+      <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '30px' }}>
+        
+        {/* Total Projects */}
+        <div className="glass-panel metric-card" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Total Proyectos</span>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: '4px', color: 'var(--text-primary)' }}>{projects.length}</div>
+          </div>
+          <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-glass)', borderRadius: '10px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+            <HardHat size={20} />
+          </div>
+        </div>
+
+        {/* Active Works */}
+        <div className="glass-panel metric-card" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Obras Activas</span>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: '4px', color: 'var(--primary-cyan)' }}>{activeWorks}</div>
+          </div>
+          <div style={{ background: 'rgba(255, 109, 0, 0.05)', border: '1px solid rgba(255, 109, 0, 0.15)', borderRadius: '10px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-cyan)' }}>
+            <TrendingUp size={20} />
+          </div>
+        </div>
+
+        {/* Works to Collect */}
+        <div className="glass-panel metric-card" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Obras por Cobrar</span>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: '4px', color: 'var(--primary-teal)' }}>{worksToCollect}</div>
+          </div>
+          <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.15)', borderRadius: '10px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-teal)' }}>
+            <DollarSign size={20} />
+          </div>
+        </div>
+
+        {/* Projected Works */}
+        <div className="glass-panel metric-card" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>En Proyección</span>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: '4px', color: '#38bdf8' }}>{projectedWorks}</div>
+          </div>
+          <div style={{ background: 'rgba(56, 189, 248, 0.05)', border: '1px solid rgba(56, 189, 248, 0.15)', borderRadius: '10px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8' }}>
+            <Calendar size={20} />
+          </div>
+        </div>
+
+        {/* Works for Closing */}
+        <div className="glass-panel metric-card" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Por Cierre</span>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: '4px', color: '#a78bfa' }}>{closingWorks}</div>
+          </div>
+          <div style={{ background: 'rgba(167, 139, 250, 0.05)', border: '1px solid rgba(167, 139, 250, 0.15)', borderRadius: '10px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a78bfa' }}>
+            <HardHat size={20} />
+          </div>
+        </div>
+
       </div>
 
       {/* Cash Flow Balance Banner */}

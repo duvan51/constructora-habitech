@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check, Eye, Edit3, Trash2 } from 'lucide-react';
+import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check, Eye, Edit3, Trash2, Landmark } from 'lucide-react';
 
 export default function Ledger({ transactions, projects, onAddTransaction, onUpdateTransaction, userRole }) {
   const [filterType, setFilterType] = useState('all'); // 'all' | 'income' | 'expense'
@@ -254,16 +254,30 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
     return typeMatch && projectMatch && dateMatch;
   });
 
-  // Financial calculations based on filter or overall
-  const totalIncome = filteredTxs
+  // Metric calculations (reactive to project filter)
+  const activeProjectsForMetrics = filterProject === 'all' 
+    ? projects 
+    : projects.filter(p => p.id === filterProject);
+
+  const totalContracted = activeProjectsForMetrics.reduce((sum, p) => sum + (p.totalCost || 0), 0);
+
+  // Filters for metrics (excluding canceled transactions)
+  const activeTxsForMetrics = transactions.filter(t => {
+    const isCanceled = t.description.startsWith('[CANCELADO]') || t.description.startsWith('[ANULADO]');
+    if (isCanceled) return false;
+    const projectMatch = filterProject === 'all' || t.projectId === filterProject;
+    return projectMatch;
+  });
+
+  const totalCollected = activeTxsForMetrics
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const totalExpense = filteredTxs
+  const totalExpenses = activeTxsForMetrics
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const balance = totalIncome - totalExpense;
+  const remainingToCollect = Math.max(0, totalContracted - totalCollected);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('es-CO', {
@@ -285,12 +299,24 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
       </div>
 
       {/* Financial ledger metrics */}
-      <div className="metrics-grid">
+      <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
         <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
           <div className="metric-info">
-            <h3>Ingresos totales</h3>
+            <h3>Presupuesto Contratado</h3>
+            <div className="metric-value" style={{ color: 'var(--primary-orange)' }}>
+              {formatCurrency(totalContracted)}
+            </div>
+          </div>
+          <div className="metric-icon orange">
+            <Landmark size={20} style={{ color: 'var(--primary-orange)' }} />
+          </div>
+        </div>
+
+        <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
+          <div className="metric-info">
+            <h3>Total Cobrado (Clientes)</h3>
             <div className="metric-value" style={{ color: 'var(--primary-teal)' }}>
-              {formatCurrency(totalIncome)}
+              {formatCurrency(totalCollected)}
             </div>
           </div>
           <div className="metric-icon green">
@@ -300,25 +326,25 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
 
         <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
           <div className="metric-info">
-            <h3>Gastos totales</h3>
-            <div className="metric-value" style={{ color: 'var(--primary-red)' }}>
-              {formatCurrency(totalExpense)}
+            <h3>Saldo por Cobrar</h3>
+            <div className="metric-value" style={{ color: 'var(--primary-cyan)' }}>
+              {formatCurrency(remainingToCollect)}
             </div>
           </div>
-          <div className="metric-icon red">
-            <ArrowDownRight size={20} />
+          <div className="metric-icon purple">
+            <DollarSign size={20} />
           </div>
         </div>
 
         <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
           <div className="metric-info">
-            <h3>Caja Neta / Balance</h3>
-            <div className="metric-value" style={{ color: balance >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)' }}>
-              {formatCurrency(balance)}
+            <h3>Gastos Realizados</h3>
+            <div className="metric-value" style={{ color: 'var(--primary-red)' }}>
+              {formatCurrency(totalExpenses)}
             </div>
           </div>
-          <div className="metric-icon purple">
-            <DollarSign size={20} />
+          <div className="metric-icon red">
+            <ArrowDownRight size={20} />
           </div>
         </div>
       </div>
