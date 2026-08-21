@@ -297,9 +297,9 @@ export default function App() {
 
   const activeProject = projects.find(p => p.id === selectedProjectId);
 
-  // Inactivity tracking (5 minutes lock for non-admins)
+  // Inactivity tracking (5 minutes lock for all users)
   useEffect(() => {
-    if (!currentUser || currentUser.role === 'admin' || isLocked) {
+    if (!currentUser || isLocked) {
       return;
     }
 
