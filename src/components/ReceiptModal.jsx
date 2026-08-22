@@ -166,8 +166,8 @@ export default function ReceiptModal({ project, payment, onClose }) {
                     style={{ maxHeight: '85px', position: 'absolute', bottom: '-15px', mixBlendMode: 'multiply' }} 
                   />
                 </div>
-                <div style={{ fontWeight: 600 }}>Grupo empresarial habitech sas</div>
-                <div style={{ fontSize: '0.75rem' }}>Firma Autorizada</div>
+                <div style={{ fontWeight: 600 }}>Dumar Aponte Ramirez</div>
+                <div style={{ fontSize: '0.75rem' }}>C.C. 1121918601 / Rep. Legal</div>
               </div>
               <div style={{ width: '45%', textAlign: 'center' }}>
                 <div style={{ height: '50px', borderBottom: '1px solid #9ca3af', marginBottom: '10px' }}></div>
