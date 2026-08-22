@@ -11,6 +11,7 @@ import UserManagement from './components/UserManagement';
 import ApiSettings from './components/ApiSettings';
 import ProjectManagement from './components/ProjectManagement';
 import QuoteCalculator from './components/QuoteCalculator';
+import PersonnelManagement from './components/PersonnelManagement';
 import { 
   seedMockData, 
   getAll, 
@@ -34,6 +35,7 @@ export default function App() {
   const [projects, setProjects] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [portfolio, setPortfolio] = useState([]);
+  const [personnel, setPersonnel] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -95,15 +97,17 @@ export default function App() {
   const loadData = async () => {
     // 1. Try loading cached data first for instant load
     try {
-      const [cachedProjects, cachedTransactions, cachedPortfolio] = await Promise.all([
+      const [cachedProjects, cachedTransactions, cachedPortfolio, cachedPersonnel] = await Promise.all([
         getCachedData('supabase_projects'),
         getCachedData('supabase_transactions'),
-        getCachedData('supabase_portfolio')
+        getCachedData('supabase_portfolio'),
+        getCachedData('supabase_personnel')
       ]);
 
       if (cachedProjects) setProjects(cachedProjects);
       if (cachedTransactions) setTransactions(cachedTransactions);
       if (cachedPortfolio) setPortfolio(cachedPortfolio);
+      if (cachedPersonnel) setPersonnel(cachedPersonnel);
     } catch (cacheErr) {
       console.warn('Failed to load cached projects/transactions:', cacheErr);
     }
@@ -123,12 +127,21 @@ export default function App() {
         console.warn('Portfolio table may not exist yet in Supabase. Check supabase_schema.sql.', portErr);
       }
 
+      let allPersonnel = [];
+      try {
+        allPersonnel = await getAll('personnel');
+        setPersonnel(allPersonnel);
+      } catch (personnelErr) {
+        console.warn('Personnel table may not exist yet in Supabase. Check supabase_schema.sql.', personnelErr);
+      }
+
       // Save fresh data to cache for next load
       try {
         await Promise.all([
           setCachedData('supabase_projects', allProj),
           setCachedData('supabase_transactions', allTx),
-          allPort.length > 0 ? setCachedData('supabase_portfolio', allPort) : Promise.resolve()
+          allPort.length > 0 ? setCachedData('supabase_portfolio', allPort) : Promise.resolve(),
+          allPersonnel.length > 0 ? setCachedData('supabase_personnel', allPersonnel) : Promise.resolve()
         ]);
       } catch (cacheErr) {
         console.warn('Failed to save to cache:', cacheErr);
@@ -421,6 +434,7 @@ export default function App() {
               logGlobalTransaction={logGlobalTransaction}
               userRole={currentUser.role}
               transactions={transactions}
+              personnel={personnel}
             />
             
             {currentUser.role !== 'viewer' && (
@@ -539,6 +553,24 @@ export default function App() {
             {/* Quote Calculator View */}
             {currentTab === 'quote' && (
               <QuoteCalculator />
+            )}
+
+            {/* Personnel Management View */}
+            {currentTab === 'personnel' && (
+              <PersonnelManagement 
+                personnel={personnel}
+                userRole={currentUser.role}
+                onSave={async (item) => {
+                  await saveItem('personnel', item);
+                  await loadData();
+                }}
+                onDelete={async (id) => {
+                  if (await window.confirmDialog('¿Estás seguro de eliminar a esta persona del personal?')) {
+                    await deleteItem('personnel', id);
+                    await loadData();
+                  }
+                }}
+              />
             )}
 
             {/* API & System Settings View */}

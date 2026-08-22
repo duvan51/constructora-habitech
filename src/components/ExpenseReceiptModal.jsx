@@ -30,15 +30,32 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
     }
   };
 
+  // Parse beneficiary details from description
+  const getBeneficiaryDetails = () => {
+    if (transaction.description) {
+      const match = transaction.description.match(/\[Pagado a: (.*?) - Cédula: (.*?)\]/);
+      if (match && match[1]) {
+        return {
+          name: match[1].trim(),
+          documentId: match[2]?.trim() || ''
+        };
+      }
+    }
+    return null;
+  };
+
   // Strip description text to show clean details
   const getCleanDescription = () => {
     if (!transaction.description) return '';
+    let desc = transaction.description;
     // If it contains "|| Compra: ", extract what is after it
-    if (transaction.description.includes('|| Compra:')) {
-      const parts = transaction.description.split('|| Compra:');
-      return parts[1]?.split('(Obra:')[0]?.trim() || transaction.description;
+    if (desc.includes('|| Compra:')) {
+      const parts = desc.split('|| Compra:');
+      desc = parts[1]?.split('(Obra:')[0]?.trim() || desc;
     }
-    return transaction.description;
+    // Strip the personnel suffix
+    desc = desc.replace(/ \[Pagado a: .*? - Cédula: .*?\]/, '');
+    return desc;
   };
 
   // Get the associated budget line (Renglón Presupuestario)
@@ -95,10 +112,28 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
                 <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#9ca3af', fontWeight: 700, marginBottom: '6px' }}>
                   ENTREGADO A / PAGADO A
                 </div>
-                <div style={{ fontWeight: 700, color: '#1f2937', fontSize: '1.05rem' }}>Proveedor / Compras de Obra</div>
-                <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '4px' }}>
-                  <strong>Concepto General:</strong> Compra de materiales y servicios relacionados.
-                </div>
+                {(() => {
+                  const ben = getBeneficiaryDetails();
+                  if (ben) {
+                    return (
+                      <>
+                        <div style={{ fontWeight: 700, color: '#1f2937', fontSize: '1.05rem' }}>{ben.name}</div>
+                        <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '4px' }}>
+                          <strong>Documento / Cédula:</strong> {ben.documentId}<br />
+                          <strong>Concepto:</strong> Mano de obra / Contratista de obra.
+                        </div>
+                      </>
+                    );
+                  }
+                  return (
+                    <>
+                      <div style={{ fontWeight: 700, color: '#1f2937', fontSize: '1.05rem' }}>Proveedor / Compras de Obra</div>
+                      <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '4px' }}>
+                        <strong>Concepto General:</strong> Compra de materiales y servicios relacionados.
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px' }}>

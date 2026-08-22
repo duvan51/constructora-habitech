@@ -1,7 +1,7 @@
 // IndexedDB storage manager for Habitech Constructor
 
 const DB_NAME = 'HabitechDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const initDB = () => {
   return new Promise((resolve, reject) => {
@@ -43,6 +43,11 @@ export const initDB = () => {
       // Supabase Cache store
       if (!db.objectStoreNames.contains('supabase_cache')) {
         db.createObjectStore('supabase_cache', { keyPath: 'key' });
+      }
+
+      // Personnel store
+      if (!db.objectStoreNames.contains('personnel')) {
+        db.createObjectStore('personnel', { keyPath: 'id' });
       }
     };
   });

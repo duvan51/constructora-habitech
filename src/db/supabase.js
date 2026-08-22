@@ -123,6 +123,35 @@ const mapTransactionToSnake = (t) => {
   return res;
 };
 
+const mapPersonnelToCamel = (p) => {
+  if (!p) return null;
+  return {
+    id: p.id,
+    name: p.name,
+    documentId: p.document_id,
+    phone1: p.phone_1,
+    phone2: p.phone_2,
+    documentBase64: p.document_base_64 || p.document_base64 || null,
+    arlBase64: p.arl_base_64 || p.arl_base64 || null,
+    jobTitle: p.job_title,
+    createdAt: p.created_at
+  };
+};
+
+const mapPersonnelToSnake = (p) => {
+  if (!p) return null;
+  return {
+    id: p.id,
+    name: p.name,
+    document_id: p.documentId,
+    phone_1: p.phone1,
+    phone_2: p.phone2,
+    document_base_64: p.documentBase64,
+    arl_base_64: p.arlBase64,
+    job_title: p.jobTitle
+  };
+};
+
 const mapProjectToCamel = (p) => {
   if (!p) return null;
   return {
@@ -320,6 +349,9 @@ export const getAll = async (tableName) => {
   if (tableName === 'transactions') {
     return data.map(mapTransactionToCamel);
   }
+  if (tableName === 'personnel') {
+    return data.map(mapPersonnelToCamel);
+  }
   return data;
 };
 
@@ -329,6 +361,20 @@ export const saveItem = async (tableName, item) => {
     itemToSave = mapProjectToSnake(item);
   } else if (tableName === 'transactions') {
     itemToSave = mapTransactionToSnake(item);
+  } else if (tableName === 'personnel') {
+    let docUrl = item.documentBase64;
+    let arlUrl = item.arlBase64;
+    if (docUrl && docUrl.startsWith('data:')) {
+      docUrl = await uploadFileToStorage(`personnel/${item.id}/cedula`, docUrl);
+    }
+    if (arlUrl && arlUrl.startsWith('data:')) {
+      arlUrl = await uploadFileToStorage(`personnel/${item.id}/arl`, arlUrl);
+    }
+    itemToSave = mapPersonnelToSnake({
+      ...item,
+      documentBase64: docUrl,
+      arlBase64: arlUrl
+    });
   }
 
   const { data, error } = await supabase

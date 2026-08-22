@@ -173,3 +173,27 @@ CREATE POLICY "Public SELECT progress_logs" ON progress_logs FOR SELECT USING (t
 CREATE POLICY "Public INSERT progress_logs" ON progress_logs FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public UPDATE progress_logs" ON progress_logs FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Public DELETE progress_logs" ON progress_logs FOR DELETE USING (true);
+
+-- 8. Create Personnel Table
+CREATE TABLE IF NOT EXISTS personnel (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  document_id TEXT NOT NULL,
+  phone_1 TEXT,
+  phone_2 TEXT,
+  document_base_64 TEXT,
+  arl_base_64 TEXT,
+  job_title TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Enable RLS and configure policies for the personnel table
+ALTER TABLE personnel ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public SELECT personnel" ON personnel;
+DROP POLICY IF EXISTS "Public INSERT personnel" ON personnel;
+DROP POLICY IF EXISTS "Public UPDATE personnel" ON personnel;
+DROP POLICY IF EXISTS "Public DELETE personnel" ON personnel;
+CREATE POLICY "Public SELECT personnel" ON personnel FOR SELECT USING (true);
+CREATE POLICY "Public INSERT personnel" ON personnel FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public UPDATE personnel" ON personnel FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Public DELETE personnel" ON personnel FOR DELETE USING (true);

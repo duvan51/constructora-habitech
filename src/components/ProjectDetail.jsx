@@ -71,7 +71,7 @@ const getDocTypeBadge = (type) => {
   }
 };
 
-export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTransaction, userRole, transactions = [] }) {
+export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTransaction, userRole, transactions = [], personnel = [] }) {
   const [activeTab, setActiveTab] = useState('general');
   const [documents, setDocuments] = useState([]);
   const [progressLogs, setProgressLogs] = useState([]);
@@ -105,7 +105,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     description: '',
     categoryIndex: 0,
     amount: '',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    personnelId: ''
   });
 
   // Timeline Progress Entry State
@@ -413,13 +414,21 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     const updatedBudgetItems = [...project.budgetItems];
     const category = updatedBudgetItems[catIdx];
 
+    let selectedPersonnelSuffix = '';
+    if (expenseData.personnelId) {
+      const selectedPerson = personnel.find(p => p.id === expenseData.personnelId);
+      if (selectedPerson) {
+        selectedPersonnelSuffix = ` [Pagado a: ${selectedPerson.name} - Cédula: ${selectedPerson.documentId}]`;
+      }
+    }
+
     // Log in global ledger
     const newTx = {
       projectId: project.id,
       projectName: project.name,
       type: 'expense',
       category: category.category, // 'materials' | 'labor' | 'permits'
-      description: `${category.name} || Compra: ${expenseData.description} (Obra: ${project.name})`,
+      description: `${category.name} || Compra: ${expenseData.description}${selectedPersonnelSuffix} (Obra: ${project.name})`,
       amount: amt,
       date: expenseData.date
     };
@@ -474,7 +483,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         description: '',
         categoryIndex: 0,
         amount: '',
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        personnelId: ''
       });
       setEditingExpenseId(null);
       setShowAddExpense(false);
@@ -488,11 +498,25 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     const parts = exp.description.split(' || ');
     const originalDesc = parts[1] ? parts[1].replace(`Compra: `, '').replace(` (Obra: ${project.name})`, '') : exp.description;
 
+    // Detect associated personnel
+    let foundPersonnelId = '';
+    if (personnel && personnel.length > 0) {
+      const match = originalDesc.match(/\[Pagado a: .*? - Cédula: (.*?)\]/);
+      if (match && match[1]) {
+        const docId = match[1].trim();
+        const p = personnel.find(person => person.documentId === docId);
+        if (p) foundPersonnelId = p.id;
+      }
+    }
+
+    const cleanedDesc = originalDesc.replace(/ \[Pagado a: .*? - Cédula: .*?\]/, '');
+
     setExpenseData({
-      description: originalDesc,
+      description: cleanedDesc,
       categoryIndex: budgetItemIdx,
       amount: exp.amount.toString(),
-      date: exp.date
+      date: exp.date,
+      personnelId: foundPersonnelId
     });
     setEditingExpenseId(exp.id);
     if (project.totalCost > 0) {
@@ -1076,7 +1100,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                       description: '',
                       categoryIndex: 0,
                       amount: '',
-                      date: new Date().toISOString().split('T')[0]
+                      date: new Date().toISOString().split('T')[0],
+                      personnelId: ''
                     });
                     setExpensePercentage(''); 
                     setShowAddExpense(true); 
@@ -1578,6 +1603,22 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                     {project.budgetItems.map((item, idx) => (
                       <option key={idx} value={idx}>
                         {item.name} ({item.category === 'materials' ? 'Materiales' : item.category === 'labor' ? 'Mano de Obra' : 'Licencia'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Asociar a Personal / Empleado (Opcional)</label>
+                  <select
+                    className="form-control"
+                    value={expenseData.personnelId || ''}
+                    onChange={(e) => setExpenseData(prev => ({ ...prev, personnelId: e.target.value }))}
+                  >
+                    <option value="">-- No asociar (Gasto general) --</option>
+                    {personnel.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} - {p.jobTitle || 'Sin Cargo'} (Cédula: {p.documentId})
                       </option>
                     ))}
                   </select>
