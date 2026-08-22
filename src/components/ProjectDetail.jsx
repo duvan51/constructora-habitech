@@ -124,7 +124,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   const [newBudgetItem, setNewBudgetItem] = useState({
     name: '',
     estimated: '',
-    category: 'materials'
+    category: 'materials',
+    personnelId: ''
   });
   const [calcPercentage, setCalcPercentage] = useState('');
   const [expensePercentage, setExpensePercentage] = useState('');
@@ -159,7 +160,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     setNewBudgetItem({
       name: item.name,
       estimated: item.estimated,
-      category: item.category
+      category: item.category,
+      personnelId: item.personnelId || ''
     });
     if (project.totalCost > 0) {
       setCalcPercentage(((item.estimated / project.totalCost) * 100).toFixed(1));
@@ -588,7 +590,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
             ...item,
             name: newBudgetItem.name.trim(),
             estimated: est,
-            category: newBudgetItem.category
+            category: newBudgetItem.category,
+            personnelId: newBudgetItem.personnelId || null
           };
         }
         return item;
@@ -599,7 +602,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         name: newBudgetItem.name.trim(),
         estimated: est,
         actual: 0,
-        category: newBudgetItem.category
+        category: newBudgetItem.category,
+        personnelId: newBudgetItem.personnelId || null
       };
       updatedBudgetItems = [...project.budgetItems, newItem];
     }
@@ -615,7 +619,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     setNewBudgetItem({
       name: '',
       estimated: '',
-      category: 'materials'
+      category: 'materials',
+      personnelId: ''
     });
     setEditingBudgetItemIndex(null);
     setShowAddBudgetItem(false);
@@ -1091,17 +1096,18 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               </div>
               {userRole !== 'viewer' && (
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button className="btn btn-secondary" onClick={() => { setEditingBudgetItemIndex(null); setNewBudgetItem({ name: '', estimated: '', category: 'materials' }); setCalcPercentage(''); setShowAddBudgetItem(true); }}>
+                  <button className="btn btn-secondary" onClick={() => { setEditingBudgetItemIndex(null); setNewBudgetItem({ name: '', estimated: '', category: 'materials', personnelId: '' }); setCalcPercentage(''); setShowAddBudgetItem(true); }}>
                     <Plus size={16} /> Agregar Renglón
                   </button>
                   <button className="btn btn-primary" onClick={() => { 
                     setEditingExpenseId(null); 
+                    const firstBudgetItem = project.budgetItems[0];
                     setExpenseData({
                       description: '',
                       categoryIndex: 0,
                       amount: '',
                       date: new Date().toISOString().split('T')[0],
-                      personnelId: ''
+                      personnelId: firstBudgetItem?.personnelId || ''
                     });
                     setExpensePercentage(''); 
                     setShowAddExpense(true); 
@@ -1150,7 +1156,22 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                             </div>
                           )}
                         </div>
-                        <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '2px' }}>{item.name}</h4>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {item.name}
+                          {(() => {
+                            if (item.personnelId && personnel && personnel.length > 0) {
+                              const p = personnel.find(person => person.id === item.personnelId);
+                              if (p) {
+                                return (
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--primary-cyan)', background: 'rgba(6,182,212,0.08)', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(6,182,212,0.15)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    👤 {p.name}
+                                  </span>
+                                );
+                              }
+                            }
+                            return null;
+                          })()}
+                        </h4>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
@@ -1598,7 +1619,15 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                   <select
                     className="form-control"
                     value={expenseData.categoryIndex}
-                    onChange={(e) => setExpenseData(prev => ({ ...prev, categoryIndex: parseInt(e.target.value) }))}
+                    onChange={(e) => {
+                      const idx = parseInt(e.target.value);
+                      const associatedPersonId = project.budgetItems[idx]?.personnelId || '';
+                      setExpenseData(prev => ({ 
+                        ...prev, 
+                        categoryIndex: idx,
+                        personnelId: associatedPersonId
+                      }));
+                    }}
                   >
                     {project.budgetItems.map((item, idx) => (
                       <option key={idx} value={idx}>
@@ -2152,6 +2181,22 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                       <option value="materials">Materiales</option>
                       <option value="labor">Mano de Obra</option>
                       <option value="permits">Licencias/Otros</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label>Asociar a Personal / Contratista (Opcional)</label>
+                    <select
+                      className="form-control"
+                      value={newBudgetItem.personnelId || ''}
+                      onChange={(e) => setNewBudgetItem(prev => ({ ...prev, personnelId: e.target.value }))}
+                    >
+                      <option value="">-- No asociar --</option>
+                      {personnel.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} - {p.jobTitle || 'Sin Cargo'} (Cédula: {p.documentId})
+                        </option>
+                      ))}
                     </select>
                   </div>
 
