@@ -215,8 +215,23 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
               </div>
               <div style={{ width: '45%', textAlign: 'center' }}>
                 <div style={{ height: '55px', borderBottom: '1px solid #9ca3af', marginBottom: '10px' }}></div>
-                <div style={{ fontWeight: 600 }}>Firma Beneficiario</div>
-                <div style={{ fontSize: '0.75rem' }}>Recibido Conforme</div>
+                {(() => {
+                  const ben = getBeneficiaryDetails();
+                  if (ben) {
+                    return (
+                      <>
+                        <div style={{ fontWeight: 600 }}>{ben.name}</div>
+                        <div style={{ fontSize: '0.75rem' }}>C.C. {ben.documentId}</div>
+                      </>
+                    );
+                  }
+                  return (
+                    <>
+                      <div style={{ fontWeight: 600 }}>Firma Beneficiario</div>
+                      <div style={{ fontSize: '0.75rem' }}>Recibido Conforme</div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
