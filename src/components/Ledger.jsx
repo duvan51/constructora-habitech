@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check, Eye, Edit3, Trash2, Landmark } from 'lucide-react';
 
-export default function Ledger({ transactions, projects, onAddTransaction, onUpdateTransaction, userRole }) {
+export default function Ledger({ transactions, projects, personnel, onAddTransaction, onUpdateTransaction, userRole }) {
   const [filterType, setFilterType] = useState('all'); // 'all' | 'income' | 'expense'
   const [filterProject, setFilterProject] = useState('all'); // 'all' | projectId
   const [startDate, setStartDate] = useState('');
@@ -119,7 +119,8 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
     category: 'materials',
     description: '',
     amount: '',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    personnelId: ''
   });
 
   // Category labels translator
@@ -154,6 +155,12 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
       if (proj) projName = proj.name;
     }
 
+    let personnelName = null;
+    if (txData.personnelId && personnel) {
+      const p = personnel.find(per => per.id === txData.personnelId);
+      if (p) personnelName = p.name;
+    }
+
     const newTx = {
       projectId: txData.projectId,
       projectName: projName,
@@ -162,7 +169,9 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
       description: txData.description,
       amount: amt,
       date: txData.date,
-      receiptBase64: uploadMode === 'file' ? fileBase64 : capturedImage
+      receiptBase64: uploadMode === 'file' ? fileBase64 : capturedImage,
+      personnelId: txData.personnelId || null,
+      personnelName: personnelName
     };
 
     onAddTransaction(newTx);
@@ -174,7 +183,8 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
       category: 'materials',
       description: '',
       amount: '',
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      personnelId: ''
     });
     setUploadMode('file');
     setFileBase64('');
@@ -198,6 +208,12 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
       if (proj) projName = proj.name;
     }
 
+    let personnelName = null;
+    if (editTxData.personnelId && personnel) {
+      const p = personnel.find(per => per.id === editTxData.personnelId);
+      if (p) personnelName = p.name;
+    }
+
     const updatedTx = {
       ...selectedTx,
       projectId: editTxData.projectId,
@@ -207,7 +223,9 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
       description: editTxData.description,
       amount: amt,
       date: editTxData.date,
-      receiptBase64: uploadMode === 'file' ? fileBase64 : capturedImage
+      receiptBase64: uploadMode === 'file' ? fileBase64 : capturedImage,
+      personnelId: editTxData.personnelId || null,
+      personnelName: personnelName
     };
 
     onUpdateTransaction(updatedTx, selectedTx);
@@ -528,6 +546,20 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
                               <Paperclip size={10} /> Adjunto
                             </button>
                           )}
+                          {tx.personnelName && (
+                            <span style={{ 
+                              background: 'rgba(168, 85, 247, 0.1)', 
+                              border: '1px solid rgba(168, 85, 247, 0.2)', 
+                              color: '#d8b4fe', 
+                              padding: '2px 8px', 
+                              borderRadius: '12px', 
+                              fontSize: '0.7rem',
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap'
+                            }}>
+                              👤 {tx.personnelName}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td style={{ 
@@ -543,6 +575,16 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
                         <button
                           type="button"
                           onClick={() => {
+                            setEditTxData({
+                              id: tx.id,
+                              projectId: tx.projectId,
+                              type: tx.type,
+                              category: tx.category,
+                              description: tx.description,
+                              amount: tx.amount,
+                              date: tx.date,
+                              personnelId: tx.personnelId || ''
+                            });
                             setSelectedTx(tx);
                             setIsEditing(false);
                           }}
@@ -636,6 +678,23 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
                     ))}
                   </select>
                 </div>
+
+                {txData.type === 'expense' && personnel && personnel.length > 0 && (
+                  <div className="form-group">
+                    <label>Asociar Personal / Contratista (Opcional)</label>
+                    <select
+                      name="personnelId"
+                      className="form-control"
+                      value={txData.personnelId}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">-- No asociar a persona --</option>
+                      {personnel.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.jobTitle || 'Sin cargo'})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="form-group">
                   <label>Descripción / Concepto del Pago</label>
@@ -889,6 +948,22 @@ export default function Ledger({ transactions, projects, onAddTransaction, onUpd
                       ))}
                     </select>
                   </div>
+
+                  {editTxData.type === 'expense' && personnel && personnel.length > 0 && (
+                    <div className="form-group">
+                      <label>Asociar Personal / Contratista (Opcional)</label>
+                      <select
+                        className="form-control"
+                        value={editTxData.personnelId || ''}
+                        onChange={(e) => setEditTxData(prev => ({ ...prev, personnelId: e.target.value }))}
+                      >
+                        <option value="">-- No asociar a persona --</option>
+                        {personnel.map(p => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.jobTitle || 'Sin cargo'})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   <div className="form-group">
                     <label>Descripción / Concepto del Pago</label>

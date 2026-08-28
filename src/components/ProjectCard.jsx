@@ -59,6 +59,12 @@ export default function ProjectCard({ project, onSelect }) {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <User size={14} style={{ color: 'var(--primary-cyan)', flexShrink: 0 }} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <strong>PM:</strong> {project.managerName || 'No asignado'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <DollarSign size={14} style={{ color: 'var(--primary-teal)', flexShrink: 0 }} />
           <span>
             <strong>Presupuesto:</strong> {formatCurrency(project.totalCost)}

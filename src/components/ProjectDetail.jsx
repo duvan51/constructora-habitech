@@ -18,6 +18,44 @@ import ProjectForm from './ProjectForm';
 import ExpenseReceiptModal from './ExpenseReceiptModal';
 import { getCachedData, setCachedData } from '../db/storage';
 
+const generateDefaultPhases = (startDateStr, endDateStr) => {
+  const phaseNames = ['Obra Gris', 'Obra Blanca', 'Terminados'];
+  const phases = [];
+  const now = new Date().getTime();
+  
+  if (startDateStr && endDateStr) {
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    if (end > start) {
+      const durationMs = end - start;
+      const stepMs = durationMs / phaseNames.length;
+      
+      for (let i = 0; i < phaseNames.length; i++) {
+        const pStart = new Date(start.getTime() + (stepMs * i));
+        const pEnd = new Date(start.getTime() + (stepMs * (i + 1)));
+        phases.push({
+          id: `phase_${i}_${now}`,
+          name: phaseNames[i],
+          startDate: pStart.toISOString().split('T')[0],
+          endDate: pEnd.toISOString().split('T')[0],
+          progress: 0
+        });
+      }
+      return phases;
+    }
+  }
+  
+  for (let i = 0; i < phaseNames.length; i++) {
+    phases.push({
+      id: `phase_${i}_${now}`,
+      name: phaseNames[i],
+      startDate: startDateStr || '',
+      endDate: endDateStr || '',
+      progress: 0
+    });
+  }
+  return phases;
+};
 // Client-side image compression helper
 const compressImage = (base64Str, maxWidth = 1200, maxHeight = 1200, quality = 0.7) => {
   return new Promise((resolve) => {
@@ -115,6 +153,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     id: null,
     description: '',
     uploadDate: new Date().toISOString().split('T')[0],
+    phaseId: '',
     media: [] // Array of { fileBase64, fileType }
   });
 
@@ -133,6 +172,61 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   // Restructure Payment Plan States
   const [showEditPaymentPlan, setShowEditPaymentPlan] = useState(false);
   const [tempPaymentPlan, setTempPaymentPlan] = useState([]);
+
+  // Phase Management States
+  const [showPhaseManager, setShowPhaseManager] = useState(false);
+  const [tempPhases, setTempPhases] = useState([]);
+
+  // Contacts and Notes States
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [newContact, setNewContact] = useState({ name: '', phone: '', role: '' });
+  
+  const [showAddNote, setShowAddNote] = useState(false);
+  const [newNote, setNewNote] = useState({ text: '' });
+
+  const handleAddContact = async (e) => {
+    e.preventDefault();
+    if (!newContact.name.trim()) return;
+    const updatedProject = {
+      ...project,
+      contacts: [...(project.contacts || []), { ...newContact, id: `contact_${Date.now()}` }]
+    };
+    await onUpdate(updatedProject);
+    setNewContact({ name: '', phone: '', role: '' });
+    setShowAddContact(false);
+  };
+
+  const handleRemoveContact = async (id) => {
+    if (await window.confirmDialog('¿Eliminar este contacto?')) {
+      const updatedProject = {
+        ...project,
+        contacts: (project.contacts || []).filter(c => c.id !== id)
+      };
+      await onUpdate(updatedProject);
+    }
+  };
+
+  const handleAddNote = async (e) => {
+    e.preventDefault();
+    if (!newNote.text.trim()) return;
+    const updatedProject = {
+      ...project,
+      notes: [...(project.notes || []), { ...newNote, id: `note_${Date.now()}`, date: new Date().toISOString() }]
+    };
+    await onUpdate(updatedProject);
+    setNewNote({ text: '' });
+    setShowAddNote(false);
+  };
+
+  const handleRemoveNote = async (id) => {
+    if (await window.confirmDialog('¿Eliminar esta nota?')) {
+      const updatedProject = {
+        ...project,
+        notes: (project.notes || []).filter(n => n.id !== id)
+      };
+      await onUpdate(updatedProject);
+    }
+  };
 
   const handleEstimatedChange = (e) => {
     const val = e.target.value;
@@ -764,6 +858,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         projectId: project.id,
         description: timelineData.description,
         uploadDate: timelineData.uploadDate,
+        phaseId: timelineData.phaseId,
         media: timelineData.media
       });
       
@@ -917,6 +1012,12 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                   <span style={{ color: 'var(--text-secondary)' }}>Fecha Estimada Fin:</span>
                   <span>{project.endDate || 'Abierto'}</span>
                 </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Project Manager:</span>
+                  <span style={{ color: 'var(--primary-cyan)', fontWeight: 600 }}>
+                    {project.managerName || 'No asignado'} {project.managerPhone ? `(${project.managerPhone})` : ''}
+                  </span>
+                </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-glass)', paddingTop: '10px', marginTop: '5px' }}>
                   <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Presupuesto Contratado:</span>
                   <span style={{ fontWeight: 800, color: 'var(--primary-teal)' }}>{formatCurrency(project.totalCost)}</span>
@@ -980,8 +1081,218 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '5px' }}>Margen de Gasto Real</div>
               <div style={{ fontSize: '1.8rem', fontWeight: 800, color: totalBudgetAct > totalBudgetEst ? 'var(--primary-red)' : '#818cf8' }}>
-                {Math.round((totalBudgetAct / project.totalCost) * 100)}%
+                {Math.round((totalBudgetAct / project.totalCost) * 100) || 0}%
               </div>
+            </div>
+          </div>
+
+          {/* Project Manager Panel */}
+          <div className="glass-panel" style={{ padding: '22px' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
+              <User size={18} style={{ color: 'var(--primary-cyan)' }} />
+              Gestión de Actividades (Project Manager: {project.managerName || 'No asignado'})
+            </h3>
+            
+            {(!project.phases || project.phases.length === 0) ? (
+               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No hay fases planificadas.</div>
+            ) : (
+               <div style={{ display: 'flex', flexDirection: 'column', borderRadius: '8px', border: '1px solid var(--border-glass)', overflow: 'hidden', background: 'rgba(0,0,0,0.1)' }}>
+                 {/* Table Header */}
+                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 2fr) 1fr 1fr 1fr', gap: '15px', padding: '12px 15px', borderBottom: '1px solid var(--border-glass)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.5px' }}>
+                    <div>ACTIVIDAD / FASE</div>
+                    <div>ESTADO</div>
+                    <div>CRONOGRAMA</div>
+                    <div>EVIDENCIA RECIENTE</div>
+                 </div>
+                 
+                 {/* Table Body */}
+                 {project.phases.map((phase, index) => {
+                    const phaseLogs = progressLogs.filter(log => log.phaseId === phase.id).sort((a,b) => new Date(b.uploadDate) - new Date(a.uploadDate));
+                    const latestLog = phaseLogs[0];
+                    const isLast = index === project.phases.length - 1;
+                    
+                    return (
+                      <div key={phase.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 2fr) 1fr 1fr 1fr', gap: '15px', padding: '15px', borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.03)', alignItems: 'center', transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.02)' } }}>
+                         
+                         {/* Actividad */}
+                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                           <div 
+                             style={{ display: 'flex', alignItems: 'center', cursor: 'default', marginTop: '2px' }}
+                             title={phase.progress === 100 ? "Completada" : "En progreso"}
+                           >
+                             {phase.progress === 100 ? (
+                               <CheckSquare size={18} style={{ color: 'var(--primary-teal)' }} />
+                             ) : (
+                               <div style={{ width: '16px', height: '16px', border: '2px solid var(--text-muted)', borderRadius: '3px' }}></div>
+                             )}
+                           </div>
+                           <div>
+                             <div style={{ 
+                               fontWeight: 600, 
+                               fontSize: '0.95rem',
+                               textDecoration: phase.progress === 100 ? 'line-through' : 'none',
+                               color: phase.progress === 100 ? 'var(--text-muted)' : 'var(--text-primary)'
+                             }}>
+                               {phase.name}
+                             </div>
+                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                               <User size={10} /> {project.managerName || 'Sin asignar'}
+                             </div>
+                           </div>
+                         </div>
+                         
+                         {/* Estado */}
+                         <div>
+                           {phase.progress === 100 ? (
+                             <span style={{ display: 'inline-block', background: 'rgba(45, 212, 191, 0.15)', color: 'var(--primary-teal)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600, border: '1px solid rgba(45, 212, 191, 0.2)' }}>
+                               Completada
+                             </span>
+                           ) : (
+                             <span style={{ display: 'inline-block', background: 'rgba(56, 189, 248, 0.15)', color: 'var(--primary-cyan)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+                               En progreso
+                             </span>
+                           )}
+                         </div>
+                         
+                         {/* Cronograma */}
+                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '3px' }}>
+                             <Calendar size={12} style={{ color: 'var(--text-muted)' }} />
+                             {phase.startDate || 'Pendiente'}
+                           </div>
+                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                             <Calendar size={12} style={{ color: 'var(--text-muted)', opacity: 0 }} />
+                             {phase.endDate || 'Pendiente'}
+                           </div>
+                         </div>
+                         
+                         {/* Evidencia Reciente */}
+                         <div>
+                           {latestLog ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }} title={latestLog.description}>
+                                  {latestLog.uploadDate} • {latestLog.description.length > 20 ? latestLog.description.substring(0,20)+'...' : latestLog.description}
+                                </div>
+                                {latestLog.media && latestLog.media.length > 0 && (
+                                   <div style={{ display: 'flex', gap: '4px' }}>
+                                     {latestLog.media.slice(0, 3).map((m, idx) => (
+                                        <div key={idx} style={{ width: '28px', height: '28px', borderRadius: '4px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                          {m.fileType === 'video' ? (
+                                             <video src={m.fileBase64} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                          ) : (
+                                             <img src={m.fileBase64} alt="Evidencia" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                          )}
+                                        </div>
+                                     ))}
+                                     {latestLog.media.length > 3 && (
+                                        <div style={{ width: '28px', height: '28px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                          +{latestLog.media.length - 3}
+                                        </div>
+                                     )}
+                                   </div>
+                                )}
+                              </div>
+                           ) : (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin evidencia</span>
+                           )}
+                         </div>
+                         
+                      </div>
+                    );
+                 })}
+               </div>
+            )}
+          </div>
+
+          <div className="grid-2">
+            {/* Contacts Panel */}
+            <div className="glass-panel" style={{ padding: '22px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
+                <Phone size={18} style={{ color: 'var(--primary-cyan)' }} />
+                Contactos de la Obra
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '15px' }}>
+                {(project.contacts || []).map((contact, idx) => (
+                  <div key={contact.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{contact.name}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{contact.role} - {contact.phone}</div>
+                    </div>
+                    {userRole !== 'viewer' && (
+                      <button className="btn-icon" style={{ padding: '5px', color: 'var(--primary-red)' }} onClick={() => handleRemoveContact(contact.id)}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {!(project.contacts && project.contacts.length > 0) && (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No hay contactos adicionales.</div>
+                )}
+              </div>
+
+              {userRole !== 'viewer' && (
+                showAddContact ? (
+                  <form onSubmit={handleAddContact} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px', background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px' }}>
+                    <input type="text" className="form-control" placeholder="Nombre (Ej. Ferretería El Sol)" value={newContact.name} onChange={(e) => setNewContact({...newContact, name: e.target.value})} required />
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <input type="text" className="form-control" placeholder="Rol/Tipo (Ej. Proveedor)" value={newContact.role} onChange={(e) => setNewContact({...newContact, role: e.target.value})} />
+                      <input type="text" className="form-control" placeholder="Teléfono" value={newContact.phone} onChange={(e) => setNewContact({...newContact, phone: e.target.value})} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                      <button type="button" className="btn btn-secondary" onClick={() => setShowAddContact(false)}>Cancelar</button>
+                      <button type="submit" className="btn btn-primary">Guardar</button>
+                    </div>
+                  </form>
+                ) : (
+                  <button className="btn btn-secondary" style={{ width: '100%', fontSize: '0.85rem' }} onClick={() => setShowAddContact(true)}>
+                    <Plus size={14} /> Agregar Contacto
+                  </button>
+                )
+              )}
+            </div>
+
+            {/* Notes Panel */}
+            <div className="glass-panel" style={{ padding: '22px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
+                <FileText size={18} style={{ color: 'var(--primary-orange)' }} />
+                Notas Rápidas
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '15px' }}>
+                {(project.notes || []).map((note, idx) => (
+                  <div key={note.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+                    <div>
+                      <div style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>{note.text}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>{new Date(note.date).toLocaleDateString()}</div>
+                    </div>
+                    {userRole !== 'viewer' && (
+                      <button className="btn-icon" style={{ padding: '5px', color: 'var(--primary-red)' }} onClick={() => handleRemoveNote(note.id)}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {!(project.notes && project.notes.length > 0) && (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No hay notas guardadas.</div>
+                )}
+              </div>
+
+              {userRole !== 'viewer' && (
+                showAddNote ? (
+                  <form onSubmit={handleAddNote} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px', background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px' }}>
+                    <textarea className="form-control" placeholder="Escribe una nota rápida..." value={newNote.text} onChange={(e) => setNewNote({text: e.target.value})} required rows="3"></textarea>
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                      <button type="button" className="btn btn-secondary" onClick={() => setShowAddNote(false)}>Cancelar</button>
+                      <button type="submit" className="btn btn-primary">Guardar</button>
+                    </div>
+                  </form>
+                ) : (
+                  <button className="btn btn-secondary" style={{ width: '100%', fontSize: '0.85rem' }} onClick={() => setShowAddNote(true)}>
+                    <Plus size={14} /> Nueva Nota
+                  </button>
+                )
+              )}
             </div>
           </div>
         </div>
@@ -1425,12 +1736,103 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
       {/* 5. BITACORA / PROGRESS GALLERY TAB */}
       {activeTab === 'gallery' && (
-        <div className="glass-panel animate-fade-in" style={{ padding: '22px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-            <div>
-              <h3>Bitácora Fotográfica de Obra</h3>
-              <p style={{ fontSize: '0.85rem' }}>Línea de tiempo del avance físico y registro multimedia.</p>
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Fases / Cronograma Estimado */}
+          <div className="glass-panel" style={{ padding: '22px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: 'var(--primary-cyan)' }}>Cronograma de Fases (Plan vs Real)</h3>
+              {userRole !== 'viewer' && (
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => {
+                    let initialPhases = JSON.parse(JSON.stringify(project.phases || []));
+                    if (initialPhases.length === 0) {
+                      initialPhases = generateDefaultPhases(project.startDate, project.endDate);
+                    }
+                    setTempPhases(initialPhases);
+                    setShowPhaseManager(true);
+                  }}
+                >
+                  <Edit3 size={16} /> Editar Cronograma
+                </button>
+              )}
             </div>
+            
+            {(!project.phases || project.phases.length === 0) ? (
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No hay fases planificadas para esta obra.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {project.phases.map((phase) => (
+                  <div key={phase.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div 
+                          style={{ display: 'flex', alignItems: 'center', cursor: userRole !== 'viewer' ? 'pointer' : 'default' }}
+                          onClick={async () => {
+                            if (userRole === 'viewer') return;
+                            const newProgress = phase.progress === 100 ? 0 : 100;
+                            const updatedPhases = project.phases.map(p => p.id === phase.id ? { ...p, progress: newProgress } : p);
+                            await onUpdate({ ...project, phases: updatedPhases });
+                          }}
+                          title={phase.progress === 100 ? "Marcar como incompleta" : "Marcar como terminada (100%)"}
+                        >
+                          {phase.progress === 100 ? (
+                            <CheckSquare size={18} style={{ color: 'var(--primary-teal)' }} />
+                          ) : (
+                            <div style={{ width: '16px', height: '16px', border: '2px solid var(--text-muted)', borderRadius: '3px' }}></div>
+                          )}
+                        </div>
+                        <div style={{ 
+                          fontWeight: 600, 
+                          textDecoration: phase.progress === 100 ? 'line-through' : 'none',
+                          color: phase.progress === 100 ? 'var(--text-muted)' : 'inherit'
+                        }}>
+                          {phase.name}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          {phase.startDate} a {phase.endDate}
+                        </div>
+                        {userRole !== 'viewer' && (
+                          <button 
+                            className="btn-icon" 
+                            style={{ color: 'var(--primary-cyan)', padding: '2px' }} 
+                            title="Editar % Avance"
+                            onClick={async () => {
+                              const input = window.prompt(`Actualizar porcentaje de avance para "${phase.name}" (0-100):`, phase.progress || 0);
+                              if (input !== null && input.trim() !== '' && !isNaN(input)) {
+                                const val = Math.max(0, Math.min(100, parseInt(input)));
+                                const updatedPhases = project.phases.map(p => p.id === phase.id ? { ...p, progress: val } : p);
+                                await onUpdate({ ...project, phases: updatedPhases });
+                              }
+                            }}
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      <span>Avance Reportado</span>
+                      <span style={{ fontWeight: 700, color: 'var(--primary-cyan)' }}>{phase.progress}%</span>
+                    </div>
+                    <div className="progress-bar-container" style={{ margin: '0' }}>
+                      <div className="progress-bar-fill" style={{ width: `${phase.progress}%`, background: 'var(--primary-cyan)' }}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="glass-panel" style={{ padding: '22px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <div>
+                <h3>Bitácora Fotográfica de Obra</h3>
+                <p style={{ fontSize: '0.85rem' }}>Línea de tiempo del avance físico y registro multimedia.</p>
+              </div>
             {userRole !== 'viewer' && (
               <button 
                 className="btn btn-primary" 
@@ -1439,6 +1841,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                     id: null,
                     description: '',
                     uploadDate: new Date().toISOString().split('T')[0],
+                    phaseId: '',
                     media: []
                   });
                   setShowAddTimeline(true);
@@ -1462,7 +1865,14 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                   <div className="timeline-dot"></div>
                   <div className="timeline-content" style={{ width: '100%' }}>
                     <div className="timeline-meta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span className="timeline-date" style={{ fontSize: '0.85rem', color: 'var(--primary-cyan)', fontWeight: 600 }}>{item.uploadDate}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="timeline-date" style={{ fontSize: '0.85rem', color: 'var(--primary-cyan)', fontWeight: 600 }}>{item.uploadDate}</span>
+                        {item.phaseId && (
+                          <span style={{ fontSize: '0.65rem', background: 'rgba(245,158,11,0.15)', color: '#fde047', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(245,158,11,0.3)' }}>
+                            {(project.phases || []).find(p => p.id === item.phaseId)?.name || 'Fase'}
+                          </span>
+                        )}
+                      </div>
                       {userRole !== 'viewer' && (
                         <div style={{ display: 'flex', gap: '10px' }}>
                           <button 
@@ -1473,6 +1883,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                                 id: item.id,
                                 description: item.description,
                                 uploadDate: item.uploadDate,
+                                phaseId: item.phaseId || '',
                                 media: [...item.media]
                               });
                               setShowAddTimeline(true);
@@ -1534,6 +1945,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               ))}
             </div>
           )}
+          </div>
         </div>
       )}
 
@@ -1746,6 +2158,20 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                     onChange={(e) => setTimelineData(prev => ({ ...prev, uploadDate: e.target.value }))}
                     required
                   />
+                </div>
+
+                <div className="form-group">
+                  <label>Fase a la que pertenece (Opcional)</label>
+                  <select
+                    className="form-control"
+                    value={timelineData.phaseId || ''}
+                    onChange={(e) => setTimelineData(prev => ({ ...prev, phaseId: e.target.value }))}
+                  >
+                    <option value="">-- Sin Fase Específica --</option>
+                    {(project.phases || []).map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="form-group">
@@ -2529,6 +2955,98 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* PHASE MANAGER MODAL */}
+      {showPhaseManager && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }}>
+          <div className="modal-content" style={{ maxWidth: '700px' }}>
+            <div className="modal-header">
+              <h3>Gestionar Cronograma de Fases</h3>
+              <button className="btn-icon" onClick={() => setShowPhaseManager(false)}><X size={18} /></button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  Define las fases de la obra para hacer un seguimiento detallado de avances.
+                </p>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 12px', fontSize: '0.8rem' }} 
+                  onClick={() => setTempPhases(prev => [...prev, { id: `phase_${new Date().getTime()}`, name: '', startDate: '', endDate: '', progress: 0 }])}
+                >
+                  <Plus size={14} /> Agregar Fase
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {tempPhases.map((phase) => (
+                  <div key={phase.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', background: 'rgba(255,255,255,0.01)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-glass)', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '1 1 200px' }}>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Nombre de la fase (ej: Cimentación)"
+                        value={phase.name}
+                        onChange={(e) => setTempPhases(prev => prev.map(p => p.id === phase.id ? { ...p, name: e.target.value } : p))}
+                        required
+                      />
+                    </div>
+                    <div style={{ flex: '1 1 120px' }}>
+                      <input
+                        type="date"
+                        className="form-control"
+                        value={phase.startDate}
+                        onChange={(e) => setTempPhases(prev => prev.map(p => p.id === phase.id ? { ...p, startDate: e.target.value } : p))}
+                      />
+                    </div>
+                    <div style={{ flex: '1 1 120px' }}>
+                      <input
+                        type="date"
+                        className="form-control"
+                        value={phase.endDate}
+                        onChange={(e) => setTempPhases(prev => prev.map(p => p.id === phase.id ? { ...p, endDate: e.target.value } : p))}
+                      />
+                    </div>
+                    <button 
+                      type="button" 
+                      className="btn-icon" 
+                      style={{ padding: '6px', color: 'var(--primary-red)', background: 'rgba(244,63,94,0.05)', borderColor: 'rgba(244,63,94,0.1)' }}
+                      onClick={() => setTempPhases(prev => prev.filter(p => p.id !== phase.id))}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                {tempPhases.length === 0 && (
+                  <div style={{ padding: '15px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', color: 'var(--text-secondary)' }}>
+                    No hay fases definidas. Agrega fases para organizar el cronograma.
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowPhaseManager(false)}>
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={async () => {
+                  const hasEmpty = tempPhases.some(p => !p.name.trim());
+                  if (hasEmpty) {
+                    alert('Por favor dale un nombre a todas las fases.');
+                    return;
+                  }
+                  await onUpdate({ ...project, phases: tempPhases });
+                  setShowPhaseManager(false);
+                }}
+              >
+                Guardar Cronograma
+              </button>
             </div>
           </div>
         </div>

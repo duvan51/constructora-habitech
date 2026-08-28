@@ -516,6 +516,7 @@ export default function App() {
               <Ledger 
                 transactions={transactions} 
                 projects={projects}
+                personnel={personnel}
                 onAddTransaction={handleAddManualTransaction}
                 onUpdateTransaction={handleUpdateTransaction}
                 userRole={currentUser.role}

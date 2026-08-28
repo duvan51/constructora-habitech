@@ -2,6 +2,46 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, Hammer, MapPin, DollarSign, User, Plus, Trash2, Calendar } from 'lucide-react';
 import MapSelector from './MapSelector';
 
+const generateDefaultPhases = (startDateStr, endDateStr) => {
+  const phaseNames = ['Obra Gris', 'Obra Blanca', 'Terminados'];
+  const phases = [];
+  const now = new Date().getTime();
+  
+  if (startDateStr && endDateStr) {
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    if (end > start) {
+      const durationMs = end - start;
+      const stepMs = durationMs / phaseNames.length;
+      
+      for (let i = 0; i < phaseNames.length; i++) {
+        const pStart = new Date(start.getTime() + (stepMs * i));
+        const pEnd = new Date(start.getTime() + (stepMs * (i + 1)));
+        phases.push({
+          id: `phase_${i}_${now}`,
+          name: phaseNames[i],
+          startDate: pStart.toISOString().split('T')[0],
+          endDate: pEnd.toISOString().split('T')[0],
+          progress: 0
+        });
+      }
+      return phases;
+    }
+  }
+  
+  // Default fallback if dates are not valid or missing
+  for (let i = 0; i < phaseNames.length; i++) {
+    phases.push({
+      id: `phase_${i}_${now}`,
+      name: phaseNames[i],
+      startDate: startDateStr || '',
+      endDate: endDateStr || '',
+      progress: 0
+    });
+  }
+  return phases;
+};
+
 export default function ProjectForm({ project, onClose, onSave }) {
   const isEdit = !!project;
 
@@ -27,7 +67,12 @@ export default function ProjectForm({ project, onClose, onSave }) {
         { id: 'p1', name: 'Cuota Inicial / Firma Contrato', percentage: 30, amount: Math.round(cost * 0.3), dueDate: sDate, status: 'pending', paidDate: null },
         { id: 'p2', name: 'Hito de Avance Medio (50% Obra)', percentage: 40, amount: Math.round(cost * 0.4), dueDate: '', status: 'pending', paidDate: null },
         { id: 'p3', name: 'Entrega y Firmas Finales', percentage: 30, amount: Math.round(cost * 0.3), dueDate: eDate, status: 'pending', paidDate: null }
-      ]
+      ],
+      managerName: project?.managerName || '',
+      managerPhone: project?.managerPhone || '',
+      phases: project?.phases?.length > 0 ? project.phases : generateDefaultPhases(sDate, eDate),
+      contacts: project?.contacts || [],
+      notes: project?.notes || []
     };
   });
 
@@ -62,6 +107,27 @@ export default function ProjectForm({ project, onClose, onSave }) {
       } 
     }));
   };
+
+  useEffect(() => {
+    if (formData.phases.length === 3 && formData.startDate && formData.endDate) {
+      const namesMatch = formData.phases[0].name === 'Obra Gris' && 
+                         formData.phases[1].name === 'Obra Blanca' && 
+                         formData.phases[2].name === 'Terminados';
+      if (namesMatch) {
+         const newPhases = generateDefaultPhases(formData.startDate, formData.endDate);
+         const updatedPhases = newPhases.map((np, i) => ({
+             ...np,
+             id: formData.phases[i].id,
+             progress: formData.phases[i].progress
+         }));
+         
+         const needsUpdate = updatedPhases.some((np, i) => np.startDate !== formData.phases[i].startDate || np.endDate !== formData.phases[i].endDate);
+         if (needsUpdate) {
+            setFormData(prev => ({ ...prev, phases: updatedPhases }));
+         }
+      }
+    }
+  }, [formData.startDate, formData.endDate]);
 
   // Payment Plan Management Actions
   const handleAddMilestone = () => {
@@ -114,6 +180,36 @@ export default function ProjectForm({ project, onClose, onSave }) {
       });
       return { ...prev, paymentPlan: updatedPlan };
     });
+  };
+
+  // Phase Management Actions
+  const handleAddPhase = () => {
+    setFormData(prev => ({
+      ...prev,
+      phases: [
+        ...prev.phases,
+        { id: `phase_${new Date().getTime()}`, name: '', startDate: '', endDate: '', progress: 0 }
+      ]
+    }));
+  };
+
+  const handleRemovePhase = (id) => {
+    setFormData(prev => ({
+      ...prev,
+      phases: prev.phases.filter(p => p.id !== id)
+    }));
+  };
+
+  const handlePhaseChange = (id, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      phases: prev.phases.map(p => {
+        if (p.id === id) {
+          return { ...p, [field]: field === 'progress' ? (parseFloat(value) || 0) : value };
+        }
+        return p;
+      })
+    }));
   };
 
   // Calculate sum of plan percentages and amounts
@@ -276,6 +372,39 @@ export default function ProjectForm({ project, onClose, onSave }) {
               )}
             </div>
 
+            {/* Project Manager Info */}
+            <div style={{ borderBottom: '1px solid var(--border-glass)', paddingBottom: '15px', marginBottom: '20px' }}>
+              <h4 style={{ fontSize: '0.95rem', color: 'var(--primary-cyan)', marginBottom: '12px' }}>Gestión de la Obra</h4>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Project Manager Asignado</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      name="managerName"
+                      className="form-control"
+                      style={{ paddingLeft: '35px' }}
+                      placeholder="Nombre del PM (Ej. Carlos Ruiz)"
+                      value={formData.managerName}
+                      onChange={handleInputChange}
+                    />
+                    <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Teléfono del PM</label>
+                  <input
+                    type="tel"
+                    name="managerPhone"
+                    className="form-control"
+                    placeholder="Teléfono del PM"
+                    value={formData.managerPhone}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Client Info */}
             <div style={{ borderBottom: '1px solid var(--border-glass)', paddingBottom: '15px', marginBottom: '20px' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--primary-cyan)', marginBottom: '12px' }}>Datos del Cliente</h4>
@@ -340,6 +469,8 @@ export default function ProjectForm({ project, onClose, onSave }) {
                 />
               </div>
             </div>
+
+
 
             {/* CUSTOM PAYMENT PLAN EDITOR */}
             <div style={{ borderBottom: '1px solid var(--border-glass)', paddingBottom: '15px', marginBottom: '20px' }}>

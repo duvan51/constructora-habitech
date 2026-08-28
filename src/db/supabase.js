@@ -101,6 +101,8 @@ const mapTransactionToCamel = (t) => {
     amount: parseFloat(t.amount) || 0,
     date: t.date,
     receiptBase64: t.receipt_base64 || null,
+    personnelId: t.personnel_id || null,
+    personnelName: t.personnel_name || null,
     createdAt: t.created_at
   };
 };
@@ -115,7 +117,9 @@ const mapTransactionToSnake = (t) => {
     category: t.category,
     description: t.description,
     amount: t.amount,
-    date: t.date
+    date: t.date,
+    personnel_id: t.personnelId || null,
+    personnel_name: t.personnelName || null
   };
   if (t.receiptBase64 !== undefined) {
     res.receipt_base64 = t.receiptBase64;
@@ -167,7 +171,12 @@ const mapProjectToCamel = (p) => {
     endDate: p.end_date,
     progress: p.progress,
     budgetItems: p.budget_items || [],
-    paymentPlan: p.payment_plan || []
+    paymentPlan: p.payment_plan || [],
+    managerName: p.manager_name,
+    managerPhone: p.manager_phone,
+    phases: p.phases || [],
+    contacts: p.contacts || [],
+    notes: p.notes || []
   };
 };
 
@@ -186,7 +195,12 @@ const mapProjectToSnake = (p) => {
     end_date: p.endDate,
     progress: p.progress,
     budget_items: p.budgetItems,
-    payment_plan: p.paymentPlan
+    payment_plan: p.paymentPlan,
+    manager_name: p.managerName,
+    manager_phone: p.managerPhone,
+    phases: p.phases || [],
+    contacts: p.contacts || [],
+    notes: p.notes || []
   };
 };
 

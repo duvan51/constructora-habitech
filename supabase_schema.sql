@@ -16,8 +16,21 @@ CREATE TABLE IF NOT EXISTS projects (
   progress INTEGER NOT NULL DEFAULT 0,
   budget_items JSONB NOT NULL DEFAULT '[]'::jsonb,
   payment_plan JSONB NOT NULL DEFAULT '[]'::jsonb,
+  manager_name TEXT,
+  manager_phone TEXT,
+  phases JSONB NOT NULL DEFAULT '[]'::jsonb,
+  contacts JSONB NOT NULL DEFAULT '[]'::jsonb,
+  notes JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Si la tabla 'projects' ya existía de una versión anterior, asegúrate de correr estas líneas
+-- para agregar las nuevas columnas necesarias sin borrar tu información:
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS manager_name TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS manager_phone TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS phases JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS contacts JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS notes JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- 2. Create Ledger Transactions Table
 CREATE TABLE IF NOT EXISTS transactions (
@@ -32,6 +45,10 @@ CREATE TABLE IF NOT EXISTS transactions (
   receipt_base64 TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Si la tabla 'transactions' ya existía, asegúrate de correr estas líneas:
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS personnel_id TEXT;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS personnel_name TEXT;
 
 -- 3. Create Documents Table (contracts, receipt scans)
 CREATE TABLE IF NOT EXISTS documents (

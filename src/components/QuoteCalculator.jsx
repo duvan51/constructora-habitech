@@ -75,6 +75,17 @@ export default function QuoteCalculator() {
 
   // Modal open state for printing
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Saved quotes history
+  const [savedQuotes, setSavedQuotes] = useState(() => {
+    const saved = localStorage.getItem('habitech_saved_quotes');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('habitech_saved_quotes', JSON.stringify(savedQuotes));
+  }, [savedQuotes]);
 
   // Auto-calculate areas when dimensions change
   useEffect(() => {
@@ -272,6 +283,66 @@ export default function QuoteCalculator() {
     window.print();
   };
 
+  const handleSaveQuote = () => {
+    if (!clientData.name || !clientData.project) {
+      alert('Por favor ingresa al menos el nombre del cliente y proyecto.');
+      return;
+    }
+    const newQuote = {
+      id: 'q_' + Date.now(),
+      savedAt: new Date().toISOString(),
+      clientData,
+      quoteMode,
+      finishType,
+      houseAreaMode,
+      houseDims,
+      includeSlab,
+      slabAreaMode,
+      slabDims,
+      includeCorridors,
+      corridorAreaMode,
+      corridorDims,
+      includeStairs,
+      stairsQty,
+      concepts,
+      discountPercent,
+      adjustmentAmount,
+      notes,
+      totalQuote
+    };
+    setSavedQuotes(prev => [newQuote, ...prev]);
+    alert('Cotización guardada exitosamente en el historial local.');
+  };
+
+  const handleLoadQuote = (q) => {
+    if (window.confirm('¿Cargar esta cotización? Se perderán los datos actuales no guardados.')) {
+      setClientData(q.clientData);
+      setQuoteMode(q.quoteMode);
+      setFinishType(q.finishType);
+      setHouseAreaMode(q.houseAreaMode);
+      setHouseDims(q.houseDims);
+      setIncludeSlab(q.includeSlab);
+      setSlabAreaMode(q.slabAreaMode);
+      setSlabDims(q.slabDims);
+      setIncludeCorridors(q.includeCorridors);
+      setCorridorAreaMode(q.corridorAreaMode);
+      setCorridorDims(q.corridorDims);
+      setIncludeStairs(q.includeStairs);
+      setStairsQty(q.stairsQty);
+      setConcepts(q.concepts || INITIAL_CONCEPTS);
+      setDiscountPercent(q.discountPercent);
+      setAdjustmentAmount(q.adjustmentAmount);
+      setNotes(q.notes);
+      setShowHistoryModal(false);
+    }
+  };
+
+  const handleDeleteQuote = (id) => {
+    if (window.confirm('¿Eliminar esta cotización guardada?')) {
+      setSavedQuotes(prev => prev.filter(q => q.id !== id));
+    }
+  };
+
   return (
     <div className="quote-calculator-view animate-fade-in">
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
@@ -282,15 +353,24 @@ export default function QuoteCalculator() {
         <div style={{ display: 'flex', gap: '10px' }}>
           <button 
             className="btn btn-secondary" 
+            onClick={() => setShowHistoryModal(true)}
+          >
+            <FileText size={16} /> Ver Historial ({savedQuotes.length})
+          </button>
+          <button 
+            className="btn btn-secondary" 
             onClick={() => {
               setTempPrices({ ...prices });
               setIsEditingPrices(!isEditingPrices);
             }}
           >
-            <Edit size={16} /> {isEditingPrices ? 'Cerrar Precios' : 'Configurar Precios M2'}
+            <Edit size={16} /> {isEditingPrices ? 'Cerrar Precios' : 'Configurar Precios'}
+          </button>
+          <button className="btn btn-primary" onClick={handleSaveQuote} disabled={subtotalBeforeDiscount === 0} style={{ background: 'var(--primary-teal)' }}>
+            <Save size={16} /> Guardar
           </button>
           <button className="btn btn-primary" onClick={() => setShowPrintModal(true)} disabled={subtotalBeforeDiscount === 0}>
-            <Printer size={16} /> Imprimir Cotización
+            <Printer size={16} /> Imprimir
           </button>
         </div>
       </div>
@@ -1143,7 +1223,7 @@ export default function QuoteCalculator() {
                       {quoteMode === 'm2' && (
                         <>
                           {houseArea > 0 && (
-                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                            <tr style={{ borderBottom: '1px solid #e5e7eb', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                               <td style={{ padding: '10px 6px' }}>
                                 <div style={{ fontWeight: 700, color: '#1f2937' }}>Área de Vivienda ({getFinishTypeLabel(finishType)})</div>
                               </td>
@@ -1155,7 +1235,7 @@ export default function QuoteCalculator() {
                             </tr>
                           )}
                           {includeSlab && slabArea > 0 && (
-                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                            <tr style={{ borderBottom: '1px solid #e5e7eb', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                               <td style={{ padding: '10px 6px' }}>
                                 <div style={{ fontWeight: 700, color: '#1f2937' }}>Placa de Niveles / Entrepiso</div>
                               </td>
@@ -1167,7 +1247,7 @@ export default function QuoteCalculator() {
                             </tr>
                           )}
                           {includeCorridors && corridorArea > 0 && (
-                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                            <tr style={{ borderBottom: '1px solid #e5e7eb', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                               <td style={{ padding: '10px 6px' }}>
                                 <div style={{ fontWeight: 700, color: '#1f2937' }}>Corredores Exteriores</div>
                               </td>
@@ -1179,7 +1259,7 @@ export default function QuoteCalculator() {
                             </tr>
                           )}
                           {includeStairs && stairsCount > 0 && (
-                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                            <tr style={{ borderBottom: '1px solid #e5e7eb', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                               <td style={{ padding: '10px 6px' }}>
                                 <div style={{ fontWeight: 700, color: '#1f2937' }}>Escalera de Niveles</div>
                               </td>
@@ -1195,7 +1275,7 @@ export default function QuoteCalculator() {
                       {quoteMode === 'concepts' && (
                         <>
                           {concepts.filter(c => c.included).map((concept) => (
-                            <tr key={concept.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                            <tr key={concept.id} style={{ borderBottom: '1px solid #e5e7eb', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                               <td style={{ padding: '10px 6px' }}>
                                 <div style={{ fontWeight: 700, color: '#1f2937' }}>{concept.name}</div>
                               </td>
@@ -1210,7 +1290,7 @@ export default function QuoteCalculator() {
                   </table>
 
                   {/* Totals */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                     <div style={{ width: '100%', maxWidth: '280px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4b5563' }}>
                         <span>Subtotal:</span>
@@ -1230,7 +1310,7 @@ export default function QuoteCalculator() {
                   </div>
 
                   {/* Notes */}
-                  <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', marginBottom: '30px' }}>
+                  <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', marginBottom: '30px', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                     <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '3px' }}>CONDICIONES DE CONTRATACIÓN</div>
                     <p style={{ fontSize: '0.75rem', color: '#4b5563', lineHeight: '1.3', margin: 0, whiteSpace: 'pre-wrap' }}>
                       {notes}
@@ -1238,7 +1318,7 @@ export default function QuoteCalculator() {
                   </div>
 
                   {/* Signatures */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                     <div style={{ width: '45%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <div style={{ height: '45px', borderBottom: '1px solid #9ca3af', marginBottom: '5px', display: 'flex', justifyContent: 'center', alignItems: 'flex-end', width: '100%', position: 'relative' }}>
                         <img 
@@ -1260,11 +1340,11 @@ export default function QuoteCalculator() {
 
                   {/* Blueprint Page Break (Inside modal printed area) */}
                   {blueprintImg && (
-                    <div style={{ 
-                      borderTop: '2px dashed #e5e7eb', 
+                    <div className="page-break-before" style={{ 
                       marginTop: '30px', 
                       paddingTop: '20px', 
                       pageBreakBefore: 'always', 
+                      breakBefore: 'page',
                       position: 'relative' 
                     }}>
                       <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
@@ -1301,6 +1381,54 @@ export default function QuoteCalculator() {
               <button type="button" className="btn btn-primary" onClick={handlePrint}>
                 <Printer size={16} /> Enviar a Impresora
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HISTORY MODAL */}
+      {showHistoryModal && (
+        <div className="modal-overlay no-print" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '800px', width: '95%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={20} style={{ color: 'var(--primary-cyan)' }} />
+                Historial de Cotizaciones Guardadas
+              </h3>
+              <button className="btn-icon" onClick={() => setShowHistoryModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px' }}>
+              {savedQuotes.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                  No hay cotizaciones guardadas en el historial.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
+                  {savedQuotes.map((q) => (
+                    <div key={q.id} style={{ border: '1px solid var(--border-glass)', borderRadius: '8px', padding: '15px', background: 'rgba(255,255,255,0.02)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{new Date(q.savedAt).toLocaleDateString()} {new Date(q.savedAt).toLocaleTimeString()}</span>
+                        <span className="badge" style={{ background: 'var(--primary-teal)', color: '#000', fontSize: '0.65rem' }}>{q.quoteMode === 'm2' ? 'Por M²' : 'Por Conceptos'}</span>
+                      </div>
+                      <h4 style={{ margin: '0 0 5px 0', fontSize: '1.05rem', color: 'var(--text-primary)' }}>{q.clientData.name}</h4>
+                      <p style={{ margin: '0 0 15px 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Proyecto: {q.clientData.project}</p>
+                      <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--primary-cyan)', marginBottom: '15px' }}>
+                        {formatCurrency(q.totalQuote)}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="btn btn-secondary" style={{ flex: 1, padding: '6px', fontSize: '0.8rem', border: '1px solid var(--border-glass)', color: 'var(--primary-cyan)' }} onClick={() => handleLoadQuote(q)}>
+                          Cargar
+                        </button>
+                        <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--primary-red)' }} onClick={() => handleDeleteQuote(q.id)}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
