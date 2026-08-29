@@ -40,6 +40,7 @@ export default function App() {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [projectSearch, setProjectSearch] = useState('');
+  const [isGlobalLoading, setIsGlobalLoading] = useState(false);
 
   // Override window.alert and window.confirm with premium custom UI elements
   useEffect(() => {
@@ -72,6 +73,10 @@ export default function App() {
           }
         });
       });
+    };
+
+    window.setGlobalLoading = (state) => {
+      setIsGlobalLoading(state);
     };
   }, []);
 
@@ -720,6 +725,32 @@ export default function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* GLOBAL LOADING SPINNER OVERLAY */}
+      {isGlobalLoading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(11, 15, 25, 0.75)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
+          zIndex: 9999999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <svg width="50" height="50" viewBox="0 0 50 50" style={{ animation: 'spin 1s linear infinite' }}>
+            <circle cx="25" cy="25" r="20" fill="none" stroke="var(--primary-cyan)" strokeWidth="4" strokeDasharray="31.4 31.4" />
+          </svg>
+          <span style={{ color: 'var(--text-primary)', marginTop: '15px', fontWeight: 600, fontSize: '1.1rem', letterSpacing: '0.5px' }}>
+            Procesando...
+          </span>
         </div>
       )}
 

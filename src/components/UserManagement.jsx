@@ -14,6 +14,7 @@ export default function UserManagement({ currentUser }) {
   const [pin, setPin] = useState('');
   const [role, setRole] = useState('viewer');
   const [saving, setSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -61,6 +62,7 @@ export default function UserManagement({ currentUser }) {
       setEmail('');
       setPin('');
       setRole('viewer');
+      setIsEditing(false);
       // Refresh list
       await fetchUsers();
     } catch (err) {
@@ -69,6 +71,27 @@ export default function UserManagement({ currentUser }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleEdit = (user) => {
+    setName(user.name);
+    setEmail(user.email);
+    setPin(user.pin);
+    setRole(user.role);
+    setIsEditing(true);
+    setError('');
+    setSuccess('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setName('');
+    setEmail('');
+    setPin('');
+    setRole('viewer');
+    setIsEditing(false);
+    setError('');
+    setSuccess('');
   };
 
   const handleDelete = async (emailToDelete) => {
@@ -143,9 +166,9 @@ export default function UserManagement({ currentUser }) {
       <div className="grid-2" style={{ gridTemplateColumns: '1.2fr 1.8fr', alignItems: 'start' }}>
         {/* Form panel to create user */}
         <div className="glass-panel" style={{ padding: '25px' }}>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.25rem', marginTop: 0 }}>
+          <h2 style={{ fontSize: '1.25rem', marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <UserPlus size={20} style={{ color: 'var(--primary-cyan)' }} />
-            Registrar Nuevo Usuario
+            {isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}
           </h2>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
             Los usuarios creados podrán iniciar sesión con su correo electrónico y el PIN de 4 dígitos.
@@ -171,16 +194,16 @@ export default function UserManagement({ currentUser }) {
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Mail size={14} /> Correo Electrónico
               </label>
-              <input
-                type="email"
-                className="form-control"
-                placeholder="usuario@constructora.com..."
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={saving}
-                required
-              />
-            </div>
+                <input
+                  type="email"
+                  className="form-control"
+                  placeholder="ejemplo@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={saving || isEditing}
+                  required
+                />
+              </div>
 
             <div className="form-row">
               <div className="form-group">
@@ -219,14 +242,26 @@ export default function UserManagement({ currentUser }) {
               </div>
             </div>
 
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={saving}
-              style={{ width: '100%', marginTop: '10px' }}
-            >
-              {saving ? 'Guardando...' : 'Crear Usuario'}
-            </button>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={saving}
+                style={{ flex: 1 }}
+              >
+                {saving ? 'Guardando...' : (isEditing ? 'Actualizar Usuario' : 'Crear Usuario')}
+              </button>
+              {isEditing && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={saving}
+                  onClick={handleCancelEdit}
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
@@ -274,6 +309,21 @@ export default function UserManagement({ currentUser }) {
                           {getRoleBadge(user.role)}
                         </td>
                         <td style={{ padding: '14px 8px', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn-icon"
+                            onClick={() => handleEdit(user)}
+                            title="Editar usuario"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--primary-cyan)',
+                              cursor: 'pointer',
+                              padding: '5px'
+                            }}
+                          >
+                            <Edit2 size={16} />
+                          </button>
                           <button
                             type="button"
                             className="btn-icon"

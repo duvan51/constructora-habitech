@@ -30,6 +30,7 @@ export const uploadFileToStorage = async (path, base64Str) => {
     return base64Str; // Already a URL or not a base64 string
   }
 
+  if (window.setGlobalLoading) window.setGlobalLoading(true);
   try {
     const blob = base64ToBlob(base64Str);
     if (!blob) return base64Str;
@@ -62,6 +63,8 @@ export const uploadFileToStorage = async (path, base64Str) => {
   } catch (err) {
     console.warn('Failed uploading to Supabase Storage, using Base64 fallback:', err);
     return base64Str;
+  } finally {
+    if (window.setGlobalLoading) window.setGlobalLoading(false);
   }
 };
 
@@ -370,44 +373,54 @@ export const getAll = async (tableName) => {
 };
 
 export const saveItem = async (tableName, item) => {
-  let itemToSave = item;
-  if (tableName === 'projects') {
-    itemToSave = mapProjectToSnake(item);
-  } else if (tableName === 'transactions') {
-    itemToSave = mapTransactionToSnake(item);
-  } else if (tableName === 'personnel') {
-    let docUrl = item.documentBase64;
-    let arlUrl = item.arlBase64;
-    if (docUrl && docUrl.startsWith('data:')) {
-      docUrl = await uploadFileToStorage(`personnel/${item.id}/cedula`, docUrl);
+  if (window.setGlobalLoading) window.setGlobalLoading(true);
+  try {
+    let itemToSave = item;
+    if (tableName === 'projects') {
+      itemToSave = mapProjectToSnake(item);
+    } else if (tableName === 'transactions') {
+      itemToSave = mapTransactionToSnake(item);
+    } else if (tableName === 'personnel') {
+      let docUrl = item.documentBase64;
+      let arlUrl = item.arlBase64;
+      if (docUrl && docUrl.startsWith('data:')) {
+        docUrl = await uploadFileToStorage(`personnel/${item.id}/cedula`, docUrl);
+      }
+      if (arlUrl && arlUrl.startsWith('data:')) {
+        arlUrl = await uploadFileToStorage(`personnel/${item.id}/arl`, arlUrl);
+      }
+      itemToSave = mapPersonnelToSnake({
+        ...item,
+        documentBase64: docUrl,
+        arlBase64: arlUrl
+      });
     }
-    if (arlUrl && arlUrl.startsWith('data:')) {
-      arlUrl = await uploadFileToStorage(`personnel/${item.id}/arl`, arlUrl);
-    }
-    itemToSave = mapPersonnelToSnake({
-      ...item,
-      documentBase64: docUrl,
-      arlBase64: arlUrl
-    });
+
+    const { data, error } = await supabase
+      .from(tableName)
+      .upsert(itemToSave)
+      .select();
+
+    if (error) throw error;
+    return data;
+  } finally {
+    if (window.setGlobalLoading) window.setGlobalLoading(false);
   }
-
-  const { data, error } = await supabase
-    .from(tableName)
-    .upsert(itemToSave)
-    .select();
-
-  if (error) throw error;
-  return data;
 };
 
-export const deleteItem = async (tableName, key) => {
-  const { error } = await supabase
-    .from(tableName)
-    .delete()
-    .eq('id', key);
+export const deleteItem = async (tableName, id) => {
+  if (window.setGlobalLoading) window.setGlobalLoading(true);
+  try {
+    const { error } = await supabase
+      .from(tableName)
+      .delete()
+      .eq('id', id);
 
-  if (error) throw error;
-  return true;
+    if (error) throw error;
+    return true;
+  } finally {
+    if (window.setGlobalLoading) window.setGlobalLoading(false);
+  }
 };
 
 // Specialized Document Storage

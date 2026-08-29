@@ -314,8 +314,8 @@ export default function QuoteCalculator() {
     alert('Cotización guardada exitosamente en el historial local.');
   };
 
-  const handleLoadQuote = (q) => {
-    if (window.confirm('¿Cargar esta cotización? Se perderán los datos actuales no guardados.')) {
+  const handleLoadQuote = async (q) => {
+    if (await window.confirmDialog('¿Cargar esta cotización? Se perderán los datos actuales no guardados.')) {
       setClientData(q.clientData);
       setQuoteMode(q.quoteMode);
       setFinishType(q.finishType);
@@ -337,8 +337,8 @@ export default function QuoteCalculator() {
     }
   };
 
-  const handleDeleteQuote = (id) => {
-    if (window.confirm('¿Eliminar esta cotización guardada?')) {
+  const handleDeleteQuote = async (id) => {
+    if (await window.confirmDialog('¿Eliminar esta cotización guardada?')) {
       setSavedQuotes(prev => prev.filter(q => q.id !== id));
     }
   };

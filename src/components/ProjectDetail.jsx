@@ -144,7 +144,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     categoryIndex: 0,
     amount: '',
     date: new Date().toISOString().split('T')[0],
-    personnelId: ''
+    personnelId: '',
+    receiptBase64: ''
   });
 
   // Timeline Progress Entry State
@@ -526,7 +527,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       category: category.category, // 'materials' | 'labor' | 'permits'
       description: `${category.name} || Compra: ${expenseData.description}${selectedPersonnelSuffix} (Obra: ${project.name})`,
       amount: amt,
-      date: expenseData.date
+      date: expenseData.date,
+      receiptBase64: expenseData.receiptBase64 || null
     };
 
     try {
@@ -580,7 +582,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         categoryIndex: 0,
         amount: '',
         date: new Date().toISOString().split('T')[0],
-        personnelId: ''
+        personnelId: '',
+        receiptBase64: ''
       });
       setEditingExpenseId(null);
       setShowAddExpense(false);
@@ -1418,7 +1421,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                       categoryIndex: 0,
                       amount: '',
                       date: new Date().toISOString().split('T')[0],
-                      personnelId: firstBudgetItem?.personnelId || ''
+                      personnelId: firstBudgetItem?.personnelId || '',
+                      receiptBase64: ''
                     });
                     setExpensePercentage(''); 
                     setShowAddExpense(true); 
@@ -1538,6 +1542,24 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                                       >
                                         <Printer size={11} />
                                       </button>
+                                      {exp.receiptBase64 && (
+                                        <button 
+                                          type="button" 
+                                          style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                          onClick={() => {
+                                            const w = window.open();
+                                            if (exp.receiptBase64.startsWith('data:application/pdf')) {
+                                              w.document.write(`<embed width="100%" height="100%" src="${exp.receiptBase64}" type="application/pdf" />`);
+                                            } else {
+                                              w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${exp.receiptBase64}" style="max-width:100%; max-height:100vh;" /></div>`);
+                                            }
+                                            w.document.body.style.margin = '0';
+                                          }}
+                                          title="Ver archivo adjunto"
+                                        >
+                                          <Eye size={11} />
+                                        </button>
+                                      )}
                                       {userRole !== 'viewer' && (
                                         <>
                                           <button 
@@ -2125,6 +2147,58 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                     </div>
                   </div>
                 </div>
+
+                {/* Receipt Upload */}
+                <div className="form-group" style={{ marginTop: '15px', borderTop: '1px dashed var(--border-glass)', paddingTop: '15px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Adjuntar Soporte / Recibo (Opcional)
+                  </label>
+                  <div style={{ border: '1px dashed var(--border-glass)', borderRadius: '8px', padding: '15px 10px', textAlign: 'center', background: 'rgba(255,255,255,0.01)' }}>
+                    <input
+                      type="file"
+                      id="project-expense-receipt-upload"
+                      style={{ display: 'none' }}
+                      accept="image/*,application/pdf"
+                      capture="environment"
+                      onChange={async (e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = async () => {
+                            let base64 = reader.result;
+                            if (file.type.startsWith('image/')) {
+                              base64 = await compressImage(base64, 1200, 1200, 0.7);
+                            }
+                            setExpenseData(prev => ({ ...prev, receiptBase64: base64 }));
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <label htmlFor="project-expense-receipt-upload" style={{ cursor: 'pointer', display: 'block', margin: 0 }}>
+                      <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-cyan)', marginBottom: '4px' }}>
+                        Seleccionar archivo o Tomar foto
+                      </p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Imágenes o PDF soportados</p>
+                    </label>
+                    {expenseData.receiptBase64 && (
+                      <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                        <CheckCircle size={12} /> Comprobante cargado correctamente
+                        <button 
+                          type="button" 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setExpenseData(prev => ({ ...prev, receiptBase64: '' }));
+                          }}
+                          style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', marginLeft: '10px' }}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => { setShowAddExpense(false); setEditingExpenseId(null); }}>

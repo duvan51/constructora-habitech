@@ -4,6 +4,8 @@ import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, Cr
 export default function Ledger({ transactions, projects, personnel, onAddTransaction, onUpdateTransaction, userRole }) {
   const [filterType, setFilterType] = useState('all'); // 'all' | 'income' | 'expense'
   const [filterProject, setFilterProject] = useState('all'); // 'all' | projectId
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterPersonnel, setFilterPersonnel] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showCanceled, setShowCanceled] = useState(false);
@@ -260,6 +262,10 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     const typeMatch = filterType === 'all' || t.type === filterType;
     const projectMatch = filterProject === 'all' || t.projectId === filterProject;
     
+    // Category and Personnel filters
+    const categoryMatch = filterCategory === 'all' || t.category === filterCategory;
+    const personnelMatch = filterPersonnel === 'all' || String(t.personnelId) === filterPersonnel;
+    
     // Date range filter
     let dateMatch = true;
     if (startDate) {
@@ -269,7 +275,16 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       dateMatch = dateMatch && (t.date <= endDate);
     }
     
-    return typeMatch && projectMatch && dateMatch;
+    return typeMatch && projectMatch && categoryMatch && personnelMatch && dateMatch;
+  }).sort((a, b) => {
+    // Sort descending by date, newest first
+    const dateA = new Date(a.date);
+    const dateB = new Date(b.date);
+    if (dateB.getTime() !== dateA.getTime()) {
+      return dateB - dateA;
+    }
+    // Fallback to sort by ID if same date
+    return String(b.id).localeCompare(String(a.id));
   });
 
   // Metric calculations (reactive to project filter)
@@ -396,6 +411,34 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           <option value="all">Todas las Obras / General</option>
           <option value="general">Gastos Administrativos</option>
           {projects.map(p => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+
+        {/* Category Filter */}
+        <select
+          className="form-control"
+          style={{ width: 'auto', minWidth: '180px' }}
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
+        >
+          <option value="all">Todas las Categorías</option>
+          <option value="client_payment">Cobro a Cliente</option>
+          <option value="materials">Materiales y Suministros</option>
+          <option value="labor">Mano de Obra</option>
+          <option value="permits">Licencias y Permisos</option>
+          <option value="administrative">Administrativo / Oficina</option>
+        </select>
+
+        {/* Personnel Filter */}
+        <select
+          className="form-control"
+          style={{ width: 'auto', minWidth: '180px' }}
+          value={filterPersonnel}
+          onChange={(e) => setFilterPersonnel(e.target.value)}
+        >
+          <option value="all">Todo el Personal</option>
+          {personnel && personnel.map(p => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
