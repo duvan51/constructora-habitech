@@ -1,7 +1,7 @@
 import React from 'react';
-import { DollarSign, HardHat, TrendingUp, AlertTriangle, ArrowUpRight, ArrowDownRight, Calendar } from 'lucide-react';
+import { DollarSign, HardHat, TrendingUp, AlertTriangle, ArrowUpRight, ArrowDownRight, Calendar, Landmark, Wallet } from 'lucide-react';
 
-export default function Dashboard({ projects, transactions, onViewProject }) {
+export default function Dashboard({ projects, transactions, onViewProject, userRole }) {
   // Financial Calculations
   const totalBudget = projects.reduce((sum, p) => sum + p.totalCost, 0);
   
@@ -18,10 +18,15 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
   const pendingBalance = totalBudget - totalPaid;
 
   const totalExpenses = transactions
-    .filter(t => t.type === 'expense')
+    .filter(t => t.type === 'expense' && !t.description?.includes('[CANCELADO]') && !t.description?.includes('[ANULADO]'))
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const netCash = totalPaid - totalExpenses; // Actual liquid cash in bank
+  const totalIncomeTx = transactions
+    .filter(t => t.type === 'income' && !t.description?.includes('[CANCELADO]') && !t.description?.includes('[ANULADO]'))
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalRecibidoCompleto = Math.max(totalPaid, totalIncomeTx);
+  const cajaMonetaria = totalRecibidoCompleto - totalExpenses; // Total Recibido - Total Gastado
 
   // Project counts based on status and payments
   const activeWorks = projects.filter(p => p.progress > 0 && p.progress < 100).length;
@@ -311,6 +316,84 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
     <div className="dashboard-view animate-fade-in">
       <h1>Panel de Control</h1>
       
+      {/* EXCLUSIVE ADMIN: CAJA MONETARIA PANEL */}
+      {userRole === 'admin' && (
+        <div className="glass-panel animate-fade-in" style={{
+          padding: '24px',
+          marginBottom: '30px',
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(6, 182, 212, 0.08))',
+          border: '1px solid rgba(16, 185, 129, 0.35)',
+          boxShadow: '0 8px 32px rgba(16, 185, 129, 0.15)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <span className="badge badge-active" style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#a5b4fc', border: '1px solid rgba(99, 102, 241, 0.4)' }}>
+                  Acceso Exclusivo Administrador
+                </span>
+                <Landmark size={18} style={{ color: 'var(--primary-teal)' }} />
+              </div>
+              <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Caja Monetaria (Dinero Estimado en Cuenta)
+              </h2>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Total disponible en banco calculado en tiempo real: <strong>Total Recibido (Ingresos)</strong> menos <strong>Total Gastado (Egresos)</strong>.
+              </p>
+            </div>
+
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700, letterSpacing: '0.5px' }}>
+                Dinero en Cuenta (Caja Monetaria)
+              </div>
+              <div style={{
+                fontSize: '2.2rem',
+                fontWeight: 800,
+                color: cajaMonetaria >= 0 ? '#34d399' : '#f87171',
+                textShadow: '0 0 20px rgba(52, 211, 153, 0.3)'
+              }}>
+                {formatCurrency(cajaMonetaria)}
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '15px',
+            marginTop: '20px',
+            paddingTop: '15px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+          }}>
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <ArrowUpRight size={14} style={{ color: '#34d399' }} /> Total Recibido (Ingresos)
+              </div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#34d399' }}>
+                {formatCurrency(totalRecibidoCompleto)}
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <ArrowDownRight size={14} style={{ color: '#f87171' }} /> Total Gastado (Egresos)
+              </div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f87171' }}>
+                {formatCurrency(totalExpenses)}
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                Diferencia Líquida
+              </div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: cajaMonetaria >= 0 ? '#67e8f9' : '#f87171' }}>
+                {cajaMonetaria >= 0 ? '+' : ''}{formatCurrency(cajaMonetaria)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Metrics Section */}
       <div className="metrics-grid">
         <div className="glass-panel metric-card">

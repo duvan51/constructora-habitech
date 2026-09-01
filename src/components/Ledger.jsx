@@ -380,6 +380,32 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
             <ArrowDownRight size={20} />
           </div>
         </div>
+
+        {/* EXCLUSIVE ADMIN CAJA MONETARIA CARD */}
+        {userRole === 'admin' && (
+          <div className="glass-panel metric-card" style={{
+            padding: '18px 22px',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.08))',
+            boxShadow: '0 4px 20px rgba(16, 185, 129, 0.15)'
+          }}>
+            <div className="metric-info">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <h3>Caja Monetaria</h3>
+                <span style={{ fontSize: '0.65rem', background: 'rgba(99, 102, 241, 0.3)', color: '#a5b4fc', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 700 }}>Admin</span>
+              </div>
+              <div className="metric-value" style={{ color: (totalCollected - totalExpenses) >= 0 ? '#34d399' : '#f87171', marginTop: '4px' }}>
+                {formatCurrency(totalCollected - totalExpenses)}
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Recibido ({formatCurrency(totalCollected)}) - Gastado ({formatCurrency(totalExpenses)})
+              </div>
+            </div>
+            <div className="metric-icon green" style={{ background: 'rgba(16, 185, 129, 0.2)' }}>
+              <Landmark size={20} style={{ color: '#34d399' }} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Filters Toolbar */}

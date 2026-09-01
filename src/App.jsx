@@ -482,6 +482,7 @@ export default function App() {
                 projects={projects} 
                 transactions={transactions} 
                 onViewProject={(id) => setSelectedProjectId(id)}
+                userRole={currentUser.role}
               />
             )}
 
