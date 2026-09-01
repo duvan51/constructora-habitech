@@ -86,7 +86,11 @@ export default function App() {
       try {
         const savedSession = localStorage.getItem('habitech_user_session');
         if (savedSession) {
-          setCurrentUser(JSON.parse(savedSession));
+          const user = JSON.parse(savedSession);
+          setCurrentUser(user);
+          if (user?.role === 'quoter') {
+            setTab('quote');
+          }
         }
         await seedMockData();
         await loadData();
@@ -183,6 +187,9 @@ export default function App() {
     setCurrentUser(user);
     setIsLocked(false);
     localStorage.setItem('habitech_user_session', JSON.stringify(user));
+    if (user?.role === 'quoter') {
+      setTab('quote');
+    }
   };
 
   const handleLogout = () => {
@@ -314,6 +321,18 @@ export default function App() {
   };
 
   const activeProject = projects.find(p => p.id === selectedProjectId);
+
+  // Enforce tab restriction for quoter role
+  useEffect(() => {
+    if (currentUser?.role === 'quoter') {
+      if (currentTab !== 'quote') {
+        setTab('quote');
+      }
+      if (selectedProjectId) {
+        setSelectedProjectId(null);
+      }
+    }
+  }, [currentUser, currentTab, selectedProjectId]);
 
   // Inactivity tracking (5 minutes lock for all users)
   useEffect(() => {

@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS gallery (
 CREATE TABLE IF NOT EXISTS users (
   email TEXT PRIMARY KEY,
   pin TEXT NOT NULL, -- 4 digit number pin
-  role TEXT NOT NULL DEFAULT 'viewer', -- 'admin' | 'editor' | 'viewer'
+  role TEXT NOT NULL DEFAULT 'viewer', -- 'admin' | 'editor' | 'viewer' | 'quoter'
   name TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
