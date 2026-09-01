@@ -165,7 +165,7 @@ export default function UserManagement({ currentUser }) {
         </div>
       )}
 
-      <div className="grid-2" style={{ gridTemplateColumns: '1.2fr 1.8fr', alignItems: 'start' }}>
+      <div className="user-mgmt-grid">
         {/* Form panel to create user */}
         <div className="glass-panel" style={{ padding: '25px' }}>
           <h2 style={{ fontSize: '1.25rem', marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>

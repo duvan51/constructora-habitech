@@ -345,12 +345,12 @@ export default function QuoteCalculator() {
 
   return (
     <div className="quote-calculator-view animate-fade-in">
-      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <h1>Cotizador de Construcción</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Genera cotizaciones por metros cuadrados (M²) o desgloses detallados por capítulos de obra.</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button 
             className="btn btn-secondary" 
             onClick={() => setShowHistoryModal(true)}
@@ -949,7 +949,8 @@ export default function QuoteCalculator() {
               </div>
 
               {/* Items Breakdown Table */}
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '0.8rem', textAlign: 'left' }}>
+              <div className="table-responsive">
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '0.8rem', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #d1d5db', color: '#111827' }}>
                     <th style={{ padding: '8px 6px', fontWeight: 700 }}>Descripción de la Actividad / Item</th>
@@ -1047,6 +1048,7 @@ export default function QuoteCalculator() {
                   )}
                 </tbody>
               </table>
+              </div>
 
               {/* Financial Totals */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
@@ -1209,7 +1211,8 @@ export default function QuoteCalculator() {
                   </div>
 
                   {/* Table */}
-                  <table className="receipt-table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '0.85rem', textAlign: 'left' }}>
+                  <div className="table-responsive">
+                    <table className="receipt-table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '0.85rem', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #d1d5db', color: '#111827' }}>
                         <th style={{ padding: '8px 6px', fontWeight: 700 }}>Descripción de la Actividad / Item</th>
@@ -1288,6 +1291,7 @@ export default function QuoteCalculator() {
                       )}
                     </tbody>
                   </table>
+                  </div>
 
                   {/* Totals */}
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px', pageBreakInside: 'avoid', breakInside: 'avoid' }}>

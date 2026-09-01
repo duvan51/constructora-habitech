@@ -716,13 +716,127 @@ p {
   }
 }
 
-/* Portfolio Cards Cover Zoom */
-.project-cover-hover {
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+/* Custom Utility Classes & Mobile Grids */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 15px;
 }
 
-.glass-card:hover .project-cover-hover {
-  transform: scale(1.08);
+.user-mgmt-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1.8fr;
+  align-items: start;
+  gap: 20px;
+}
+
+.portfolio-mgmt-grid {
+  display: grid;
+  grid-template-columns: 1.8fr 1.2fr;
+  align-items: start;
+  gap: 25px;
+}
+
+@media (max-width: 768px) {
+  .user-mgmt-grid, .portfolio-mgmt-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .main-content {
+    padding: 12px !important;
+    padding-top: 76px !important;
+    margin-left: 0 !important;
+  }
+
+  .glass-panel {
+    padding: 16px !important;
+    margin-bottom: 16px;
+    border-radius: 14px;
+  }
+
+  h1 {
+    font-size: 1.6rem !important;
+    margin-bottom: 16px !important;
+  }
+
+  h2 {
+    font-size: 1.25rem !important;
+    margin-bottom: 14px !important;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .metric-card {
+    padding: 14px !important;
+  }
+
+  .metric-value {
+    font-size: 1.35rem !important;
+  }
+
+  /* Modals on mobile */
+  .modal-overlay {
+    padding: 10px !important;
+    align-items: flex-end !important;
+  }
+
+  .modal-content {
+    max-height: 94vh !important;
+    border-radius: 20px 20px 12px 12px !important;
+    width: 100% !important;
+  }
+
+  .modal-header {
+    padding: 14px 16px !important;
+  }
+
+  .modal-body {
+    padding: 14px 16px !important;
+  }
+
+  .modal-footer {
+    padding: 14px 16px !important;
+    flex-wrap: wrap !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Prevent automatic iOS browser zoom on input focus */
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  .btn {
+    width: 100%; /* Botones de acción a ancho completo en móviles muy pequeños */
+  }
+
+  .timeline {
+    padding-left: 20px !important;
+  }
+
+  .timeline-dot {
+    left: -20px !important;
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
 }
 
 
