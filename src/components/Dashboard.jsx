@@ -27,6 +27,7 @@ export default function Dashboard({ projects, transactions, onViewProject, userR
 
   const totalRecibidoCompleto = Math.max(totalPaid, totalIncomeTx);
   const cajaMonetaria = totalRecibidoCompleto - totalExpenses; // Total Recibido - Total Gastado
+  const netCash = cajaMonetaria;
 
   // Project counts based on status and payments
   const activeWorks = projects.filter(p => p.progress > 0 && p.progress < 100).length;
