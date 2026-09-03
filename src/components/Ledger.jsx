@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check, Eye, Edit3, Trash2, Landmark, FileText, Printer, Building, Layers, ArrowUpDown } from 'lucide-react';
+import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check, Eye, Edit3, Trash2, Landmark, FileText, Printer, Building, Layers, ArrowUpDown, Calculator, RotateCcw } from 'lucide-react';
 import ReceiptModal from './ReceiptModal';
 import ExpenseReceiptModal from './ExpenseReceiptModal';
 
@@ -446,6 +446,49 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       : String(a.id).localeCompare(String(b.id));
   });
 
+  // Privilege check: Admin and Editor can view filtered totals in Caja General
+  const canViewFilteredTotals = userRole === 'admin' || userRole === 'editor' || (!userRole);
+
+  // Check if any filter is active
+  const hasActiveFilters = 
+    filterType !== 'all' || 
+    filterProject !== 'all' || 
+    filterCategory !== 'all' || 
+    filterPersonnel !== 'all' || 
+    Boolean(startDate) || 
+    Boolean(endDate);
+
+  // Active (non-canceled) transactions in the filtered list
+  const activeFilteredTxs = filteredTxs.filter(t => {
+    const isCanceled = t.description?.startsWith('[CANCELADO]') || t.description?.startsWith('[ANULADO]');
+    return !isCanceled;
+  });
+
+  // Filter sums (sum of expenses, sum of income, net balance of active filters)
+  const filteredIncome = activeFilteredTxs
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+  const filteredExpenses = activeFilteredTxs
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+  const filteredNet = filteredIncome - filteredExpenses;
+
+  // Selected filter labels
+  const selectedPersonnelObj = personnel?.find(p => String(p.id) === filterPersonnel);
+  const selectedProjectObj = projects?.find(p => p.id === filterProject);
+
+  const handleResetFilters = () => {
+    setFilterType('all');
+    setFilterProject('all');
+    setFilterCategory('all');
+    setFilterPersonnel('all');
+    setStartDate('');
+    setEndDate('');
+    setShowCanceled(false);
+  };
+
   // Metric calculations (reactive to project filter)
   const activeProjectsForMetrics = filterProject === 'all' 
     ? projects 
@@ -455,7 +498,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
 
   // Filters for metrics (excluding canceled transactions)
   const activeTxsForMetrics = transactions.filter(t => {
-    const isCanceled = t.description.startsWith('[CANCELADO]') || t.description.startsWith('[ANULADO]');
+    const isCanceled = t.description?.startsWith('[CANCELADO]') || t.description?.startsWith('[ANULADO]');
     if (isCanceled) return false;
     const projectMatch = filterProject === 'all' || t.projectId === filterProject;
     return projectMatch;
@@ -463,11 +506,11 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
 
   const totalCollected = activeTxsForMetrics
     .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
   const totalExpenses = activeTxsForMetrics
     .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
   const remainingToCollect = Math.max(0, totalContracted - totalCollected);
 
@@ -491,25 +534,86 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       </div>
 
       {/* Financial ledger metrics */}
+      {canViewFilteredTotals && hasActiveFilters && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'rgba(6, 182, 212, 0.08)',
+          border: '1px solid rgba(6, 182, 212, 0.25)',
+          padding: '10px 16px',
+          borderRadius: '10px',
+          marginBottom: '18px',
+          fontSize: '0.85rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)' }}>
+            <Filter size={15} style={{ color: 'var(--primary-cyan)' }} />
+            <span>
+              Métricas calculadas para <strong>{activeFilteredTxs.length} movimientos filtrados</strong>
+              {selectedPersonnelObj && ` • Personal: ${selectedPersonnelObj.name}`}
+              {filterCategory !== 'all' && ` • Categoría: ${getCategoryLabel(filterCategory)}`}
+              {filterProject !== 'all' && ` • Obra: ${filterProject === 'general' ? 'Gastos Administrativos' : selectedProjectObj?.name || 'Seleccionada'}`}
+              {(startDate || endDate) && ` • Fechas: ${startDate || '...'} a ${endDate || '...'}`}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid var(--border-glass)',
+              color: 'var(--primary-cyan)',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+            title="Restablecer todos los filtros"
+          >
+            <RotateCcw size={13} /> Limpiar filtros
+          </button>
+        </div>
+      )}
+
       <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
         <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
           <div className="metric-info">
-            <h3>Presupuesto Contratado</h3>
+            <h3>{canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate) ? 'Movimientos Filtrados' : 'Presupuesto Contratado'}</h3>
             <div className="metric-value" style={{ color: 'var(--primary-orange)' }}>
-              {formatCurrency(totalContracted)}
+              {canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate)
+                ? activeFilteredTxs.length
+                : formatCurrency(totalContracted)}
             </div>
+            {canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate) && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>transacciones activas</span>
+            )}
           </div>
           <div className="metric-icon orange">
-            <Landmark size={20} style={{ color: 'var(--primary-orange)' }} />
+            {canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate)
+              ? <Layers size={20} style={{ color: 'var(--primary-orange)' }} />
+              : <Landmark size={20} style={{ color: 'var(--primary-orange)' }} />}
           </div>
         </div>
 
         <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
           <div className="metric-info">
-            <h3>Total Cobrado (Clientes)</h3>
-            <div className="metric-value" style={{ color: 'var(--primary-teal)' }}>
-              {formatCurrency(totalCollected)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <h3>Total Cobrado (Ingresos)</h3>
+              {canViewFilteredTotals && hasActiveFilters && (
+                <span className="badge" style={{ fontSize: '0.65rem', padding: '1px 5px', background: 'rgba(20, 184, 166, 0.15)', color: 'var(--primary-teal)' }}>Filtro</span>
+              )}
             </div>
+            <div className="metric-value" style={{ color: 'var(--primary-teal)' }}>
+              {formatCurrency(canViewFilteredTotals && hasActiveFilters ? filteredIncome : totalCollected)}
+            </div>
+            {canViewFilteredTotals && hasActiveFilters && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {activeFilteredTxs.filter(t => t.type === 'income').length} cobros
+              </span>
+            )}
           </div>
           <div className="metric-icon green">
             <ArrowUpRight size={20} />
@@ -518,10 +622,24 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
 
         <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
           <div className="metric-info">
-            <h3>Saldo por Cobrar</h3>
-            <div className="metric-value" style={{ color: 'var(--primary-cyan)' }}>
-              {formatCurrency(remainingToCollect)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <h3>{canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate || filterType !== 'all') ? 'Balance Neto Filtro' : 'Saldo por Cobrar'}</h3>
+              {canViewFilteredTotals && hasActiveFilters && (
+                <span className="badge" style={{ fontSize: '0.65rem', padding: '1px 5px', background: 'rgba(6, 182, 212, 0.15)', color: 'var(--primary-cyan)' }}>Filtro</span>
+              )}
             </div>
+            <div className="metric-value" style={{
+              color: canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate || filterType !== 'all')
+                ? (filteredNet >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)')
+                : 'var(--primary-cyan)'
+            }}>
+              {canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate || filterType !== 'all')
+                ? `${filteredNet >= 0 ? '+' : ''}${formatCurrency(filteredNet)}`
+                : formatCurrency(remainingToCollect)}
+            </div>
+            {canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate || filterType !== 'all') && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Ingresos - Egresos</span>
+            )}
           </div>
           <div className="metric-icon purple">
             <DollarSign size={20} />
@@ -530,10 +648,20 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
 
         <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
           <div className="metric-info">
-            <h3>Gastos Realizados</h3>
-            <div className="metric-value" style={{ color: 'var(--primary-red)' }}>
-              {formatCurrency(totalExpenses)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <h3>Gastos Realizados (Egresos)</h3>
+              {canViewFilteredTotals && hasActiveFilters && (
+                <span className="badge" style={{ fontSize: '0.65rem', padding: '1px 5px', background: 'rgba(244, 63, 94, 0.15)', color: 'var(--primary-red)' }}>Filtro</span>
+              )}
             </div>
+            <div className="metric-value" style={{ color: 'var(--primary-red)' }}>
+              {formatCurrency(canViewFilteredTotals && hasActiveFilters ? filteredExpenses : totalExpenses)}
+            </div>
+            {canViewFilteredTotals && hasActiveFilters && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {activeFilteredTxs.filter(t => t.type === 'expense').length} gastos
+              </span>
+            )}
           </div>
           <div className="metric-icon red">
             <ArrowDownRight size={20} />
@@ -700,6 +828,255 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           Mostrando {filteredTxs.length} registros
         </span>
       </div>
+
+      {/* Filter Totals Summary Panel for Admin and Editor */}
+      {canViewFilteredTotals && (
+        <div className="glass-panel animate-fade-in" style={{
+          padding: '16px 20px',
+          marginBottom: '20px',
+          background: hasActiveFilters 
+            ? 'linear-gradient(135deg, rgba(6, 182, 212, 0.05) 0%, rgba(16, 185, 129, 0.04) 50%, rgba(244, 63, 94, 0.04) 100%)'
+            : 'rgba(255, 255, 255, 0.02)',
+          border: hasActiveFilters ? '1px solid rgba(6, 182, 212, 0.25)' : '1px solid var(--border-glass)',
+          borderRadius: '12px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                color: 'var(--text-primary)'
+              }}>
+                <Calculator size={18} style={{ color: 'var(--primary-cyan)' }} />
+                <span>{hasActiveFilters ? 'Suma de Totales según Filtros Aplicados' : 'Totales Globales de Caja'}</span>
+              </div>
+              
+              {hasActiveFilters && (
+                <span className="badge" style={{
+                  background: 'rgba(6, 182, 212, 0.15)',
+                  color: 'var(--primary-cyan)',
+                  border: '1px solid rgba(6, 182, 212, 0.3)',
+                  fontSize: '0.75rem',
+                  padding: '2px 8px'
+                }}>
+                  Filtro activo ({activeFilteredTxs.length} registros)
+                </span>
+              )}
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                style={{
+                  background: 'rgba(244, 63, 94, 0.08)',
+                  border: '1px solid rgba(244, 63, 94, 0.25)',
+                  color: '#fda4af',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s'
+                }}
+                title="Quitar todos los filtros aplicados"
+              >
+                <X size={12} /> Limpiar todos los filtros
+              </button>
+            )}
+          </div>
+
+          {/* Badges of active filters */}
+          {hasActiveFilters && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
+              {filterPersonnel !== 'all' && (
+                <span style={{
+                  background: 'rgba(168, 85, 247, 0.15)',
+                  border: '1px solid rgba(168, 85, 247, 0.3)',
+                  color: '#d8b4fe',
+                  padding: '3px 10px',
+                  borderRadius: '16px',
+                  fontSize: '0.8rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  👤 Personal: <strong>{selectedPersonnelObj?.name || 'Seleccionado'}</strong>
+                </span>
+              )}
+              {filterCategory !== 'all' && (
+                <span style={{
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  color: 'var(--primary-orange)',
+                  padding: '3px 10px',
+                  borderRadius: '16px',
+                  fontSize: '0.8rem'
+                }}>
+                  🏷️ Categoría: <strong>{getCategoryLabel(filterCategory)}</strong>
+                </span>
+              )}
+              {filterType !== 'all' && (
+                <span style={{
+                  background: filterType === 'income' ? 'rgba(20, 184, 166, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+                  border: filterType === 'income' ? '1px solid rgba(20, 184, 166, 0.3)' : '1px solid rgba(244, 63, 94, 0.3)',
+                  color: filterType === 'income' ? 'var(--primary-teal)' : '#fda4af',
+                  padding: '3px 10px',
+                  borderRadius: '16px',
+                  fontSize: '0.8rem'
+                }}>
+                  🔄 Flujo: <strong>{filterType === 'income' ? 'Solo Ingresos' : 'Solo Egresos'}</strong>
+                </span>
+              )}
+              {filterProject !== 'all' && (
+                <span style={{
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  color: 'var(--primary-cyan)',
+                  padding: '3px 10px',
+                  borderRadius: '16px',
+                  fontSize: '0.8rem'
+                }}>
+                  🏢 Obra: <strong>{filterProject === 'general' ? 'Gastos Administrativos' : (selectedProjectObj?.name || 'Seleccionada')}</strong>
+                </span>
+              )}
+              {(startDate || endDate) && (
+                <span style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid var(--border-glass)',
+                  color: 'var(--text-secondary)',
+                  padding: '3px 10px',
+                  borderRadius: '16px',
+                  fontSize: '0.8rem'
+                }}>
+                  📅 Fechas: <strong>{startDate || 'Inicio'} → {endDate || 'Hoy'}</strong>
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Sum metric cards */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+            gap: '12px'
+          }}>
+            {/* Sum of Expenses */}
+            <div style={{
+              background: 'rgba(244, 63, 94, 0.08)',
+              border: '1px solid rgba(244, 63, 94, 0.25)',
+              borderRadius: '10px',
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#fda4af', fontWeight: 600, marginBottom: '4px' }}>
+                  Suma de Egresos (Gastos)
+                </div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--primary-red)' }}>
+                  {formatCurrency(filteredExpenses)}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {activeFilteredTxs.filter(t => t.type === 'expense').length} movimientos de egreso
+                </div>
+              </div>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                background: 'rgba(244, 63, 94, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary-red)'
+              }}>
+                <ArrowDownRight size={20} />
+              </div>
+            </div>
+
+            {/* Sum of Income */}
+            <div style={{
+              background: 'rgba(20, 184, 166, 0.08)',
+              border: '1px solid rgba(20, 184, 166, 0.25)',
+              borderRadius: '10px',
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#5eead4', fontWeight: 600, marginBottom: '4px' }}>
+                  Suma de Ingresos (Cobros)
+                </div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--primary-teal)' }}>
+                  {formatCurrency(filteredIncome)}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {activeFilteredTxs.filter(t => t.type === 'income').length} movimientos de ingreso
+                </div>
+              </div>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                background: 'rgba(20, 184, 166, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary-teal)'
+              }}>
+                <ArrowUpRight size={20} />
+              </div>
+            </div>
+
+            {/* Net Balance */}
+            <div style={{
+              background: filteredNet >= 0 ? 'rgba(20, 184, 166, 0.05)' : 'rgba(244, 63, 94, 0.05)',
+              border: filteredNet >= 0 ? '1px solid rgba(20, 184, 166, 0.2)' : '1px solid rgba(244, 63, 94, 0.2)',
+              borderRadius: '10px',
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>
+                  Balance Neto {hasActiveFilters ? 'del Filtro' : 'de Caja'}
+                </div>
+                <div style={{
+                  fontSize: '1.35rem',
+                  fontWeight: 800,
+                  color: filteredNet >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)'
+                }}>
+                  {filteredNet >= 0 ? '+' : ''}{formatCurrency(filteredNet)}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Ingresos menos Egresos
+                </div>
+              </div>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                background: filteredNet >= 0 ? 'rgba(20, 184, 166, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: filteredNet >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)'
+              }}>
+                <DollarSign size={20} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ledger Table */}
       <div className="glass-panel" style={{ padding: '20px' }}>
@@ -884,6 +1261,57 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                   );
                 })}
               </tbody>
+              {canViewFilteredTotals && filteredTxs.length > 0 && (
+                <tfoot>
+                  <tr style={{ 
+                    borderTop: '2px solid var(--border-glass-active)',
+                    background: 'rgba(255, 255, 255, 0.03)'
+                  }}>
+                    <td colSpan={4} style={{ padding: '14px 12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <strong style={{ color: 'var(--text-primary)' }}>TOTAL SEGÚN FILTROS:</strong>
+                        <span>({activeFilteredTxs.length} transacciones activas)</span>
+                        {hasActiveFilters && (
+                          <span className="badge" style={{ background: 'rgba(6, 182, 212, 0.15)', color: 'var(--primary-cyan)', fontSize: '0.7rem' }}>
+                            Filtro Activo
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ padding: '14px 12px', fontSize: '0.85rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {filteredIncome > 0 && (
+                          <span style={{ color: 'var(--primary-teal)', fontWeight: 600 }}>Cobros: +{formatCurrency(filteredIncome)}</span>
+                        )}
+                        {filteredExpenses > 0 && (
+                          <span style={{ color: 'var(--primary-red)', fontWeight: 600 }}>Gastos: -{formatCurrency(filteredExpenses)}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ 
+                      padding: '14px 12px', 
+                      textAlign: 'right', 
+                      fontSize: '1rem', 
+                      fontWeight: 800, 
+                      color: filterType === 'income' 
+                        ? 'var(--primary-teal)' 
+                        : filterType === 'expense' 
+                          ? 'var(--primary-red)' 
+                          : (filteredNet >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)')
+                    }}>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 400, textTransform: 'uppercase' }}>
+                        {filterType === 'income' ? 'Total Ingresos' : filterType === 'expense' ? 'Total Egresos' : 'Balance Neto'}
+                      </div>
+                      {filterType === 'income' 
+                        ? `+ ${formatCurrency(filteredIncome)}` 
+                        : filterType === 'expense' 
+                          ? `- ${formatCurrency(filteredExpenses)}` 
+                          : `${filteredNet >= 0 ? '+' : ''}${formatCurrency(filteredNet)}`}
+                    </td>
+                    <td colSpan={2}></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         )}
