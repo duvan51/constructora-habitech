@@ -413,16 +413,22 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
     const updatedProject = { ...project, paymentPlan: updatedPaymentPlan };
 
-    // Ledger income transaction
+    // Ledger income transaction with complete metadata and receipt link
     const newTx = {
       id: `tx_pay_${payId}`,
       projectId: project.id,
       projectName: project.name,
       type: 'income',
       category: 'client_payment',
-      description: `Cobro Parcial Hito: ${showHitoPayments.name} (${newPayment.method})`,
+      milestoneId: showHitoPayments.id,
+      milestoneName: showHitoPayments.name,
+      paymentId: payId,
+      method: newPayment.method,
+      description: `Cobro Parcial Hito: ${showHitoPayments.name} (${newPayment.method}) - Obra: ${project.name}`,
       amount: amt,
-      date: newPayment.date
+      date: newPayment.date,
+      receiptBase64: newPayment.files && newPayment.files.length > 0 ? (newPayment.files[0].fileBase64 || newPayment.files[0].base64 || '') : null,
+      files: newPayment.files || []
     };
 
     try {
@@ -1099,17 +1105,16 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
             {(!project.phases || project.phases.length === 0) ? (
                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No hay fases planificadas.</div>
             ) : (
-                <div className="table-responsive">
-                  <div style={{ display: 'flex', flexDirection: 'column', borderRadius: '8px', border: '1px solid var(--border-glass)', overflow: 'hidden', background: 'rgba(0,0,0,0.1)', minWidth: '600px' }}>
-                    {/* Table Header */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 2fr) 1fr 1fr 1fr', gap: '15px', padding: '12px 15px', borderBottom: '1px solid var(--border-glass)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.5px' }}>
-                       <div>ACTIVIDAD / FASE</div>
-                       <div>ESTADO</div>
-                       <div>CRONOGRAMA</div>
-                       <div>EVIDENCIA RECIENTE</div>
-                    </div>
-
-                    {/* Table Body */}
+               <div style={{ display: 'flex', flexDirection: 'column', borderRadius: '8px', border: '1px solid var(--border-glass)', overflow: 'hidden', background: 'rgba(0,0,0,0.1)' }}>
+                 {/* Table Header */}
+                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 2fr) 1fr 1fr 1fr', gap: '15px', padding: '12px 15px', borderBottom: '1px solid var(--border-glass)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.5px' }}>
+                    <div>ACTIVIDAD / FASE</div>
+                    <div>ESTADO</div>
+                    <div>CRONOGRAMA</div>
+                    <div>EVIDENCIA RECIENTE</div>
+                 </div>
+                 
+                 {/* Table Body */}
                  {project.phases.map((phase, index) => {
                     const phaseLogs = progressLogs.filter(log => log.phaseId === phase.id).sort((a,b) => new Date(b.uploadDate) - new Date(a.uploadDate));
                     const latestLog = phaseLogs[0];
@@ -1205,11 +1210,11 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                     );
                  })}
                </div>
-              </div>
             )}
           </div>
 
           <div className="grid-2">
+            {/* Contacts Panel */}
             <div className="glass-panel" style={{ padding: '22px' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
                 <Phone size={18} style={{ color: 'var(--primary-cyan)' }} />
@@ -2376,7 +2381,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
       {/* GESTIONAR COBROS (PAGOS PARCIALES) MODAL */}
       {showHitoPayments && (() => {
-        const milestonePayments = showHitoPayments.payments || (showHitoPayments.status === 'paid' ? [{ id: 'legacy', amount: showHitoPayments.amount, date: showHitoPayments.paidDate || showHitoPayments.dueDate, method: 'Transferencia', files: [] }] : []);
+        const rawPayments = showHitoPayments.payments || (showHitoPayments.status === 'paid' ? [{ id: 'legacy', amount: showHitoPayments.amount, date: showHitoPayments.paidDate || showHitoPayments.dueDate, method: 'Transferencia', files: [] }] : []);
+        const milestonePayments = [...rawPayments].sort((a, b) => new Date(b.date) - new Date(a.date));
         const hitoTotalPaid = milestonePayments.reduce((s, p) => s + p.amount, 0);
         const hitoRemaining = Math.max(0, showHitoPayments.amount - hitoTotalPaid);
 

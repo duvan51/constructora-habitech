@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check, Eye, Edit3, Trash2, Landmark } from 'lucide-react';
+import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check, Eye, Edit3, Trash2, Landmark, FileText, Printer, Building, Layers, ArrowUpDown } from 'lucide-react';
+import ReceiptModal from './ReceiptModal';
+import ExpenseReceiptModal from './ExpenseReceiptModal';
 
 export default function Ledger({ transactions, projects, personnel, onAddTransaction, onUpdateTransaction, userRole }) {
   const [filterType, setFilterType] = useState('all'); // 'all' | 'income' | 'expense'
@@ -10,11 +12,16 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
   const [endDate, setEndDate] = useState('');
   const [showCanceled, setShowCanceled] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = más nuevo primero, 'asc' = más viejo primero
 
   const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'camera'
   const [fileBase64, setFileBase64] = useState('');
   const [fileName, setFileName] = useState('');
   const [previewReceipt, setPreviewReceipt] = useState(null);
+
+  // Official Printable Receipts Modals
+  const [showClientReceipt, setShowClientReceipt] = useState(null); // { project, payment }
+  const [showExpenseReceipt, setShowExpenseReceipt] = useState(null); // { project, transaction }
 
   // Camera states
   const videoRef = useRef(null);
@@ -35,6 +42,8 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         projectId: selectedTx.projectId || 'general',
         type: selectedTx.type,
         category: selectedTx.category,
+        milestoneId: selectedTx.milestoneId || '',
+        method: selectedTx.method || 'Transferencia',
         description: selectedTx.description,
         amount: selectedTx.amount,
         date: selectedTx.date,
@@ -119,6 +128,9 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     projectId: 'general', // 'general' or specific projectId
     type: 'expense',
     category: 'materials',
+    milestoneId: '',
+    method: 'Transferencia',
+    budgetItemId: '',
     description: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
@@ -139,7 +151,44 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setTxData(prev => ({ ...prev, [name]: value }));
+    setTxData(prev => {
+      const next = { ...prev, [name]: value };
+
+      // If user switches project or type, update default category / milestone
+      if (name === 'projectId' && value !== 'general') {
+        const selProj = projects.find(p => p.id === value);
+        if (next.type === 'income' && selProj?.paymentPlan?.length > 0) {
+          const firstUnpaid = selProj.paymentPlan.find(m => {
+            const mPaid = (m.payments || []).reduce((s, p) => s + p.amount, 0) || (m.status === 'paid' ? m.amount : 0);
+            return mPaid < m.amount;
+          }) || selProj.paymentPlan[0];
+          if (firstUnpaid && !next.milestoneId) {
+            next.milestoneId = firstUnpaid.id;
+          }
+        }
+      }
+
+      if (name === 'type') {
+        if (value === 'income') {
+          next.category = 'client_payment';
+          if (next.projectId !== 'general') {
+            const selProj = projects.find(p => p.id === next.projectId);
+            if (selProj?.paymentPlan?.length > 0) {
+              const firstUnpaid = selProj.paymentPlan.find(m => {
+                const mPaid = (m.payments || []).reduce((s, p) => s + p.amount, 0) || (m.status === 'paid' ? m.amount : 0);
+                return mPaid < m.amount;
+              }) || selProj.paymentPlan[0];
+              next.milestoneId = firstUnpaid?.id || '';
+            }
+          }
+        } else {
+          next.category = 'materials';
+          next.milestoneId = '';
+        }
+      }
+
+      return next;
+    });
   };
 
   const handleSubmit = (e) => {
@@ -152,9 +201,10 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
 
     // Lookup project name
     let projName = 'Administración General';
+    let targetProject = null;
     if (txData.projectId !== 'general') {
-      const proj = projects.find(p => p.id === txData.projectId);
-      if (proj) projName = proj.name;
+      targetProject = projects.find(p => p.id === txData.projectId);
+      if (targetProject) projName = targetProject.name;
     }
 
     let personnelName = null;
@@ -163,15 +213,28 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       if (p) personnelName = p.name;
     }
 
+    let milestoneName = null;
+    if (txData.type === 'income' && targetProject && txData.milestoneId) {
+      const m = targetProject.paymentPlan?.find(item => item.id === txData.milestoneId);
+      if (m) milestoneName = m.name;
+    }
+
+    const receiptImg = uploadMode === 'file' ? fileBase64 : capturedImage;
+
     const newTx = {
       projectId: txData.projectId,
       projectName: projName,
       type: txData.type,
       category: txData.category,
+      milestoneId: txData.milestoneId || null,
+      milestoneName: milestoneName,
+      method: txData.method || 'Transferencia',
+      budgetItemId: txData.budgetItemId || null,
       description: txData.description,
       amount: amt,
       date: txData.date,
-      receiptBase64: uploadMode === 'file' ? fileBase64 : capturedImage,
+      receiptBase64: receiptImg || null,
+      files: receiptImg ? [{ fileName: fileName || 'Comprobante de Caja', fileType: 'image', fileBase64: receiptImg }] : [],
       personnelId: txData.personnelId || null,
       personnelName: personnelName
     };
@@ -183,6 +246,9 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       projectId: 'general',
       type: 'expense',
       category: 'materials',
+      milestoneId: '',
+      method: 'Transferencia',
+      budgetItemId: '',
       description: '',
       amount: '',
       date: new Date().toISOString().split('T')[0],
@@ -205,9 +271,10 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
 
     // Lookup project name
     let projName = 'Administración General';
+    let targetProject = null;
     if (editTxData.projectId !== 'general') {
-      const proj = projects.find(p => p.id === editTxData.projectId);
-      if (proj) projName = proj.name;
+      targetProject = projects.find(p => p.id === editTxData.projectId);
+      if (targetProject) projName = targetProject.name;
     }
 
     let personnelName = null;
@@ -216,16 +283,28 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       if (p) personnelName = p.name;
     }
 
+    let milestoneName = null;
+    if (editTxData.type === 'income' && targetProject && editTxData.milestoneId) {
+      const m = targetProject.paymentPlan?.find(item => item.id === editTxData.milestoneId);
+      if (m) milestoneName = m.name;
+    }
+
+    const receiptImg = uploadMode === 'file' ? fileBase64 : capturedImage;
+
     const updatedTx = {
       ...selectedTx,
       projectId: editTxData.projectId,
       projectName: projName,
       type: editTxData.type,
       category: editTxData.category,
+      milestoneId: editTxData.milestoneId || selectedTx.milestoneId || null,
+      milestoneName: milestoneName || selectedTx.milestoneName || null,
+      method: editTxData.method || selectedTx.method || 'Transferencia',
       description: editTxData.description,
       amount: amt,
       date: editTxData.date,
-      receiptBase64: uploadMode === 'file' ? fileBase64 : capturedImage,
+      receiptBase64: receiptImg || selectedTx.receiptBase64 || null,
+      files: receiptImg ? [{ fileName: fileName || 'Comprobante de Caja', fileType: 'image', fileBase64: receiptImg }] : (selectedTx.files || []),
       personnelId: editTxData.personnelId || null,
       personnelName: personnelName
     };
@@ -235,6 +314,85 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     // Close modal
     setSelectedTx(null);
     setIsEditing(false);
+  };
+
+  const handleOpenReceiptForTx = (tx) => {
+    if (tx.type === 'income') {
+      const proj = projects.find(p => p.id === tx.projectId) || {
+        id: tx.projectId || 'OBRA',
+        name: tx.projectName || 'Proyecto',
+        clientName: 'Cliente Registrado',
+        totalCost: tx.amount,
+        paymentPlan: []
+      };
+
+      let milestone = null;
+      if (proj.paymentPlan && proj.paymentPlan.length > 0) {
+        if (tx.milestoneId) {
+          milestone = proj.paymentPlan.find(m => m.id === tx.milestoneId);
+        }
+        if (!milestone && tx.paymentId) {
+          milestone = proj.paymentPlan.find(m => m.payments && m.payments.some(p => p.id === tx.paymentId));
+        }
+        if (!milestone && tx.id) {
+          milestone = proj.paymentPlan.find(m => m.payments && m.payments.some(p => String(tx.id).includes(p.id) || p.id === tx.id));
+        }
+      }
+
+      if (milestone) {
+        const exactPayment = milestone.payments?.find(p => p.id === tx.paymentId || String(tx.id).includes(p.id)) || {
+          id: tx.paymentId || tx.id,
+          amount: tx.amount,
+          date: tx.date,
+          method: tx.method || 'Transferencia',
+          files: tx.receiptBase64 ? [{ fileName: 'Comprobante', fileType: 'image', fileBase64: tx.receiptBase64 }] : (tx.files || [])
+        };
+
+        setShowClientReceipt({
+          project: proj,
+          payment: {
+            ...milestone,
+            id: exactPayment.id || milestone.id,
+            paidDate: exactPayment.date || tx.date,
+            amount: exactPayment.amount || tx.amount,
+            payments: [exactPayment]
+          }
+        });
+      } else {
+        setShowClientReceipt({
+          project: proj,
+          payment: {
+            id: tx.id ? String(tx.id).replace('tx_', '') : 'PAG1',
+            name: tx.description || 'Cobro / Abono a Obra',
+            amount: tx.amount,
+            percentage: 100,
+            status: 'paid',
+            paidDate: tx.date,
+            payments: [{
+              id: tx.paymentId || tx.id,
+              amount: tx.amount,
+              date: tx.date,
+              method: tx.method || 'Transferencia',
+              files: tx.receiptBase64 ? [{ fileName: 'Comprobante de Caja', fileType: 'image', fileBase64: tx.receiptBase64 }] : (tx.files || [])
+            }]
+          }
+        });
+      }
+    } else if (tx.type === 'expense') {
+      const proj = projects.find(p => p.id === tx.projectId) || {
+        id: 'GEN',
+        name: tx.projectName || 'Administración General',
+        clientName: 'Grupo Empresarial Habitech SAS',
+        clientPhone: '3124147911',
+        clientEmail: 'contacto@constructorahabitech.com',
+        location: { address: 'km 4 via villavicencio acacias, lote 1 barrio la nohora' }
+      };
+
+      setShowExpenseReceipt({
+        project: proj,
+        transaction: tx
+      });
+    }
   };
 
   const handleAnularTransaction = async (tx) => {
@@ -277,14 +435,15 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     
     return typeMatch && projectMatch && categoryMatch && personnelMatch && dateMatch;
   }).sort((a, b) => {
-    // Sort descending by date, newest first
-    const dateA = new Date(a.date);
-    const dateB = new Date(b.date);
-    if (dateB.getTime() !== dateA.getTime()) {
-      return dateB - dateA;
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    if (dateA !== dateB) {
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
     }
     // Fallback to sort by ID if same date
-    return String(b.id).localeCompare(String(a.id));
+    return sortOrder === 'desc' 
+      ? String(b.id).localeCompare(String(a.id))
+      : String(a.id).localeCompare(String(b.id));
   });
 
   // Metric calculations (reactive to project filter)
@@ -380,32 +539,6 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
             <ArrowDownRight size={20} />
           </div>
         </div>
-
-        {/* EXCLUSIVE ADMIN CAJA MONETARIA CARD */}
-        {userRole === 'admin' && (
-          <div className="glass-panel metric-card" style={{
-            padding: '18px 22px',
-            border: '1px solid rgba(16, 185, 129, 0.4)',
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.08))',
-            boxShadow: '0 4px 20px rgba(16, 185, 129, 0.15)'
-          }}>
-            <div className="metric-info">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <h3>Caja Monetaria</h3>
-                <span style={{ fontSize: '0.65rem', background: 'rgba(99, 102, 241, 0.3)', color: '#a5b4fc', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 700 }}>Admin</span>
-              </div>
-              <div className="metric-value" style={{ color: (totalCollected - totalExpenses) >= 0 ? '#34d399' : '#f87171', marginTop: '4px' }}>
-                {formatCurrency(totalCollected - totalExpenses)}
-              </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Recibido ({formatCurrency(totalCollected)}) - Gastado ({formatCurrency(totalExpenses)})
-              </div>
-            </div>
-            <div className="metric-icon green" style={{ background: 'rgba(16, 185, 129, 0.2)' }}>
-              <Landmark size={20} style={{ color: '#34d399' }} />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Filters Toolbar */}
@@ -506,6 +639,32 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           </button>
         )}
 
+        {/* Sort Order Toggle Button */}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{
+            padding: '6px 14px',
+            fontSize: '0.85rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid var(--border-glass-active)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            borderRadius: '8px',
+            transition: 'all 0.2s'
+          }}
+          onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+          title="Click para alternar: Más nuevo a más viejo / Más viejo a más nuevo"
+        >
+          <ArrowUpDown size={15} style={{ color: 'var(--primary-cyan)' }} />
+          <span>
+            Orden: <strong style={{ color: 'var(--primary-cyan)' }}>{sortOrder === 'desc' ? 'Más Nuevo a Más Viejo 🔽' : 'Más Viejo a Más Nuevo 🔼'}</strong>
+          </span>
+        </button>
+
         {/* Toggle show canceled */}
         <label style={{ 
           display: 'flex', 
@@ -550,20 +709,40 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '750px' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid var(--border-glass)' }}>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Fecha</th>
+                  <th 
+                    onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                    style={{ 
+                      padding: '12px', 
+                      color: 'var(--text-secondary)', 
+                      fontSize: '0.85rem', 
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      whiteSpace: 'nowrap'
+                    }}
+                    title="Click para alternar orden: más nuevo / más viejo"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>Fecha</span>
+                      <ArrowUpDown size={13} style={{ color: 'var(--primary-cyan)' }} />
+                      <span style={{ fontSize: '0.7rem', color: 'var(--primary-cyan)', fontWeight: 700 }}>
+                        {sortOrder === 'desc' ? '▼ Más nuevo' : '▲ Más viejo'}
+                      </span>
+                    </div>
+                  </th>
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Obra / Destino</th>
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Tipo</th>
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Categoría</th>
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Concepto / Detalles</th>
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'right' }}>Monto</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', width: '90px' }}>Ver / Editar</th>
+                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', width: '130px' }}>Comprobante</th>
+                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', width: '70px' }}>Ver</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredTxs.slice().reverse().map((tx) => {
+                {filteredTxs.map((tx) => {
                   const isInc = tx.type === 'income';
                   const isCanceled = tx.description.startsWith('[CANCELADO]') || tx.description.startsWith('[ANULADO]');
                   return (
@@ -593,28 +772,6 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                       <td style={{ padding: '14px 12px', fontSize: '0.9rem', color: isCanceled ? 'var(--text-muted)' : 'var(--text-primary)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <span style={{ textDecoration: isCanceled ? 'line-through' : 'none' }}>{tx.description}</span>
-                          {tx.receiptBase64 && (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewReceipt(tx)}
-                              style={{
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid var(--border-glass)',
-                                color: 'var(--primary-cyan)',
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                fontSize: '0.75rem',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                              }}
-                              title="Ver Comprobante / Foto"
-                            >
-                              <Paperclip size={10} /> Adjunto
-                            </button>
-                          )}
                           {tx.personnelName && (
                             <span style={{ 
                               background: 'rgba(168, 85, 247, 0.1)', 
@@ -641,6 +798,54 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                         {isCanceled ? '' : isInc ? '+' : '-'} {formatCurrency(tx.amount)}
                       </td>
                       <td style={{ padding: '14px 12px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          {!isCanceled && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReceiptForTx(tx)}
+                              style={{
+                                background: isInc ? 'rgba(20, 184, 166, 0.1)' : 'rgba(244, 63, 94, 0.1)',
+                                border: isInc ? '1px solid rgba(20, 184, 166, 0.3)' : '1px solid rgba(244, 63, 94, 0.3)',
+                                color: isInc ? 'var(--primary-teal)' : '#fda4af',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.75rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                transition: 'all 0.2s'
+                              }}
+                              title={isInc ? 'Ver / Imprimir Recibo Oficial de Caja' : 'Ver / Imprimir Comprobante de Egreso'}
+                            >
+                              <FileText size={12} /> {isInc ? 'Recibo' : 'Egreso'}
+                            </button>
+                          )}
+                          {tx.receiptBase64 && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewReceipt(tx)}
+                              style={{
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid var(--border-glass)',
+                                color: 'var(--primary-cyan)',
+                                padding: '4px 6px',
+                                borderRadius: '6px',
+                                fontSize: '0.75rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '2px',
+                                cursor: 'pointer'
+                              }}
+                              title="Ver Comprobante / Foto Adjunta"
+                            >
+                              <Paperclip size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px 12px', textAlign: 'center' }}>
                         <button
                           type="button"
                           onClick={() => {
@@ -649,6 +854,8 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                               projectId: tx.projectId,
                               type: tx.type,
                               category: tx.category,
+                              milestoneId: tx.milestoneId || '',
+                              method: tx.method || 'Transferencia',
                               description: tx.description,
                               amount: tx.amount,
                               date: tx.date,
@@ -685,7 +892,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       {/* MANUAL TRANSACTION DIALOG MODAL */}
       {showAddModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '500px' }}>
+          <div className="modal-content" style={{ maxWidth: '540px' }}>
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CreditCard size={20} style={{ color: 'var(--primary-cyan)' }} />
@@ -743,10 +950,57 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                   >
                     <option value="general">Gasto Operativo General (No atado a obra)</option>
                     {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                      <option key={p.id} value={p.id}>{p.name} — ({p.clientName})</option>
                     ))}
                   </select>
                 </div>
+
+                {/* If Income and linked to a project, show Milestone (Hito de Pago) Selector */}
+                {txData.type === 'income' && txData.projectId !== 'general' && (
+                  <div style={{ background: 'rgba(20, 184, 166, 0.05)', border: '1px solid rgba(20, 184, 166, 0.2)', padding: '12px', borderRadius: '8px', marginBottom: '15px' }}>
+                    <div className="form-group" style={{ marginBottom: '10px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-teal)', fontWeight: 700 }}>
+                        <Layers size={15} />
+                        Hito de Pago Asociado de la Obra
+                      </label>
+                      <select
+                        name="milestoneId"
+                        className="form-control"
+                        value={txData.milestoneId}
+                        onChange={handleInputChange}
+                      >
+                        <option value="">-- Asignar automáticamente al primer hito pendiente --</option>
+                        {projects.find(p => p.id === txData.projectId)?.paymentPlan?.map(m => {
+                          const mPaid = (m.payments || []).reduce((s, p) => s + p.amount, 0) || (m.status === 'paid' ? m.amount : 0);
+                          const mRest = Math.max(0, m.amount - mPaid);
+                          return (
+                            <option key={m.id} value={m.id}>
+                              {m.name} ({m.percentage}%) — {mRest > 0 ? `Pendiente: ${formatCurrency(mRest)}` : 'Completado'} (Total: ${formatCurrency(m.amount)})
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        💡 Este pago se reflejará directamente en los pagos de la obra y actualizará su estado y saldo.
+                      </p>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label>Método de Pago</label>
+                      <select
+                        name="method"
+                        className="form-control"
+                        value={txData.method}
+                        onChange={handleInputChange}
+                      >
+                        <option value="Transferencia">Transferencia Bancaria</option>
+                        <option value="Efectivo">Efectivo en Caja</option>
+                        <option value="Consignación">Consignación Bancaria</option>
+                        <option value="Cheque">Cheque</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
 
                 {txData.type === 'expense' && personnel && personnel.length > 0 && (
                   <div className="form-group">
@@ -771,7 +1025,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                     type="text"
                     name="description"
                     className="form-control"
-                    placeholder="Ej. Pago alquiler de andamios y escaleras"
+                    placeholder={txData.type === 'income' ? "Ej. Abono a hito de cimentación" : "Ej. Pago alquiler de andamios y escaleras"}
                     value={txData.description}
                     onChange={handleInputChange}
                     required
@@ -1206,6 +1460,20 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                     </div>
                   </div>
 
+                  {/* Official Receipt action inside details */}
+                  {!selectedTx.description.startsWith('[CANCELADO]') && !selectedTx.description.startsWith('[ANULADO]') && (
+                    <div style={{ borderTop: '1px dashed var(--border-glass)', paddingTop: '12px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: selectedTx.type === 'income' ? 'var(--primary-teal)' : '#fda4af', borderColor: selectedTx.type === 'income' ? 'rgba(20, 184, 166, 0.4)' : 'rgba(244, 63, 94, 0.4)' }}
+                        onClick={() => handleOpenReceiptForTx(selectedTx)}
+                      >
+                        <FileText size={16} /> {selectedTx.type === 'income' ? 'Generar / Imprimir Recibo Oficial de Caja' : 'Generar / Imprimir Comprobante de Egreso'}
+                      </button>
+                    </div>
+                  )}
+
                   {selectedTx.receiptBase64 && (
                     <div style={{ borderTop: '1px dashed var(--border-glass)', paddingTop: '15px' }}>
                       <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '8px' }}>Comprobante Adjunto</span>
@@ -1259,6 +1527,24 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
             )}
           </div>
         </div>
+      )}
+
+      {/* OFFICIAL CLIENT RECEIPT MODAL */}
+      {showClientReceipt && (
+        <ReceiptModal
+          project={showClientReceipt.project}
+          payment={showClientReceipt.payment}
+          onClose={() => setShowClientReceipt(null)}
+        />
+      )}
+
+      {/* OFFICIAL EXPENSE RECEIPT MODAL */}
+      {showExpenseReceipt && (
+        <ExpenseReceiptModal
+          project={showExpenseReceipt.project}
+          transaction={showExpenseReceipt.transaction}
+          onClose={() => setShowExpenseReceipt(null)}
+        />
       )}
     </div>
   );

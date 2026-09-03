@@ -86,11 +86,7 @@ export default function App() {
       try {
         const savedSession = localStorage.getItem('habitech_user_session');
         if (savedSession) {
-          const user = JSON.parse(savedSession);
-          setCurrentUser(user);
-          if (user?.role === 'quoter') {
-            setTab('quote');
-          }
+          setCurrentUser(JSON.parse(savedSession));
         }
         await seedMockData();
         await loadData();
@@ -187,9 +183,6 @@ export default function App() {
     setCurrentUser(user);
     setIsLocked(false);
     localStorage.setItem('habitech_user_session', JSON.stringify(user));
-    if (user?.role === 'quoter') {
-      setTab('quote');
-    }
   };
 
   const handleLogout = () => {
@@ -240,23 +233,94 @@ export default function App() {
     }
   };
 
-  // Log manual transactions and automatically update project budget if applicable
+  // Log manual transactions and automatically update project budget or milestone payments
   const handleAddManualTransaction = async (newTx) => {
     try {
+      const paymentId = newTx.paymentId || `pay_${Date.now()}`;
       const txWithId = {
         ...newTx,
-        id: `tx_${new Date().getTime()}`
+        id: newTx.id || `tx_${new Date().getTime()}`,
+        paymentId
       };
       
-      // Save the transaction in ledger
-      await saveItem('transactions', txWithId);
-
-      // If transaction is tied to a specific project and is an expense, sync to its budget
-      if (newTx.projectId !== 'general' && newTx.type === 'expense') {
-        const targetProj = projects.find(p => p.id === newTx.projectId);
+      // 1. If transaction is tied to a specific project and is an Income (Cobro a Cliente), sync to paymentPlan milestones!
+      if (newTx.projectId && newTx.projectId !== 'general' && newTx.type === 'income') {
+        const freshProjects = await getAll('projects');
+        const targetProj = freshProjects.find(p => p.id === newTx.projectId) || projects.find(p => p.id === newTx.projectId);
         if (targetProj) {
+          const newPaymentItem = {
+            id: paymentId,
+            amount: newTx.amount,
+            date: newTx.date,
+            method: newTx.method || 'Transferencia',
+            files: newTx.receiptBase64 
+              ? [{ fileName: 'Comprobante de Caja', fileType: 'image', fileBase64: newTx.receiptBase64 }] 
+              : (newTx.files || [])
+          };
+
+          let updatedPaymentPlan = [...(targetProj.paymentPlan || [])];
+          let targetMilestone = null;
+
+          if (newTx.milestoneId) {
+            targetMilestone = updatedPaymentPlan.find(m => m.id === newTx.milestoneId);
+          }
+
+          // If milestoneId not found or not specified, pick the first milestone with remaining balance or first milestone
+          if (!targetMilestone && updatedPaymentPlan.length > 0) {
+            targetMilestone = updatedPaymentPlan.find(m => {
+              const mPaid = (m.payments || []).reduce((s, p) => s + p.amount, 0);
+              return mPaid < m.amount;
+            }) || updatedPaymentPlan[0];
+          }
+
+          if (targetMilestone) {
+            updatedPaymentPlan = updatedPaymentPlan.map(m => {
+              if (m.id === targetMilestone.id) {
+                const existing = m.payments || (m.status === 'paid' ? [{ id: 'legacy', amount: m.amount, date: m.paidDate || m.dueDate, method: 'Transferencia', files: [] }] : []);
+                const updatedPayments = [...existing, newPaymentItem];
+                const hitoTotalPaid = updatedPayments.reduce((s, p) => s + p.amount, 0);
+                const updatedStatus = hitoTotalPaid >= m.amount ? 'paid' : 'partial';
+                return {
+                  ...m,
+                  payments: updatedPayments,
+                  status: updatedStatus,
+                  paidDate: updatedStatus === 'paid' ? newTx.date : (m.paidDate || null)
+                };
+              }
+              return m;
+            });
+
+            txWithId.milestoneId = targetMilestone.id;
+            txWithId.milestoneName = targetMilestone.name;
+          } else {
+            // If project has no payment plan milestones at all, create an initial milestone
+            const newMilestone = {
+              id: 'h_' + Date.now(),
+              name: newTx.description || 'Cobro Inicial / Abono',
+              amount: newTx.amount,
+              percentage: 100,
+              status: 'paid',
+              dueDate: newTx.date,
+              paidDate: newTx.date,
+              payments: [newPaymentItem]
+            };
+            updatedPaymentPlan = [newMilestone];
+            txWithId.milestoneId = newMilestone.id;
+            txWithId.milestoneName = newMilestone.name;
+          }
+
+          const updatedProj = { ...targetProj, paymentPlan: updatedPaymentPlan };
+          await saveItem('projects', updatedProj);
+        }
+      }
+
+      // 2. If transaction is tied to a specific project and is an expense, sync to its budget
+      if (newTx.projectId && newTx.projectId !== 'general' && newTx.type === 'expense') {
+        const freshProjects = await getAll('projects');
+        const targetProj = freshProjects.find(p => p.id === newTx.projectId) || projects.find(p => p.id === newTx.projectId);
+        if (targetProj && targetProj.budgetItems) {
           const updatedBudget = targetProj.budgetItems.map(item => {
-            if (item.category === newTx.category) {
+            if (item.category === newTx.category || item.id === newTx.budgetItemId || item.name === newTx.budgetItemName) {
               return { ...item, actual: (item.actual || 0) + newTx.amount };
             }
             return item;
@@ -267,6 +331,9 @@ export default function App() {
         }
       }
 
+      // Save the transaction in ledger
+      await saveItem('transactions', txWithId);
+
       await loadData();
     } catch (err) {
       console.error('Error saving manual transaction:', err);
@@ -274,42 +341,102 @@ export default function App() {
     }
   };
 
-  // Update transaction and adjust associated project budgets if applicable
+  // Update transaction and adjust associated project budgets and milestone payments if applicable
   const handleUpdateTransaction = async (updatedTx, oldTx) => {
     try {
       // 1. Save updated transaction
       await saveItem('transactions', updatedTx);
 
-      // 2. Adjust budgets
-      // If old transaction was a project expense, subtract it
-      if (oldTx && oldTx.projectId !== 'general' && oldTx.type === 'expense') {
-        const freshProjects = await getAll('projects');
+      const freshProjects = await getAll('projects');
+
+      // 2. Adjust milestone payments if old transaction was project income
+      if (oldTx && oldTx.projectId && oldTx.projectId !== 'general' && oldTx.type === 'income') {
         const oldProj = freshProjects.find(p => p.id === oldTx.projectId);
-        if (oldProj) {
+        if (oldProj && oldProj.paymentPlan) {
+          const paymentId = oldTx.paymentId || (oldTx.id && String(oldTx.id).startsWith('tx_pay_') ? String(oldTx.id).replace('tx_pay_', '') : oldTx.id);
+          const updatedPlan = oldProj.paymentPlan.map(m => {
+            if (m.payments) {
+              const filtered = m.payments.filter(p => p.id !== paymentId && `tx_pay_${p.id}` !== oldTx.id && p.id !== oldTx.id);
+              const hitoTotalPaid = filtered.reduce((s, p) => s + p.amount, 0);
+              const updatedStatus = hitoTotalPaid >= m.amount ? 'paid' : (hitoTotalPaid > 0 ? 'partial' : 'pending');
+              return {
+                ...m,
+                payments: filtered,
+                status: updatedStatus,
+                paidDate: updatedStatus === 'paid' ? (filtered[filtered.length - 1]?.date || null) : null
+              };
+            }
+            return m;
+          });
+          await saveItem('projects', { ...oldProj, paymentPlan: updatedPlan });
+        }
+      }
+
+      // 3. If updated transaction is active project income (not canceled), add/update in target project
+      const isCanceled = updatedTx.description && (updatedTx.description.startsWith('[CANCELADO]') || updatedTx.description.startsWith('[ANULADO]'));
+      if (!isCanceled && updatedTx.projectId && updatedTx.projectId !== 'general' && updatedTx.type === 'income' && updatedTx.amount > 0) {
+        const freshProjects2 = await getAll('projects');
+        const targetProj = freshProjects2.find(p => p.id === updatedTx.projectId);
+        if (targetProj && targetProj.paymentPlan) {
+          const paymentId = updatedTx.paymentId || `pay_${Date.now()}`;
+          const newPaymentItem = {
+            id: paymentId,
+            amount: updatedTx.amount,
+            date: updatedTx.date,
+            method: updatedTx.method || 'Transferencia',
+            files: updatedTx.receiptBase64 
+              ? [{ fileName: 'Comprobante de Caja', fileType: 'image', fileBase64: updatedTx.receiptBase64 }] 
+              : (updatedTx.files || [])
+          };
+
+          let targetMilestone = targetProj.paymentPlan.find(m => m.id === updatedTx.milestoneId) || targetProj.paymentPlan[0];
+          if (targetMilestone) {
+            const updatedPlan = targetProj.paymentPlan.map(m => {
+              if (m.id === targetMilestone.id) {
+                const existing = m.payments || [];
+                const updatedPayments = [...existing.filter(p => p.id !== paymentId && p.id !== updatedTx.id), newPaymentItem];
+                const hitoTotalPaid = updatedPayments.reduce((s, p) => s + p.amount, 0);
+                const updatedStatus = hitoTotalPaid >= m.amount ? 'paid' : 'partial';
+                return {
+                  ...m,
+                  payments: updatedPayments,
+                  status: updatedStatus,
+                  paidDate: updatedStatus === 'paid' ? updatedTx.date : (m.paidDate || null)
+                };
+              }
+              return m;
+            });
+            await saveItem('projects', { ...targetProj, paymentPlan: updatedPlan });
+          }
+        }
+      }
+
+      // 4. Adjust budgets for expenses
+      if (oldTx && oldTx.projectId && oldTx.projectId !== 'general' && oldTx.type === 'expense') {
+        const freshProjects3 = await getAll('projects');
+        const oldProj = freshProjects3.find(p => p.id === oldTx.projectId);
+        if (oldProj && oldProj.budgetItems) {
           const updatedBudget = oldProj.budgetItems.map(item => {
             if (item.category === oldTx.category) {
               return { ...item, actual: Math.max(0, (item.actual || 0) - oldTx.amount) };
             }
             return item;
           });
-          const updatedProj = { ...oldProj, budgetItems: updatedBudget };
-          await saveItem('projects', updatedProj);
+          await saveItem('projects', { ...oldProj, budgetItems: updatedBudget });
         }
       }
 
-      // If updated transaction is a project expense, add it
-      if (updatedTx.projectId !== 'general' && updatedTx.type === 'expense') {
-        const freshProjects = await getAll('projects');
-        const targetProj = freshProjects.find(p => p.id === updatedTx.projectId);
-        if (targetProj) {
+      if (!isCanceled && updatedTx.projectId && updatedTx.projectId !== 'general' && updatedTx.type === 'expense' && updatedTx.amount > 0) {
+        const freshProjects4 = await getAll('projects');
+        const targetProj = freshProjects4.find(p => p.id === updatedTx.projectId);
+        if (targetProj && targetProj.budgetItems) {
           const updatedBudget = targetProj.budgetItems.map(item => {
             if (item.category === updatedTx.category) {
               return { ...item, actual: (item.actual || 0) + updatedTx.amount };
             }
             return item;
           });
-          const updatedProj = { ...targetProj, budgetItems: updatedBudget };
-          await saveItem('projects', updatedProj);
+          await saveItem('projects', { ...targetProj, budgetItems: updatedBudget });
         }
       }
 
@@ -321,18 +448,6 @@ export default function App() {
   };
 
   const activeProject = projects.find(p => p.id === selectedProjectId);
-
-  // Enforce tab restriction for quoter role
-  useEffect(() => {
-    if (currentUser?.role === 'quoter') {
-      if (currentTab !== 'quote') {
-        setTab('quote');
-      }
-      if (selectedProjectId) {
-        setSelectedProjectId(null);
-      }
-    }
-  }, [currentUser, currentTab, selectedProjectId]);
 
   // Inactivity tracking (5 minutes lock for all users)
   useEffect(() => {
@@ -482,7 +597,6 @@ export default function App() {
                 projects={projects} 
                 transactions={transactions} 
                 onViewProject={(id) => setSelectedProjectId(id)}
-                userRole={currentUser.role}
               />
             )}
 

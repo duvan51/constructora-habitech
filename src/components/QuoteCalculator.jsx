@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Save, Edit, Trash2, Plus, FileText, Printer, Undo, Image, X } from 'lucide-react';
+import { Calculator, Save, Edit, Trash2, Plus, FileText, Printer, Undo, Image, X, RotateCcw, Layers } from 'lucide-react';
 
 const DEFAULT_PRICES = {
   obra_blanca_tradicional: 1500000,
@@ -22,6 +22,484 @@ const INITIAL_CONCEPTS = [
   { id: 'c6', name: 'Acabados Especiales (Enchapados, Carpintería y Pisos)', amount: 6500000, included: true }
 ];
 
+/**
+ * Subcomponent to render paginated Letter sheets (Tamaño Carta)
+ * Handles 1, 2 or 3 pages depending on concepts length and blueprint attachment
+ */
+function QuoteDocument({
+  quoteNumber,
+  clientData,
+  quoteMode,
+  finishType,
+  getFinishTypeLabel,
+  houseArea,
+  houseDims,
+  printedHouseRate,
+  printedHouseSubtotal,
+  includeSlab,
+  slabArea,
+  slabDims,
+  printedSlabRate,
+  printedSlabSubtotal,
+  includeCorridors,
+  corridorArea,
+  corridorDims,
+  printedCorridorRate,
+  printedCorridorSubtotal,
+  includeStairs,
+  stairsCount,
+  stairsQty,
+  printedStairsRate,
+  printedStairsSubtotal,
+  concepts,
+  factor,
+  subtotalBeforeDiscount,
+  discountPercent,
+  discountVal,
+  totalQuote,
+  notes,
+  blueprintImg,
+  formatCurrency,
+  showDividerBadges = true
+}) {
+  const activeConcepts = quoteMode === 'concepts' ? concepts.filter(c => c.included) : [];
+  const isMultiPageConcepts = quoteMode === 'concepts' && activeConcepts.length > 6;
+  
+  const conceptsPage1 = isMultiPageConcepts ? activeConcepts.slice(0, 6) : activeConcepts;
+  const conceptsPage2 = isMultiPageConcepts ? activeConcepts.slice(6) : [];
+
+  const quotePagesCount = isMultiPageConcepts ? 2 : 1;
+  const totalPages = quotePagesCount + (blueprintImg ? 1 : 0);
+
+  // Common Header (Page 1)
+  const renderPrimaryHeader = () => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2.5px solid #0f172a', paddingBottom: '14px', marginBottom: '16px' }}>
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '6px' }}>
+          <img src="/logo.png" alt="Logo HABITECH" style={{ height: '62px', objectFit: 'contain' }} />
+        </div>
+        <div style={{ fontSize: '0.75rem', color: '#475569', lineHeight: '1.35', fontWeight: 500 }}>
+          <strong style={{ color: '#0f172a', fontSize: '0.8rem' }}>Grupo empresarial habitech sas</strong><br />
+          NIT: 902067080-1<br />
+          Dirección: km 4 via villavicencio acacias, lote 1 barrio la nohora<br />
+          Celular: 3124147911 • Villavicencio - Meta
+        </div>
+      </div>
+      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.5px' }}>PRESUPUESTO DE OBRA</div>
+          <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#FF6D00', marginTop: '2px', letterSpacing: '0.5px' }}>
+            {quoteNumber}
+          </div>
+        </div>
+        <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '6px' }}>
+          <div><strong>Fecha de Emisión:</strong> {clientData.date || new Date().toISOString().split('T')[0]}</div>
+          <div><strong>Validez de Oferta:</strong> 30 días calendario</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Continuation Header (Page 2+)
+  const renderContinuationHeader = (subtitle) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '10px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <img src="/logo.png" alt="Logo HABITECH" style={{ height: '38px', objectFit: 'contain' }} />
+        <div>
+          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>Grupo empresarial habitech sas</div>
+          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>NIT: 902067080-1 • Cel: 3124147911</div>
+        </div>
+      </div>
+      <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#FF6D00' }}>{quoteNumber}</div>
+        <div style={{ fontSize: '0.7rem', color: '#475569' }}>
+          <strong>{subtitle || 'Continuación de Presupuesto'}</strong> | {clientData.name || 'Cliente'}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Client Info Box
+  const renderClientBox = () => (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px' }}>
+      <div>
+        <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>COTIZADO A (CLIENTE)</div>
+        <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0f172a' }}>{clientData.name || '(Sin Nombre Registrado)'}</div>
+        <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px' }}>
+          <strong>Celular:</strong> {clientData.phone || '(No registrado)'}
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>DETALLES DEL PROYECTO / DESTINO</div>
+        <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0f172a' }}>{clientData.project || '(Sin Destino Especificado)'}</div>
+        <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px' }}>
+          <strong>Ubicación:</strong> Colombia
+        </div>
+      </div>
+    </div>
+  );
+
+  // Running Footer on every page
+  const renderPageFooter = (pageNum) => (
+    <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '10px', marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: '#64748b' }}>
+      <div>
+        <strong style={{ color: '#334155' }}>Habitech Constructor</strong> • Excelencia y Calidad en Construcción
+      </div>
+      <div style={{ textAlign: 'center' }}>
+        NIT 902067080-1 • Villavicencio - Meta
+      </div>
+      <div style={{ fontWeight: 700, color: '#0f172a', background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+        Hoja {pageNum} de {totalPages}
+      </div>
+    </div>
+  );
+
+  // Watermark Component
+  const renderWatermark = () => (
+    <div style={{
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%) rotate(-15deg)',
+      opacity: 0.035,
+      pointerEvents: 'none',
+      zIndex: 0,
+      width: '380px',
+      height: '380px',
+      backgroundImage: 'url(/logo.png)',
+      backgroundSize: 'contain',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    }} />
+  );
+
+  // Financials & Signatures section
+  const renderFinancialsAndSignatures = () => (
+    <div style={{ marginTop: 'auto' }}>
+      {/* Totals Box */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '14px' }}>
+        <div style={{ width: '100%', maxWidth: '300px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.8rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+            <span>Subtotal Cotización:</span>
+            <span style={{ fontWeight: 600 }}>{formatCurrency(subtotalBeforeDiscount)}</span>
+          </div>
+          {parseFloat(discountPercent) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669', fontWeight: 600 }}>
+              <span>Descuento Comercial ({discountPercent}%):</span>
+              <span>- {formatCurrency(discountVal)}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.02rem', fontWeight: 800, borderTop: '1.5px solid #0f172a', paddingTop: '6px', marginTop: '2px', color: '#0f172a' }}>
+            <span>TOTAL ESTIMADO:</span>
+            <span style={{ color: '#FF6D00' }}>{formatCurrency(totalQuote)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Conditions */}
+      <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '8px', marginBottom: '16px' }}>
+        <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '3px' }}>CONDICIONES DE CONTRATACIÓN Y GARANTÍAS</div>
+        <p style={{ fontSize: '0.73rem', color: '#475569', lineHeight: '1.35', margin: 0, whiteSpace: 'pre-wrap' }}>
+          {notes}
+        </p>
+      </div>
+
+      {/* Signatures */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '12px', padding: '0 10px' }}>
+        <div style={{ width: '44%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ height: '48px', borderBottom: '1.5px solid #94a3b8', marginBottom: '4px', display: 'flex', justifyContent: 'center', alignItems: 'flex-end', width: '100%', position: 'relative' }}>
+            <img 
+              src="/firma_representante.png" 
+              alt="Firma Autorizada" 
+              style={{ maxHeight: '58px', position: 'absolute', bottom: '-8px', mixBlendMode: 'multiply' }} 
+            />
+          </div>
+          <div style={{ fontWeight: 700, fontSize: '0.76rem', color: '#0f172a' }}>Grupo empresarial habitech sas</div>
+          <div style={{ fontSize: '0.66rem', color: '#64748b' }}>Firma Autorizada de la Constructora</div>
+        </div>
+        
+        <div style={{ width: '44%', textAlign: 'center' }}>
+          <div style={{ height: '48px', borderBottom: '1.5px solid #94a3b8', marginBottom: '4px' }}></div>
+          <div style={{ fontWeight: 700, fontSize: '0.76rem', color: '#0f172a' }}>Aceptación del Cliente</div>
+          <div style={{ fontSize: '0.66rem', color: '#64748b' }}>Firma y Cédula de Ciudadanía</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="quote-sheet-container printable-area">
+      
+      {/* ---------------------------------------------------- */}
+      {/* SHEET 1: Main Quote Sheet (Presupuesto Principal)    */}
+      {/* ---------------------------------------------------- */}
+      {showDividerBadges && (
+        <div className="page-divider-badge no-print">
+          <Layers size={13} /> Hoja 1 de {totalPages} — Presupuesto Principal (Tamaño Carta)
+        </div>
+      )}
+      
+      <div className="quote-sheet-page">
+        {renderWatermark()}
+        
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {renderPrimaryHeader()}
+          {renderClientBox()}
+
+          {/* Table of items (Page 1) */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '14px', fontSize: '0.8rem', textAlign: 'left' }}>
+            <thead>
+              <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1', color: '#0f172a' }}>
+                <th style={{ padding: '8px 10px', fontWeight: 700 }}>Descripción de la Actividad / Renglón</th>
+                {quoteMode === 'm2' && <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'center' }}>Medidas / Cantidad</th>}
+                {quoteMode === 'm2' && <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>Valor Unitario</th>}
+                <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* Mode A: Area M2 rows */}
+              {quoteMode === 'm2' && (
+                <>
+                  {houseArea > 0 && (
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px' }}>
+                        <div style={{ fontWeight: 700, color: '#0f172a' }}>Área de Vivienda ({getFinishTypeLabel(finishType)})</div>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Construcción principal en metros cuadrados</div>
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'center' }}>
+                        {houseDims.width && houseDims.length ? `${houseDims.width}m x ${houseDims.length}m` : ''} ({houseDims.area} m²)
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'right' }}>{formatCurrency(printedHouseRate)}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedHouseSubtotal)}</td>
+                    </tr>
+                  )}
+
+                  {includeSlab && slabArea > 0 && (
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px' }}>
+                        <div style={{ fontWeight: 700, color: '#0f172a' }}>Placa de Niveles / Entrepiso</div>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Cimentación aérea para pisos superiores</div>
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'center' }}>
+                        {slabDims.width && slabDims.length ? `${slabDims.width}m x ${slabDims.length}m` : ''} ({slabDims.area} m²)
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'right' }}>{formatCurrency(printedSlabRate)}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedSlabSubtotal)}</td>
+                    </tr>
+                  )}
+
+                  {includeCorridors && corridorArea > 0 && (
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px' }}>
+                        <div style={{ fontWeight: 700, color: '#0f172a' }}>Corredores Exteriores</div>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Pasillos perimetrales transitables</div>
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'center' }}>
+                        {corridorDims.width && corridorDims.length ? `${corridorDims.width}m x ${corridorDims.length}m` : ''} ({corridorDims.area} m²)
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'right' }}>{formatCurrency(printedCorridorRate)}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedCorridorSubtotal)}</td>
+                    </tr>
+                  )}
+
+                  {includeStairs && stairsCount > 0 && (
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px' }}>
+                        <div style={{ fontWeight: 700, color: '#0f172a' }}>Escalera de Niveles</div>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Conectores de niveles en concreto o metal</div>
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'center' }}>{stairsQty} Unidad(es)</td>
+                      <td style={{ padding: '10px', textAlign: 'right' }}>{formatCurrency(printedStairsRate)}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedStairsSubtotal)}</td>
+                    </tr>
+                  )}
+                </>
+              )}
+
+              {/* Mode B: Custom Concepts Rows (Page 1 Batch) */}
+              {quoteMode === 'concepts' && (
+                <>
+                  {conceptsPage1.map((concept, idx) => (
+                    <tr key={concept.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '9px 10px' }}>
+                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{idx + 1}. {concept.name}</div>
+                      </td>
+                      <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700 }}>
+                        {formatCurrency(Math.round(concept.amount * factor))}
+                      </td>
+                    </tr>
+                  ))}
+                </>
+              )}
+
+              {subtotalBeforeDiscount === 0 && (
+                <tr>
+                  <td colSpan={quoteMode === 'm2' ? 4 : 2} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
+                    Sin conceptos registrados. Configura los valores en el panel de edición.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {/* If Multi-page concepts, render page-break indicator */}
+          {isMultiPageConcepts && (
+            <div style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '6px', padding: '8px 12px', textAlign: 'center', fontSize: '0.75rem', color: '#475569', marginTop: '10px' }}>
+              <strong>Continúa en la Hoja 2...</strong> (Desglose de actividades adicionales, totales financieros y firmas)
+            </div>
+          )}
+        </div>
+
+        {/* If Single Page Quote, render Financials and Signatures right on Page 1 */}
+        {!isMultiPageConcepts && (
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            {renderFinancialsAndSignatures()}
+          </div>
+        )}
+
+        {/* Page Footer */}
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {renderPageFooter(1)}
+        </div>
+      </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* SHEET 2 (Optional): Concepts Overflow Continuation   */}
+      {/* ---------------------------------------------------- */}
+      {isMultiPageConcepts && (
+        <>
+          {showDividerBadges && (
+            <div className="page-divider-badge no-print" style={{ marginTop: '10px' }}>
+              <Layers size={13} /> Hoja 2 de {totalPages} — Continuación de Presupuesto y Firmas
+            </div>
+          )}
+          
+          <div className="quote-sheet-page">
+            {renderWatermark()}
+            
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              {renderContinuationHeader('Desglose de Actividades (Parte 2)')}
+              
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '14px', fontSize: '0.8rem', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1', color: '#0f172a' }}>
+                    <th style={{ padding: '8px 10px', fontWeight: 700 }}>Descripción de la Actividad / Renglón (Continuación)</th>
+                    <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {conceptsPage2.map((concept, idx) => (
+                    <tr key={concept.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '9px 10px' }}>
+                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{idx + 7}. {concept.name}</div>
+                      </td>
+                      <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700 }}>
+                        {formatCurrency(Math.round(concept.amount * factor))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              {renderFinancialsAndSignatures()}
+            </div>
+
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              {renderPageFooter(2)}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* SHEET N (Optional): Blueprint Architectural Annex    */}
+      {/* ---------------------------------------------------- */}
+      {blueprintImg && (
+        <>
+          {showDividerBadges && (
+            <div className="page-divider-badge no-print" style={{ marginTop: '10px' }}>
+              <Layers size={13} /> Hoja {totalPages} de {totalPages} — Anexo Técnico: Plano de Obra
+            </div>
+          )}
+          
+          <div className="quote-sheet-page">
+            {renderWatermark()}
+            
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              {renderContinuationHeader('ANEXO TÉCNICO: PLANO ARQUITECTÓNICO')}
+
+              <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '-0.3px' }}>
+                  Plano Arquitectónico y Distribución Espacial
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
+                  Proyecto: <strong>{clientData.project || 'Vivienda'}</strong> | Cotizado a: <strong>{clientData.name || 'Cliente'}</strong>
+                </div>
+              </div>
+
+              {/* Blueprint Frame Container */}
+              <div style={{ 
+                border: '1.5px solid #cbd5e1', 
+                borderRadius: '10px', 
+                padding: '12px', 
+                background: '#f8fafc', 
+                textAlign: 'center', 
+                minHeight: '440px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '14px',
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
+              }}>
+                <img 
+                  src={blueprintImg} 
+                  alt="Plano de Construcción" 
+                  style={{ maxWidth: '100%', maxHeight: '460px', objectFit: 'contain', display: 'block', margin: 'auto' }} 
+                />
+              </div>
+
+              {/* Architectural Technical Note */}
+              <div style={{ background: '#f1f5f9', borderLeft: '3px solid #FF6D00', padding: '8px 12px', borderRadius: '0 6px 6px 0', marginBottom: '20px' }}>
+                <div style={{ fontSize: '0.72rem', color: '#334155', lineHeight: '1.4' }}>
+                  <strong>Nota Técnica:</strong> El presente plano arquitectónico define la distribución, cotas y especificaciones espaciales de la obra cotizada, y constituye anexo técnico vinculante e integral del presupuesto <strong>{quoteNumber}</strong>.
+                </div>
+              </div>
+
+              {/* Signatures for Plan Approval */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '0 10px', marginBottom: '10px' }}>
+                <div style={{ width: '44%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ height: '45px', borderBottom: '1.5px solid #94a3b8', marginBottom: '4px', display: 'flex', justifyContent: 'center', alignItems: 'flex-end', width: '100%', position: 'relative' }}>
+                    <img 
+                      src="/firma_representante.png" 
+                      alt="Firma Autorizada" 
+                      style={{ maxHeight: '55px', position: 'absolute', bottom: '-8px', mixBlendMode: 'multiply' }} 
+                    />
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '0.75rem', color: '#0f172a' }}>Dirección Técnica Habitech</div>
+                  <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Aprobación de Diseño y Planos</div>
+                </div>
+                
+                <div style={{ width: '44%', textAlign: 'center' }}>
+                  <div style={{ height: '45px', borderBottom: '1.5px solid #94a3b8', marginBottom: '4px' }}></div>
+                  <div style={{ fontWeight: 700, fontSize: '0.75rem', color: '#0f172a' }}>Aprobación del Cliente</div>
+                  <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Conformidad con Distribución Arquitectónica</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              {renderPageFooter(totalPages)}
+            </div>
+          </div>
+        </>
+      )}
+
+    </div>
+  );
+}
+
 export default function QuoteCalculator() {
   // Base prices (stored in localStorage)
   const [prices, setPrices] = useState(() => {
@@ -31,6 +509,9 @@ export default function QuoteCalculator() {
 
   const [isEditingPrices, setIsEditingPrices] = useState(false);
   const [tempPrices, setTempPrices] = useState({ ...prices });
+
+  // Persistent Quote Number
+  const [quoteNumber, setQuoteNumber] = useState(() => 'COT-' + Math.floor(100000 + Math.random() * 900000));
 
   // Mode Selection: 'm2' (Area-based) or 'concepts' (Itemized project)
   const [quoteMode, setQuoteMode] = useState('m2');
@@ -71,7 +552,7 @@ export default function QuoteCalculator() {
   // Additional settings
   const [discountPercent, setDiscountPercent] = useState('0');
   const [adjustmentAmount, setAdjustmentAmount] = useState('0');
-  const [notes, setNotes] = useState('Garantía de construcción de 5 años estructural. Validez de esta cotización de 30 días.');
+  const [notes, setNotes] = useState('Garantía de construcción de 5 años estructural. Validez de esta cotización de 30 días calendario.');
 
   // Modal open state for printing
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -221,6 +702,29 @@ export default function QuoteCalculator() {
     setConcepts(prev => prev.filter(c => c.id !== id));
   };
 
+  // Reset entire quote to start fresh
+  const handleNewQuote = async () => {
+    if (await window.confirmDialog('¿Crear una nueva cotización en blanco? Se generará un nuevo número de presupuesto.')) {
+      setQuoteNumber('COT-' + Math.floor(100000 + Math.random() * 900000));
+      setClientData({
+        name: '',
+        phone: '',
+        project: '',
+        date: new Date().toISOString().split('T')[0]
+      });
+      setHouseDims({ width: '', length: '', area: '' });
+      setSlabDims({ width: '', length: '', area: '' });
+      setCorridorDims({ width: '', length: '', area: '' });
+      setIncludeSlab(false);
+      setIncludeCorridors(false);
+      setIncludeStairs(false);
+      setStairsQty('1');
+      setDiscountPercent('0');
+      setAdjustmentAmount('0');
+      setBlueprintImg(null);
+    }
+  };
+
   // Math Calculations (Pro-rated adjustment)
   const adjAmt = parseFloat(adjustmentAmount) || 0;
   
@@ -290,6 +794,7 @@ export default function QuoteCalculator() {
     }
     const newQuote = {
       id: 'q_' + Date.now(),
+      quoteNumber,
       savedAt: new Date().toISOString(),
       clientData,
       quoteMode,
@@ -308,6 +813,7 @@ export default function QuoteCalculator() {
       discountPercent,
       adjustmentAmount,
       notes,
+      blueprintImg,
       totalQuote
     };
     setSavedQuotes(prev => [newQuote, ...prev]);
@@ -316,6 +822,7 @@ export default function QuoteCalculator() {
 
   const handleLoadQuote = async (q) => {
     if (await window.confirmDialog('¿Cargar esta cotización? Se perderán los datos actuales no guardados.')) {
+      setQuoteNumber(q.quoteNumber || ('COT-' + q.id.substring(2, 8)));
       setClientData(q.clientData);
       setQuoteMode(q.quoteMode);
       setFinishType(q.finishType);
@@ -333,6 +840,7 @@ export default function QuoteCalculator() {
       setDiscountPercent(q.discountPercent);
       setAdjustmentAmount(q.adjustmentAmount);
       setNotes(q.notes);
+      setBlueprintImg(q.blueprintImg || null);
       setShowHistoryModal(false);
     }
   };
@@ -343,34 +851,95 @@ export default function QuoteCalculator() {
     }
   };
 
+  const quoteDocumentProps = {
+    quoteNumber,
+    clientData,
+    quoteMode,
+    finishType,
+    getFinishTypeLabel,
+    houseArea,
+    houseDims,
+    printedHouseRate,
+    printedHouseSubtotal,
+    includeSlab,
+    slabArea,
+    slabDims,
+    printedSlabRate,
+    printedSlabSubtotal,
+    includeCorridors,
+    corridorArea,
+    corridorDims,
+    printedCorridorRate,
+    printedCorridorSubtotal,
+    includeStairs,
+    stairsCount,
+    stairsQty,
+    printedStairsRate,
+    printedStairsSubtotal,
+    concepts,
+    factor,
+    subtotalBeforeDiscount,
+    discountPercent,
+    discountVal,
+    totalQuote,
+    notes,
+    blueprintImg,
+    formatCurrency
+  };
+
   return (
     <div className="quote-calculator-view animate-fade-in">
+      
+      {/* ACTION TOP BAR */}
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <h1>Cotizador de Construcción</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Genera cotizaciones por metros cuadrados (M²) o desgloses detallados por capítulos de obra.</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
+            Genera cotizaciones profesionales divididas en hojas tamaño <strong>Carta (Letter)</strong> sin cortes ni pérdidas de formato.
+          </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button 
+            type="button"
+            className="btn btn-secondary" 
+            onClick={handleNewQuote}
+            title="Crear nueva cotización en blanco"
+          >
+            <RotateCcw size={16} /> Nueva
+          </button>
+          <button 
+            type="button"
             className="btn btn-secondary" 
             onClick={() => setShowHistoryModal(true)}
           >
-            <FileText size={16} /> Ver Historial ({savedQuotes.length})
+            <FileText size={16} /> Historial ({savedQuotes.length})
           </button>
           <button 
+            type="button"
             className="btn btn-secondary" 
             onClick={() => {
               setTempPrices({ ...prices });
               setIsEditingPrices(!isEditingPrices);
             }}
           >
-            <Edit size={16} /> {isEditingPrices ? 'Cerrar Precios' : 'Configurar Precios'}
+            <Edit size={16} /> {isEditingPrices ? 'Cerrar Precios' : 'Precios M²'}
           </button>
-          <button className="btn btn-primary" onClick={handleSaveQuote} disabled={subtotalBeforeDiscount === 0} style={{ background: 'var(--primary-teal)' }}>
+          <button 
+            type="button"
+            className="btn btn-primary" 
+            onClick={handleSaveQuote} 
+            disabled={subtotalBeforeDiscount === 0} 
+            style={{ background: 'var(--primary-teal)' }}
+          >
             <Save size={16} /> Guardar
           </button>
-          <button className="btn btn-primary" onClick={() => setShowPrintModal(true)} disabled={subtotalBeforeDiscount === 0}>
-            <Printer size={16} /> Imprimir
+          <button 
+            type="button"
+            className="btn btn-primary" 
+            onClick={() => setShowPrintModal(true)} 
+            disabled={subtotalBeforeDiscount === 0}
+          >
+            <Printer size={16} /> Imprimir / PDF
           </button>
         </div>
       </div>
@@ -412,7 +981,7 @@ export default function QuoteCalculator() {
       )}
 
       {/* WORKSPACE LAYOUT */}
-      <div className="grid-2 no-print" style={{ alignItems: 'flex-start', gap: '20px' }}>
+      <div className="grid-2 no-print" style={{ alignItems: 'flex-start', gap: '25px' }}>
         
         {/* Left Side: Inputs */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -440,40 +1009,58 @@ export default function QuoteCalculator() {
             </div>
           </div>
 
-          {/* Client Information */}
+          {/* Client Info */}
           <div className="glass-panel" style={{ padding: '20px' }}>
-            <h3 style={{ marginBottom: '15px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
-              Datos del Cliente
-            </h3>
-            <div className="form-group" style={{ marginBottom: '12px' }}>
-              <label>Nombre del Cliente</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Ej. Juan Pérez"
-                value={clientData.name}
-                onChange={(e) => setClientData({ ...clientData, name: e.target.value })}
-              />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
+              <h3 style={{ fontSize: '1rem' }}>Información del Cliente y Proyecto</h3>
+              <span style={{ fontSize: '0.75rem', color: 'var(--primary-orange)', fontWeight: 700 }}>
+                {quoteNumber}
+              </span>
             </div>
+            
             <div className="form-row">
               <div className="form-group">
-                <label>Teléfono</label>
+                <label>Nombre del Cliente</label>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Ej. 3124567890"
+                  placeholder="Ej. Duvan Cardona"
+                  value={clientData.name}
+                  onChange={(e) => setClientData({ ...clientData, name: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Teléfono / Celular</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Ej. 312 414 7911"
                   value={clientData.phone}
                   onChange={(e) => setClientData({ ...clientData, phone: e.target.value })}
                 />
               </div>
+            </div>
+
+            <div className="form-row">
               <div className="form-group">
-                <label>Proyecto / Ubicación</label>
+                <label>Destino / Nombre del Proyecto</label>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Ej. Lote 4 Nohora"
+                  placeholder="Ej. Casa Campestre La Nohora"
                   value={clientData.project}
                   onChange={(e) => setClientData({ ...clientData, project: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Fecha de Emisión</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={clientData.date}
+                  onChange={(e) => setClientData({ ...clientData, date: e.target.value })}
                 />
               </div>
             </div>
@@ -481,27 +1068,49 @@ export default function QuoteCalculator() {
 
           {/* Plan/Blueprint Upload */}
           <div className="glass-panel" style={{ padding: '20px' }}>
-            <h3 style={{ marginBottom: '12px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Image size={18} style={{ color: 'var(--primary-cyan)' }} />
-              Plano de la Obra (Anexo)
-            </h3>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
-              Sube una imagen del plano arquitectónico para anexarlo automáticamente en la cotización de impresión.
-            </p>
-            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
+              <h3 style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Image size={18} style={{ color: 'var(--primary-cyan)' }} />
+                Plano Arquitectónico (Hoja Anexo Técnico)
+              </h3>
+              {blueprintImg && (
+                <span className="badge" style={{ background: 'var(--primary-teal)', color: '#000', fontSize: '0.7rem' }}>
+                  Adjunto (+1 Hoja)
+                </span>
+              )}
+            </div>
+
             {blueprintImg ? (
-              <div style={{ position: 'relative', border: '1px solid var(--border-glass)', borderRadius: '8px', overflow: 'hidden', height: '140px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ position: 'relative', border: '1px solid var(--border-glass)', borderRadius: '8px', overflow: 'hidden', height: '160px', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <img src={blueprintImg} alt="Plano Subido" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
-                <button 
-                  type="button" 
+                <button
+                  type="button"
+                  style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(239,68,68,0.85)', color: '#fff', border: 'none', borderRadius: '50%', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   onClick={removeBlueprint}
-                  style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(239, 68, 68, 0.8)', border: 'none', borderRadius: '50%', color: 'white', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                  title="Eliminar plano"
                 >
                   <X size={14} />
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label 
+                htmlFor="blueprint-upload-input" 
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  border: '2px dashed var(--border-glass)', 
+                  borderRadius: '8px', 
+                  padding: '24px', 
+                  cursor: 'pointer', 
+                  background: 'rgba(255,255,255,0.01)',
+                  transition: 'border-color 0.2s'
+                }}
+              >
+                <Image size={28} style={{ color: 'var(--text-muted)', marginBottom: '8px' }} />
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-cyan)' }}>Subir Plano de la Obra</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>PNG, JPG o SVG (Se generará automáticamente como una hoja independiente de plano)</span>
                 <input 
                   type="file" 
                   accept="image/*" 
@@ -509,91 +1118,83 @@ export default function QuoteCalculator() {
                   style={{ display: 'none' }} 
                   onChange={handleBlueprintUpload}
                 />
-                <label 
-                  htmlFor="blueprint-upload-input" 
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100px', border: '1.5px dashed var(--border-glass)', borderRadius: '8px', cursor: 'pointer', background: 'rgba(255,255,255,0.01)', transition: 'var(--transition-smooth)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.01)'}
-                >
-                  <Plus size={24} style={{ color: 'var(--primary-cyan)', marginBottom: '6px' }} />
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Cargar Imagen del Plano</span>
-                </label>
-              </div>
+              </label>
             )}
           </div>
 
-          {/* MODE A: M2 Form Fields */}
+          {/* MODE A: Area Inputs */}
           {quoteMode === 'm2' && (
             <>
-              {/* House calculations */}
               <div className="glass-panel" style={{ padding: '20px' }}>
-                <h3 style={{ marginBottom: '15px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Área Principal (Casa)</span>
-                  <span className="badge" style={{ background: 'var(--primary-cyan)', color: '#0b0f19', fontSize: '0.7rem' }}>Requerido</span>
+                <h3 style={{ marginBottom: '15px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
+                  Área Principal de Construcción (Vivienda)
                 </h3>
 
-                <div className="form-row" style={{ marginBottom: '15px' }}>
-                  <div className="form-group">
-                    <label>Clase de Acabado (M²)</label>
-                    <select
-                      className="form-control"
-                      value={finishType}
-                      onChange={(e) => setFinishType(e.target.value)}
-                    >
-                      <option value="obra_blanca_tradicional">Obra Blanca Tradicional ({formatCurrency(prices.obra_blanca_tradicional)})</option>
-                      <option value="obra_gris_tradicional">Obra Gris Tradicional ({formatCurrency(prices.obra_gris_tradicional)})</option>
-                      <option value="obra_negra_tradicional">Obra Negra Tradicional ({formatCurrency(prices.obra_negra_tradicional)})</option>
-                      <option value="obra_blanca_prefabricado">Obra Blanca Prefabricado ({formatCurrency(prices.obra_blanca_prefabricado)})</option>
-                      <option value="obra_gris_prefabricado">Obra Gris Prefabricado ({formatCurrency(prices.obra_gris_prefabricado)})</option>
-                      <option value="obra_blanca_liviano">Obra Blanca Liviano ({formatCurrency(prices.obra_blanca_liviano)})</option>
-                    </select>
-                  </div>
-                  
-                  <div className="form-group" style={{ maxWidth: '160px' }}>
-                    <label>Método de Entrada</label>
+                <div className="form-group">
+                  <label>Tipo de Acabado / Sistema</label>
+                  <select
+                    className="form-control"
+                    value={finishType}
+                    onChange={(e) => setFinishType(e.target.value)}
+                  >
+                    <option value="obra_blanca_tradicional">Obra Blanca Tradicional ({formatCurrency(prices.obra_blanca_tradicional)}/m²)</option>
+                    <option value="obra_gris_tradicional">Obra Gris Tradicional ({formatCurrency(prices.obra_gris_tradicional)}/m²)</option>
+                    <option value="obra_negra_tradicional">Obra Negra Tradicional ({formatCurrency(prices.obra_negra_tradicional)}/m²)</option>
+                    <option value="obra_blanca_prefabricado">Obra Blanca Prefabricado ({formatCurrency(prices.obra_blanca_prefabricado)}/m²)</option>
+                    <option value="obra_gris_prefabricado">Obra Gris Prefabricado ({formatCurrency(prices.obra_gris_prefabricado)}/m²)</option>
+                    <option value="obra_blanca_liviano">Obra Blanca Liviano ({formatCurrency(prices.obra_blanca_liviano)}/m²)</option>
+                  </select>
+                </div>
+
+                <div className="form-row" style={{ alignItems: 'flex-end', marginBottom: '10px' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Modo de Medida</label>
                     <select
                       className="form-control"
                       value={houseAreaMode}
                       onChange={(e) => setHouseAreaMode(e.target.value)}
                     >
-                      <option value="dims">Por Medidas</option>
-                      <option value="direct">M² Directo</option>
+                      <option value="dims">Por Medidas (Ancho x Largo)</option>
+                      <option value="direct">M² Directos</option>
                     </select>
+                  </div>
+
+                  {houseAreaMode === 'dims' ? (
+                    <>
+                      <div className="form-group" style={{ flex: 1 }}>
+                        <label>Ancho (m)</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          placeholder="Ej. 6"
+                          value={houseDims.width}
+                          onChange={(e) => setHouseDims({ ...houseDims, width: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group" style={{ flex: 1 }}>
+                        <label>Largo (m)</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          placeholder="Ej. 10"
+                          value={houseDims.length}
+                          onChange={(e) => setHouseDims({ ...houseDims, length: e.target.value })}
+                        />
+                      </div>
+                    </>
+                  ) : null}
+
+                  <div className="form-group" style={{ minWidth: '100px', flex: 1 }}>
+                    <label>Área Total (M²)</label>
+                    <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', borderRadius: '8px', fontWeight: 700, color: 'var(--primary-cyan)' }}>
+                      {houseDims.area || 0} m²
+                    </div>
                   </div>
                 </div>
 
-                {houseAreaMode === 'dims' ? (
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Ancho (Metros)</label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        placeholder="Ej. 10"
-                        value={houseDims.width}
-                        onChange={(e) => setHouseDims({ ...houseDims, width: e.target.value })}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Largo (Metros)</label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        placeholder="Ej. 5"
-                        value={houseDims.length}
-                        onChange={(e) => setHouseDims({ ...houseDims, length: e.target.value })}
-                      />
-                    </div>
-                    <div className="form-group" style={{ maxWidth: '100px' }}>
-                      <label>Área Total</label>
-                      <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)', borderRadius: '8px', fontSize: '0.95rem', fontWeight: 700, textAlign: 'center' }}>
-                        {houseDims.area || 0} m²
-                      </div>
-                    </div>
-                  </div>
-                ) : (
+                {houseAreaMode === 'direct' && (
                   <div className="form-group">
-                    <label>Ingresar Área Total (M²)</label>
+                    <label>Metros Cuadrados Directos</label>
                     <input
                       type="number"
                       className="form-control"
@@ -623,8 +1224,8 @@ export default function QuoteCalculator() {
                   </label>
                   
                   {includeSlab && (
-                    <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                      <div style={{ flex: 1 }}>
+                    <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                      <div style={{ flex: 1, minWidth: '120px' }}>
                         <label style={{ fontSize: '0.75rem' }}>Método de Entrada</label>
                         <select className="form-control" value={slabAreaMode} onChange={(e) => setSlabAreaMode(e.target.value)}>
                           <option value="dims">Por Medidas</option>
@@ -633,17 +1234,17 @@ export default function QuoteCalculator() {
                       </div>
                       {slabAreaMode === 'dims' ? (
                         <>
-                          <div style={{ flex: 1 }}>
+                          <div style={{ flex: 1, minWidth: '80px' }}>
                             <label style={{ fontSize: '0.75rem' }}>Ancho (m)</label>
                             <input type="number" className="form-control" value={slabDims.width} onChange={(e) => setSlabDims({ ...slabDims, width: e.target.value })} />
                           </div>
-                          <div style={{ flex: 1 }}>
+                          <div style={{ flex: 1, minWidth: '80px' }}>
                             <label style={{ fontSize: '0.75rem' }}>Largo (m)</label>
                             <input type="number" className="form-control" value={slabDims.length} onChange={(e) => setSlabDims({ ...slabDims, length: e.target.value })} />
                           </div>
                         </>
                       ) : (
-                        <div style={{ flex: 2 }}>
+                        <div style={{ flex: 2, minWidth: '120px' }}>
                           <label style={{ fontSize: '0.75rem' }}>Área (m²)</label>
                           <input type="number" className="form-control" value={slabDims.area} onChange={(e) => setSlabDims({ ...slabDims, area: e.target.value })} />
                         </div>
@@ -667,8 +1268,8 @@ export default function QuoteCalculator() {
                   </label>
                   
                   {includeCorridors && (
-                    <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                      <div style={{ flex: 1 }}>
+                    <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                      <div style={{ flex: 1, minWidth: '120px' }}>
                         <label style={{ fontSize: '0.75rem' }}>Método de Entrada</label>
                         <select className="form-control" value={corridorAreaMode} onChange={(e) => setCorridorAreaMode(e.target.value)}>
                           <option value="dims">Por Medidas</option>
@@ -677,17 +1278,17 @@ export default function QuoteCalculator() {
                       </div>
                       {corridorAreaMode === 'dims' ? (
                         <>
-                          <div style={{ flex: 1 }}>
+                          <div style={{ flex: 1, minWidth: '80px' }}>
                             <label style={{ fontSize: '0.75rem' }}>Ancho (m)</label>
                             <input type="number" className="form-control" value={corridorDims.width} onChange={(e) => setCorridorDims({ ...corridorDims, width: e.target.value })} />
                           </div>
-                          <div style={{ flex: 1 }}>
+                          <div style={{ flex: 1, minWidth: '80px' }}>
                             <label style={{ fontSize: '0.75rem' }}>Largo (m)</label>
                             <input type="number" className="form-control" value={corridorDims.length} onChange={(e) => setCorridorDims({ ...corridorDims, length: e.target.value })} />
                           </div>
                         </>
                       ) : (
-                        <div style={{ flex: 2 }}>
+                        <div style={{ flex: 2, minWidth: '120px' }}>
                           <label style={{ fontSize: '0.75rem' }}>Área (m²)</label>
                           <input type="number" className="form-control" value={corridorDims.area} onChange={(e) => setCorridorDims({ ...corridorDims, area: e.target.value })} />
                         </div>
@@ -784,17 +1385,17 @@ export default function QuoteCalculator() {
                       )}
                     </div>
                     {concept.included && (
-                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                         <input
                           type="text"
                           className="form-control"
-                          style={{ flex: 2, fontSize: '0.85rem' }}
+                          style={{ flex: 2, minWidth: '180px', fontSize: '0.85rem' }}
                           value={concept.name}
                           onChange={(e) => handleConceptChange(concept.id, 'name', e.target.value)}
                           placeholder="Descripción del concepto"
                           required
                         />
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: '100px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: '130px' }}>
                           <span style={{ color: 'var(--text-muted)' }}>$</span>
                           <input
                             type="number"
@@ -816,7 +1417,7 @@ export default function QuoteCalculator() {
           {/* Descuentos y notas */}
           <div className="glass-panel" style={{ padding: '20px' }}>
             <h3 style={{ marginBottom: '15px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
-              Descuentos, Margen y Notas
+              Descuentos, Margen y Condiciones
             </h3>
             
             <div className="form-row" style={{ marginBottom: '12px' }}>
@@ -832,7 +1433,7 @@ export default function QuoteCalculator() {
                     onChange={(e) => setAdjustmentAmount(e.target.value)}
                   />
                 </div>
-                <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>Este valor incrementará el total de la cotización y se distribuirá (prorrateará) proporcionalmente en los precios mostrados al cliente.</p>
+                <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>Este valor se distribuirá proporcionalmente en los precios mostrados al cliente.</p>
               </div>
 
               <div className="form-group" style={{ maxWidth: '120px' }}>
@@ -849,7 +1450,7 @@ export default function QuoteCalculator() {
             </div>
 
             <div className="form-group">
-              <label>Notas de la Cotización</label>
+              <label>Notas y Garantías</label>
               <textarea
                 className="form-control"
                 rows="2"
@@ -862,529 +1463,57 @@ export default function QuoteCalculator() {
 
         </div>
 
-        {/* Right Side: Live preview (NOT printable class, strictly screen container) */}
-        <div style={{ position: 'sticky', top: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {/* Right Side: Live preview with paginated sheets */}
+        <div style={{ position: 'sticky', top: '20px', display: 'flex', flexDirection: 'column', gap: '14px', maxWidth: '100%', overflowX: 'auto' }}>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Previsualización del Documento (Vista de Pantalla)</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--primary-orange)' }}>* Margen Prorrateado Aplicado</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+              Previsualización de Hojas Tamaño Carta (Letter)
+            </span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--primary-orange)', fontWeight: 600 }}>
+              {blueprintImg ? '2 Hojas' : (quoteMode === 'concepts' && concepts.filter(c => c.included).length > 6 ? '2 Hojas' : '1 Hoja')}
+            </span>
           </div>
 
-          {/* Document Sheet Layout Container */}
-          <div style={{ 
-            background: 'white', 
-            color: '#111827', 
-            borderRadius: '12px', 
-            boxShadow: '0 15px 40px rgba(0,0,0,0.6)', 
-            padding: '30px', 
-            fontSize: '0.85rem', 
-            fontFamily: 'system-ui, sans-serif',
-            minHeight: '680px',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            
-            {/* Watermark Logo */}
-            <div style={{
-              position: 'absolute',
-              top: '45%',
-              left: '50%',
-              transform: 'translate(-50%, -50%) rotate(-15deg)',
-              opacity: 0.04,
-              pointerEvents: 'none',
-              zIndex: 0,
-              width: '320px',
-              height: '320px',
-              backgroundImage: 'url(/logo.png)',
-              backgroundSize: 'contain',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat'
-            }} />
-
-            {/* Content Wrapper (guarantees layering on top of watermark) */}
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              
-              {/* Sheet Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #111827', paddingBottom: '15px', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
-                    <img src="/logo.png" alt="Logo HABITECH" style={{ height: '55px', objectFit: 'contain' }} />
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#4b5563', lineHeight: '1.3' }}>
-                    Grupo empresarial habitech sas<br />
-                    NIT: 902067080-1<br />
-                    Dirección: km 4 via villavicencio acacias, lote 1 barrio la nohora<br />
-                    Celular: 3124147911<br />
-                    Villavicencio - Meta
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>PRESUPUESTO DE OBRA</div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#FF6D00', marginTop: '4px' }}>
-                    COT-{Date.now().toString().substring(5, 11)}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#4b5563', marginTop: '8px' }}>
-                    <strong>Fecha:</strong> {clientData.date}<br />
-                    <strong>Validez:</strong> 30 días
-                  </div>
-                </div>
-              </div>
-
-              {/* Client Info block */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '10px 12px', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>COTIZADO A</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1f2937' }}>{clientData.name || '(Sin Nombre)'}</div>
-                  <div style={{ fontSize: '0.8rem', color: '#4b5563' }}>
-                    <strong>Celular:</strong> {clientData.phone || '(No registrado)'}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>DETALLES DEL PROYECTO</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1f2937' }}>{clientData.project || '(Sin Destino)'}</div>
-                  <div style={{ fontSize: '0.8rem', color: '#4b5563' }}>
-                    <strong>Ubicación:</strong> Colombia
-                  </div>
-                </div>
-              </div>
-
-              {/* Items Breakdown Table */}
-              <div className="table-responsive">
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '0.8rem', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #d1d5db', color: '#111827' }}>
-                    <th style={{ padding: '8px 6px', fontWeight: 700 }}>Descripción de la Actividad / Item</th>
-                    {quoteMode === 'm2' && <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'center' }}>Medidas / Cantidad</th>}
-                    {quoteMode === 'm2' && <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right' }}>Valor Unitario</th>}
-                    <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Mode A: Render M2 rows */}
-                  {quoteMode === 'm2' && (
-                    <>
-                      {/* House Row */}
-                      {houseArea > 0 && (
-                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                          <td style={{ padding: '10px 6px' }}>
-                            <div style={{ fontWeight: 700, color: '#1f2937' }}>Área de Vivienda ({getFinishTypeLabel(finishType)})</div>
-                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Construcción principal en metros cuadrados</div>
-                          </td>
-                          <td style={{ padding: '10px 6px', textAlign: 'center' }}>
-                            {houseDims.width && houseDims.length ? `${houseDims.width}m x ${houseDims.length}m` : ''} ({houseDims.area} m²)
-                          </td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedHouseRate)}</td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedHouseSubtotal)}</td>
-                        </tr>
-                      )}
-
-                      {/* Slab Row */}
-                      {includeSlab && slabArea > 0 && (
-                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                          <td style={{ padding: '10px 6px' }}>
-                            <div style={{ fontWeight: 700, color: '#1f2937' }}>Placa de Niveles / Entrepiso</div>
-                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Cimentación aérea para pisos superiores</div>
-                          </td>
-                          <td style={{ padding: '10px 6px', textAlign: 'center' }}>
-                            {slabDims.width && slabDims.length ? `${slabDims.width}m x ${slabDims.length}m` : ''} ({slabDims.area} m²)
-                          </td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedSlabRate)}</td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedSlabSubtotal)}</td>
-                        </tr>
-                      )}
-
-                      {/* Corredors Row */}
-                      {includeCorridors && corridorArea > 0 && (
-                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                          <td style={{ padding: '10px 6px' }}>
-                            <div style={{ fontWeight: 700, color: '#1f2937' }}>Corredores Exteriores</div>
-                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Pasillos perimetrales transitables</div>
-                          </td>
-                          <td style={{ padding: '10px 6px', textAlign: 'center' }}>
-                            {corridorDims.width && corridorDims.length ? `${corridorDims.width}m x ${corridorDims.length}m` : ''} ({corridorDims.area} m²)
-                          </td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedCorridorRate)}</td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedCorridorSubtotal)}</td>
-                        </tr>
-                      )}
-
-                      {/* Stairs Row */}
-                      {includeStairs && stairsCount > 0 && (
-                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                          <td style={{ padding: '10px 6px' }}>
-                            <div style={{ fontWeight: 700, color: '#1f2937' }}>Escalera de Niveles</div>
-                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Conectores de niveles en concreto o metal</div>
-                          </td>
-                          <td style={{ padding: '10px 6px', textAlign: 'center' }}>{stairsQty} Unidad(es)</td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedStairsRate)}</td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedStairsSubtotal)}</td>
-                        </tr>
-                      )}
-                    </>
-                  )}
-
-                  {/* Mode B: Render custom concepts rows */}
-                  {quoteMode === 'concepts' && (
-                    <>
-                      {concepts.filter(c => c.included).map((concept) => (
-                        <tr key={concept.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                          <td style={{ padding: '10px 6px' }}>
-                            <div style={{ fontWeight: 700, color: '#1f2937' }}>{concept.name}</div>
-                          </td>
-                          <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>
-                            {formatCurrency(Math.round(concept.amount * factor))}
-                          </td>
-                        </tr>
-                      ))}
-                    </>
-                  )}
-
-                  {subtotalBeforeDiscount === 0 && (
-                    <tr>
-                      <td colSpan={quoteMode === 'm2' ? 4 : 2} style={{ textAlign: 'center', padding: '20px', color: '#9ca3af' }}>
-                        Sin conceptos registrados. Llena la información en el panel izquierdo.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-              </div>
-
-              {/* Financial Totals */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
-                <div style={{ width: '100%', maxWidth: '280px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4b5563' }}>
-                    <span>Subtotal:</span>
-                    <span>{formatCurrency(subtotalBeforeDiscount)}</span>
-                  </div>
-                  {parseFloat(discountPercent) > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 600 }}>
-                      <span>Descuento ({discountPercent}%):</span>
-                      <span>- {formatCurrency(discountVal)}</span>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 800, borderTop: '1.5px solid #111827', paddingTop: '8px', color: '#111827' }}>
-                    <span>TOTAL ESTIMADO:</span>
-                    <span>{formatCurrency(totalQuote)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Terms and conditions */}
-              <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', marginBottom: '30px' }}>
-                <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '3px' }}>CONDICIONES DE CONTRATACIÓN</div>
-                <p style={{ fontSize: '0.75rem', color: '#4b5563', lineHeight: '1.3', margin: 0, whiteSpace: 'pre-wrap' }}>
-                  {notes}
-                </p>
-              </div>
-
-              {/* Signature Blocks */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ width: '45%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ height: '45px', borderBottom: '1px solid #9ca3af', marginBottom: '5px', display: 'flex', justifyContent: 'center', alignItems: 'flex-end', width: '100%', position: 'relative' }}>
-                    <img 
-                      src="/firma_representante.png" 
-                      alt="Firma Autorizada" 
-                      style={{ maxHeight: '60px', position: 'absolute', bottom: '-10px', mixBlendMode: 'multiply' }} 
-                    />
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: '0.75rem' }}>Grupo empresarial habitech sas</div>
-                  <div style={{ fontSize: '0.65rem', color: '#6b7280' }}>Firma Autorizada</div>
-                </div>
-                
-                <div style={{ width: '45%', textAlign: 'center' }}>
-                  <div style={{ height: '45px', borderBottom: '1px solid #9ca3af', marginBottom: '5px' }}></div>
-                  <div style={{ fontWeight: 700, fontSize: '0.75rem' }}>Aceptación del Cliente</div>
-                  <div style={{ fontSize: '0.65rem', color: '#6b7280' }}>Firma y Cédula</div>
-                </div>
-              </div>
-
-              {/* Blueprint Page Break (Screen Preview) */}
-              {blueprintImg && (
-                <div style={{ 
-                  borderTop: '2px dashed #e5e7eb', 
-                  marginTop: '30px', 
-                  paddingTop: '20px', 
-                  position: 'relative' 
-                }}>
-                  <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #111827', paddingBottom: '10px', marginBottom: '20px' }}>
-                      <img src="/logo.png" alt="Logo HABITECH" style={{ height: '40px', objectFit: 'contain' }} />
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#111827' }}>ANEXO TÉCNICO: PLANO DE LA OBRA</div>
-                        <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Cliente: {clientData.name || '(Sin Nombre)'}</div>
-                      </div>
-                    </div>
-
-                    <div style={{ border: '1px solid #d1d5db', borderRadius: '8px', padding: '10px', background: '#fafafa', display: 'inline-block', maxWidth: '100%' }}>
-                      <img 
-                        src={blueprintImg} 
-                        alt="Plano de Construcción" 
-                        style={{ maxWidth: '100%', maxHeight: '450px', objectFit: 'contain', display: 'block', margin: 'auto' }} 
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            </div>
-          </div>
+          {/* Render standard QuoteDocument */}
+          <QuoteDocument {...quoteDocumentProps} showDividerBadges={true} />
         </div>
 
       </div>
 
-      {/* PRINTABLE ACTUAL MODAL OVERLAY (HAVE SAME STRUCTURE AND CLASSES AS RECEIPTS TO GUARANTEE PRINTABILITY) */}
+      {/* PRINTABLE MODAL OVERLAY */}
       {showPrintModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '780px', background: 'var(--bg-secondary)' }}>
+          <div className="modal-content" style={{ maxWidth: '860px', width: '95%', background: 'var(--bg-secondary)' }}>
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FileText size={22} style={{ color: 'var(--primary-cyan)' }} />
-                Presupuesto Generado
+                Vista Previa de Impresión Tamaño Carta (Letter)
               </h3>
               <button className="btn-icon" onClick={() => setShowPrintModal(false)}><X size={18} /></button>
             </div>
 
-            <div className="modal-body" style={{ padding: '25px', maxHeight: '75vh', overflowY: 'auto' }}>
-              <div className="printable-area receipt-container" style={{ position: 'relative', overflow: 'hidden' }}>
-                
-                {/* Watermark Logo */}
-                <div style={{
-                  position: 'absolute',
-                  top: '45%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%) rotate(-15deg)',
-                  opacity: 0.04,
-                  pointerEvents: 'none',
-                  zIndex: 0,
-                  width: '320px',
-                  height: '320px',
-                  backgroundImage: 'url(/logo.png)',
-                  backgroundSize: 'contain',
-                  backgroundPosition: 'center',
-                  backgroundRepeat: 'no-repeat'
-                }} />
-
-                <div style={{ position: 'relative', zIndex: 1 }}>
-                  {/* Header */}
-                  <div className="receipt-header">
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                        <img src="/logo.png" alt="Logo HABITECH" style={{ height: '70px', objectFit: 'contain' }} />
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: '#4b5563', lineHeight: '1.3' }}>
-                        Grupo empresarial habitech sas<br />
-                        NIT: 902067080-1<br />
-                        Dirección: km 4 via villavicencio acacias, lote 1 barrio la nohora<br />
-                        Celular: 3124147911<br />
-                        Villavicencio - Meta
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#111827' }}>PRESUPUESTO DE OBRA</div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#FF6D00', marginTop: '4px' }}>
-                        COT-{Date.now().toString().substring(5, 11)}
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '10px' }}>
-                        <strong>Fecha:</strong> {clientData.date}<br />
-                        <strong>Validez:</strong> 30 días
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Client Info */}
-                  <div className="receipt-details">
-                    <div style={{ background: '#f9fafb', padding: '12px', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
-                      <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>COTIZADO A</div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1f2937' }}>{clientData.name || '(Sin Nombre)'}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#4b5563' }}>
-                        <strong>Celular:</strong> {clientData.phone || '(No registrado)'}
-                      </div>
-                    </div>
-                    <div style={{ background: '#f9fafb', padding: '12px', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
-                      <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>DETALLES DEL PROYECTO</div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1f2937' }}>{clientData.project || '(Sin Destino)'}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#4b5563' }}>
-                        <strong>Ubicación:</strong> Colombia
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Table */}
-                  <div className="table-responsive">
-                    <table className="receipt-table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '0.85rem', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #d1d5db', color: '#111827' }}>
-                        <th style={{ padding: '8px 6px', fontWeight: 700 }}>Descripción de la Actividad / Item</th>
-                        {quoteMode === 'm2' && <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'center' }}>Medidas / Cantidad</th>}
-                        {quoteMode === 'm2' && <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right' }}>Valor Unitario</th>}
-                        <th style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {/* Mode A */}
-                      {quoteMode === 'm2' && (
-                        <>
-                          {houseArea > 0 && (
-                            <tr style={{ borderBottom: '1px solid #e5e7eb', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                              <td style={{ padding: '10px 6px' }}>
-                                <div style={{ fontWeight: 700, color: '#1f2937' }}>Área de Vivienda ({getFinishTypeLabel(finishType)})</div>
-                              </td>
-                              <td style={{ padding: '10px 6px', textAlign: 'center' }}>
-                                {houseDims.width && houseDims.length ? `${houseDims.width}m x ${houseDims.length}m` : ''} ({houseDims.area} m²)
-                              </td>
-                              <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedHouseRate)}</td>
-                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedHouseSubtotal)}</td>
-                            </tr>
-                          )}
-                          {includeSlab && slabArea > 0 && (
-                            <tr style={{ borderBottom: '1px solid #e5e7eb', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                              <td style={{ padding: '10px 6px' }}>
-                                <div style={{ fontWeight: 700, color: '#1f2937' }}>Placa de Niveles / Entrepiso</div>
-                              </td>
-                              <td style={{ padding: '10px 6px', textAlign: 'center' }}>
-                                {slabDims.width && slabDims.length ? `${slabDims.width}m x ${slabDims.length}m` : ''} ({slabDims.area} m²)
-                              </td>
-                              <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedSlabRate)}</td>
-                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedSlabSubtotal)}</td>
-                            </tr>
-                          )}
-                          {includeCorridors && corridorArea > 0 && (
-                            <tr style={{ borderBottom: '1px solid #e5e7eb', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                              <td style={{ padding: '10px 6px' }}>
-                                <div style={{ fontWeight: 700, color: '#1f2937' }}>Corredores Exteriores</div>
-                              </td>
-                              <td style={{ padding: '10px 6px', textAlign: 'center' }}>
-                                {corridorDims.width && corridorDims.length ? `${corridorDims.width}m x ${corridorDims.length}m` : ''} ({corridorDims.area} m²)
-                              </td>
-                              <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedCorridorRate)}</td>
-                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedCorridorSubtotal)}</td>
-                            </tr>
-                          )}
-                          {includeStairs && stairsCount > 0 && (
-                            <tr style={{ borderBottom: '1px solid #e5e7eb', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                              <td style={{ padding: '10px 6px' }}>
-                                <div style={{ fontWeight: 700, color: '#1f2937' }}>Escalera de Niveles</div>
-                              </td>
-                              <td style={{ padding: '10px 6px', textAlign: 'center' }}>{stairsQty} Unidad(es)</td>
-                              <td style={{ padding: '10px 6px', textAlign: 'right' }}>{formatCurrency(printedStairsRate)}</td>
-                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedStairsSubtotal)}</td>
-                            </tr>
-                          )}
-                        </>
-                      )}
-
-                      {/* Mode B */}
-                      {quoteMode === 'concepts' && (
-                        <>
-                          {concepts.filter(c => c.included).map((concept) => (
-                            <tr key={concept.id} style={{ borderBottom: '1px solid #e5e7eb', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                              <td style={{ padding: '10px 6px' }}>
-                                <div style={{ fontWeight: 700, color: '#1f2937' }}>{concept.name}</div>
-                              </td>
-                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>
-                                {formatCurrency(Math.round(concept.amount * factor))}
-                              </td>
-                            </tr>
-                          ))}
-                        </>
-                      )}
-                    </tbody>
-                  </table>
-                  </div>
-
-                  {/* Totals */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                    <div style={{ width: '100%', maxWidth: '280px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4b5563' }}>
-                        <span>Subtotal:</span>
-                        <span>{formatCurrency(subtotalBeforeDiscount)}</span>
-                      </div>
-                      {parseFloat(discountPercent) > 0 && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 600 }}>
-                          <span>Descuento ({discountPercent}%):</span>
-                          <span>- {formatCurrency(discountVal)}</span>
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 800, borderTop: '1.5px solid #111827', paddingTop: '8px', color: '#111827' }}>
-                        <span>TOTAL ESTIMADO:</span>
-                        <span>{formatCurrency(totalQuote)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', marginBottom: '30px', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: '3px' }}>CONDICIONES DE CONTRATACIÓN</div>
-                    <p style={{ fontSize: '0.75rem', color: '#4b5563', lineHeight: '1.3', margin: 0, whiteSpace: 'pre-wrap' }}>
-                      {notes}
-                    </p>
-                  </div>
-
-                  {/* Signatures */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                    <div style={{ width: '45%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <div style={{ height: '45px', borderBottom: '1px solid #9ca3af', marginBottom: '5px', display: 'flex', justifyContent: 'center', alignItems: 'flex-end', width: '100%', position: 'relative' }}>
-                        <img 
-                          src="/firma_representante.png" 
-                          alt="Firma Autorizada" 
-                          style={{ maxHeight: '60px', position: 'absolute', bottom: '-10px', mixBlendMode: 'multiply' }} 
-                        />
-                      </div>
-                      <div style={{ fontWeight: 700, fontSize: '0.75rem' }}>Grupo empresarial habitech sas</div>
-                      <div style={{ fontSize: '0.65rem', color: '#6b7280' }}>Firma Autorizada</div>
-                    </div>
-                    
-                    <div style={{ width: '45%', textAlign: 'center' }}>
-                      <div style={{ height: '45px', borderBottom: '1px solid #9ca3af', marginBottom: '5px' }}></div>
-                      <div style={{ fontWeight: 700, fontSize: '0.75rem' }}>Aceptación del Cliente</div>
-                      <div style={{ fontSize: '0.65rem', color: '#6b7280' }}>Firma y Cédula</div>
-                    </div>
-                  </div>
-
-                  {/* Blueprint Page Break (Inside modal printed area) */}
-                  {blueprintImg && (
-                    <div className="page-break-before" style={{ 
-                      marginTop: '30px', 
-                      paddingTop: '20px', 
-                      pageBreakBefore: 'always', 
-                      breakBefore: 'page',
-                      position: 'relative' 
-                    }}>
-                      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #111827', paddingBottom: '10px', marginBottom: '20px' }}>
-                          <img src="/logo.png" alt="Logo HABITECH" style={{ height: '40px', objectFit: 'contain' }} />
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#111827' }}>ANEXO TÉCNICO: PLANO DE LA OBRA</div>
-                            <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Cliente: {clientData.name || '(Sin Nombre)'}</div>
-                          </div>
-                        </div>
-
-                        <div style={{ border: '1px solid #d1d5db', borderRadius: '8px', padding: '10px', background: '#fafafa', display: 'inline-block', maxWidth: '100%' }}>
-                          <img 
-                            src={blueprintImg} 
-                            alt="Plano de Construcción" 
-                            style={{ maxWidth: '100%', maxHeight: '450px', objectFit: 'contain', display: 'block', margin: 'auto' }} 
-                          />
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic', marginTop: '8px' }}>
-                          El plano arquitectónico adjunto forma parte integral de la oferta comercial.
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                </div>
+            <div className="modal-body" style={{ padding: '20px', maxHeight: '78vh', overflowY: 'auto' }}>
+              <div className="no-print" style={{ marginBottom: '15px', background: 'rgba(6, 182, 212, 0.06)', border: '1px solid rgba(6, 182, 212, 0.2)', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                💡 <strong>Formato Carta Configurado:</strong> Al pulsar <em>"Enviar a Impresora / Guardar PDF"</em>, el documento se imprimirá sin cortes superiores ni superposiciones, manteniendo la paginación exacta por hojas.
               </div>
+
+              {/* Exact Quote Document */}
+              <QuoteDocument {...quoteDocumentProps} showDividerBadges={true} />
             </div>
 
-            <div className="modal-footer" style={{ background: 'rgba(255,255,255,0.02)' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setShowPrintModal(false)}>
-                Cerrar
-              </button>
-              <button type="button" className="btn btn-primary" onClick={handlePrint}>
-                <Printer size={16} /> Enviar a Impresora
-              </button>
+            <div className="modal-footer" style={{ background: 'rgba(255,255,255,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Total Presupuesto: <strong style={{ color: 'var(--primary-cyan)' }}>{formatCurrency(totalQuote)}</strong>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowPrintModal(false)}>
+                  Cerrar
+                </button>
+                <button type="button" className="btn btn-primary" onClick={handlePrint}>
+                  <Printer size={16} /> Enviar a Impresora / Guardar PDF
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1413,8 +1542,15 @@ export default function QuoteCalculator() {
                   {savedQuotes.map((q) => (
                     <div key={q.id} style={{ border: '1px solid var(--border-glass)', borderRadius: '8px', padding: '15px', background: 'rgba(255,255,255,0.02)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{new Date(q.savedAt).toLocaleDateString()} {new Date(q.savedAt).toLocaleTimeString()}</span>
-                        <span className="badge" style={{ background: 'var(--primary-teal)', color: '#000', fontSize: '0.65rem' }}>{q.quoteMode === 'm2' ? 'Por M²' : 'Por Conceptos'}</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          {new Date(q.savedAt).toLocaleDateString()} {new Date(q.savedAt).toLocaleTimeString()}
+                        </span>
+                        <span className="badge" style={{ background: 'var(--primary-teal)', color: '#000', fontSize: '0.65rem' }}>
+                          {q.quoteMode === 'm2' ? 'Por M²' : 'Por Conceptos'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--primary-orange)', fontWeight: 700, marginBottom: '4px' }}>
+                        {q.quoteNumber || 'COT-HIST'}
                       </div>
                       <h4 style={{ margin: '0 0 5px 0', fontSize: '1.05rem', color: 'var(--text-primary)' }}>{q.clientData.name}</h4>
                       <p style={{ margin: '0 0 15px 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Proyecto: {q.clientData.project}</p>

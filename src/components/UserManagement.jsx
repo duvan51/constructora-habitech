@@ -120,8 +120,6 @@ export default function UserManagement({ currentUser }) {
         return <span className="badge badge-active" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#a5b4fc', borderColor: 'rgba(99, 102, 241, 0.3)' }}>Administrador</span>;
       case 'editor':
         return <span className="badge badge-completed">Editor</span>;
-      case 'quoter':
-        return <span className="badge badge-active" style={{ background: 'rgba(6, 182, 212, 0.15)', color: '#67e8f9', borderColor: 'rgba(6, 182, 212, 0.3)' }}>Cotizador</span>;
       case 'viewer':
       default:
         return <span className="badge badge-planning" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#fde047', borderColor: 'rgba(245, 158, 11, 0.3)' }}>Solo Ver</span>;
@@ -165,7 +163,7 @@ export default function UserManagement({ currentUser }) {
         </div>
       )}
 
-      <div className="user-mgmt-grid">
+      <div className="grid-2" style={{ gridTemplateColumns: '1.2fr 1.8fr', alignItems: 'start' }}>
         {/* Form panel to create user */}
         <div className="glass-panel" style={{ padding: '25px' }}>
           <h2 style={{ fontSize: '1.25rem', marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -238,7 +236,6 @@ export default function UserManagement({ currentUser }) {
                   disabled={saving}
                 >
                   <option value="viewer">Solo Ver (Viewer)</option>
-                  <option value="quoter">Cotizador (Solo Cotizaciones)</option>
                   <option value="editor">Editar (Editor)</option>
                   <option value="admin">Administrador (Admin)</option>
                 </select>

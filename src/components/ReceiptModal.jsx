@@ -18,21 +18,28 @@ export default function ReceiptModal({ project, payment, onClose }) {
   };
 
   // Calculate project financials up to this point
-  const totalPaid = project.paymentPlan.reduce((sum, p) => {
+  const plan = project.paymentPlan || [];
+  const totalPaid = plan.reduce((sum, p) => {
     const paidForHito = p.payments && p.payments.length > 0
       ? p.payments.reduce((s, pay) => s + pay.amount, 0)
       : (p.status === 'paid' ? p.amount : 0);
     return sum + paidForHito;
   }, 0);
 
-  const pendingBalance = project.totalCost - totalPaid;
+  const pendingBalance = Math.max(0, (project.totalCost || 0) - totalPaid);
 
-  // Get payments list for this milestone
-  const milestonePayments = payment.payments || (payment.status === 'paid' ? [{ id: 'legacy', amount: payment.amount, date: payment.paidDate || payment.dueDate, method: 'Transferencia', files: [] }] : []);
+  // Get payments list for this milestone or single payment
+  const milestonePayments = (payment.payments && payment.payments.length > 0)
+    ? payment.payments
+    : (payment.status === 'paid' 
+        ? [{ id: 'legacy', amount: payment.amount, date: payment.paidDate || payment.dueDate, method: payment.method || 'Transferencia', files: [] }] 
+        : [{ id: payment.id || 'pay_1', amount: payment.amount, date: payment.date || payment.paidDate || new Date().toISOString().split('T')[0], method: payment.method || 'Transferencia', files: [] }]);
+
   const hitoTotalPaid = milestonePayments.reduce((s, p) => s + p.amount, 0);
-  const hitoRemaining = Math.max(0, payment.amount - hitoTotalPaid);
+  const hitoRemaining = Math.max(0, (payment.amount || hitoTotalPaid) - hitoTotalPaid);
 
-  const receiptNumber = `RCP-${project.id}-${payment.id.toUpperCase()}`;
+  const paymentIdStr = (payment.id ? String(payment.id) : 'PAG').toUpperCase();
+  const receiptNumber = `RCP-${project.id}-${paymentIdStr.replace('TX_PAY_', '').replace('TX_', '').substring(0, 8)}`;
 
   return (
     <div className="modal-overlay">

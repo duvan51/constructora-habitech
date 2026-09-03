@@ -102,7 +102,7 @@ export default function Portfolio({ portfolio, userRole, onSave, onDelete }) {
             )}
           </div>
 
-          <div className="portfolio-mgmt-grid">
+          <div className="grid-2" style={{ gridTemplateColumns: '1.8fr 1.2fr', alignItems: 'start', gap: '25px' }}>
             {/* Left Column: Media Presentation */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* Media tab selector */}
