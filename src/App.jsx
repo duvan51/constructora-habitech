@@ -12,6 +12,7 @@ import ApiSettings from './components/ApiSettings';
 import ProjectManagement from './components/ProjectManagement';
 import QuoteCalculator from './components/QuoteCalculator';
 import PersonnelManagement from './components/PersonnelManagement';
+import TotalAdjustments from './components/TotalAdjustments';
 import { 
   seedMockData, 
   getAll, 
@@ -233,6 +234,46 @@ export default function App() {
     }
   };
 
+  // Helper to accurately locate which budget item matches an expense transaction
+  const findMatchingBudgetItemIndex = (budgetItems, tx) => {
+    if (!budgetItems || budgetItems.length === 0 || !tx) return -1;
+    
+    // 1. Match by budgetItemId / item.id
+    if (tx.budgetItemId) {
+      const idx = budgetItems.findIndex(b => (b.id && String(b.id) === String(tx.budgetItemId)) || b.name === tx.budgetItemId);
+      if (idx !== -1) return idx;
+    }
+
+    // 2. Match by budgetItemName
+    if (tx.budgetItemName) {
+      const idx = budgetItems.findIndex(b => b.name === tx.budgetItemName);
+      if (idx !== -1) return idx;
+    }
+
+    // 3. Match by description prefix ("NombreRenglón || ...")
+    if (tx.description && tx.description.includes(' || ')) {
+      const prefix = tx.description.split(' || ')[0]?.trim();
+      const idx = budgetItems.findIndex(b => b.name === prefix);
+      if (idx !== -1) return idx;
+    }
+
+    // 4. Match by contractor ONLY if no budget item was specified AND only 1 budget item has this contractor
+    if (tx.personnelId) {
+      const matches = budgetItems
+        .map((b, i) => ({ b, i }))
+        .filter(({ b }) => b.personnelId && String(b.personnelId) === String(tx.personnelId));
+      if (matches.length === 1) return matches[0].i;
+    }
+
+    // 5. Match by category if exactly one item in project has that category
+    if (tx.category) {
+      const matches = budgetItems.map((b, i) => ({ b, i })).filter(({ b }) => b.category === tx.category);
+      if (matches.length === 1) return matches[0].i;
+    }
+
+    return -1;
+  };
+
   // Log manual transactions and automatically update project budget or milestone payments
   const handleAddManualTransaction = async (newTx) => {
     try {
@@ -314,20 +355,22 @@ export default function App() {
         }
       }
 
-      // 2. If transaction is tied to a specific project and is an expense, sync to its budget
+      // 2. If transaction is tied to a specific project and is an expense, sync accurately to its budget item
       if (newTx.projectId && newTx.projectId !== 'general' && newTx.type === 'expense') {
         const freshProjects = await getAll('projects');
         const targetProj = freshProjects.find(p => p.id === newTx.projectId) || projects.find(p => p.id === newTx.projectId);
-        if (targetProj && targetProj.budgetItems) {
-          const updatedBudget = targetProj.budgetItems.map(item => {
-            if (item.category === newTx.category || item.id === newTx.budgetItemId || item.name === newTx.budgetItemName) {
-              return { ...item, actual: (item.actual || 0) + newTx.amount };
-            }
-            return item;
-          });
-          
-          const updatedProj = { ...targetProj, budgetItems: updatedBudget };
-          await saveItem('projects', updatedProj);
+        if (targetProj && targetProj.budgetItems && targetProj.budgetItems.length > 0) {
+          const matchIdx = findMatchingBudgetItemIndex(targetProj.budgetItems, newTx);
+          if (matchIdx !== -1) {
+            const updatedBudget = targetProj.budgetItems.map((item, idx) => {
+              if (idx === matchIdx) {
+                return { ...item, actual: (item.actual || 0) + newTx.amount };
+              }
+              return item;
+            });
+            const updatedProj = { ...targetProj, budgetItems: updatedBudget };
+            await saveItem('projects', updatedProj);
+          }
         }
       }
 
@@ -412,31 +455,38 @@ export default function App() {
       }
 
       // 4. Adjust budgets for expenses
+      // 4. Adjust budgets for expenses accurately on specific matching items
       if (oldTx && oldTx.projectId && oldTx.projectId !== 'general' && oldTx.type === 'expense') {
         const freshProjects3 = await getAll('projects');
         const oldProj = freshProjects3.find(p => p.id === oldTx.projectId);
-        if (oldProj && oldProj.budgetItems) {
-          const updatedBudget = oldProj.budgetItems.map(item => {
-            if (item.category === oldTx.category) {
-              return { ...item, actual: Math.max(0, (item.actual || 0) - oldTx.amount) };
-            }
-            return item;
-          });
-          await saveItem('projects', { ...oldProj, budgetItems: updatedBudget });
+        if (oldProj && oldProj.budgetItems && oldProj.budgetItems.length > 0) {
+          const oldMatchIdx = findMatchingBudgetItemIndex(oldProj.budgetItems, oldTx);
+          if (oldMatchIdx !== -1) {
+            const updatedBudget = oldProj.budgetItems.map((item, idx) => {
+              if (idx === oldMatchIdx) {
+                return { ...item, actual: Math.max(0, (item.actual || 0) - oldTx.amount) };
+              }
+              return item;
+            });
+            await saveItem('projects', { ...oldProj, budgetItems: updatedBudget });
+          }
         }
       }
 
       if (!isCanceled && updatedTx.projectId && updatedTx.projectId !== 'general' && updatedTx.type === 'expense' && updatedTx.amount > 0) {
         const freshProjects4 = await getAll('projects');
         const targetProj = freshProjects4.find(p => p.id === updatedTx.projectId);
-        if (targetProj && targetProj.budgetItems) {
-          const updatedBudget = targetProj.budgetItems.map(item => {
-            if (item.category === updatedTx.category) {
-              return { ...item, actual: (item.actual || 0) + updatedTx.amount };
-            }
-            return item;
-          });
-          await saveItem('projects', { ...targetProj, budgetItems: updatedBudget });
+        if (targetProj && targetProj.budgetItems && targetProj.budgetItems.length > 0) {
+          const newMatchIdx = findMatchingBudgetItemIndex(targetProj.budgetItems, updatedTx);
+          if (newMatchIdx !== -1) {
+            const updatedBudget = targetProj.budgetItems.map((item, idx) => {
+              if (idx === newMatchIdx) {
+                return { ...item, actual: (item.actual || 0) + updatedTx.amount };
+              }
+              return item;
+            });
+            await saveItem('projects', { ...targetProj, budgetItems: updatedBudget });
+          }
         }
       }
 
@@ -710,6 +760,22 @@ export default function App() {
                     await loadData();
                   }
                 }}
+              />
+            )}
+
+            {/* Total Adjustments View */}
+            {currentTab === 'adjustments' && (
+              <TotalAdjustments 
+                projects={projects}
+                personnel={personnel}
+                transactions={transactions}
+                userRole={currentUser.role}
+                onAddTransaction={handleAddManualTransaction}
+                onNavigateToProject={(id) => {
+                  setSelectedProjectId(id);
+                  setTab('projects');
+                }}
+                onNavigateToLedger={() => setTab('ledger')}
               />
             )}
 

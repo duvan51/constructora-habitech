@@ -341,6 +341,44 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     }).format(value);
   };
 
+  // Helper to determine if an expense transaction belongs to a budget item
+  const transactionBelongsToBudgetItem = (t, item) => {
+    if (!t || !item) return false;
+    if (String(t.projectId) !== String(project.id) || t.type !== 'expense') return false;
+    if (t.description?.startsWith('[CANCELADO]') || t.description?.startsWith('[ANULADO]') || !t.amount) return false;
+
+    // 1. Match by budgetItemId / item.id
+    if (t.budgetItemId && item.id && String(t.budgetItemId) === String(item.id)) return true;
+
+    // 2. Match by budgetItemName / item.name
+    if (t.budgetItemName && t.budgetItemName === item.name) return true;
+
+    // 3. Match by description prefix (e.g. "NombreRenglón || ...")
+    if (t.description && t.description.startsWith(item.name + ' || ')) return true;
+
+    // If the transaction was explicitly created for another budget item, NEVER match this one
+    const isExplicitlyForAnotherItem = 
+      (t.budgetItemId && (!item.id || String(t.budgetItemId) !== String(item.id))) ||
+      (t.budgetItemName && t.budgetItemName !== item.name) ||
+      (t.description && t.description.includes(' || ') && !t.description.startsWith(item.name + ' || '));
+
+    if (isExplicitlyForAnotherItem) {
+      return false;
+    }
+
+    // 4. Fallback: Only if transaction has NO budget item specified, match by contractor
+    // ONLY IF this is the sole budget item in the project assigned to this contractor.
+    // (Prevents duplicating an expense across multiple renglones assigned to the same person)
+    if (item.personnelId && t.personnelId && String(item.personnelId) === String(t.personnelId)) {
+      const allItemsForPerson = (project.budgetItems || []).filter(b => b.personnelId && String(b.personnelId) === String(t.personnelId));
+      if (allItemsForPerson.length === 1) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   // 1. Payment Hito Status Update with partial payments & comprobantes
   const handlePaymentFileChange = (e) => {
     const filesList = Array.from(e.target.files);
@@ -517,20 +555,31 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     const updatedBudgetItems = [...project.budgetItems];
     const category = updatedBudgetItems[catIdx];
 
+    // Ensure category has an id for strong linkage
+    if (!category.id) {
+      category.id = `bi_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+    }
+
+    const personIdToUse = expenseData.personnelId || category.personnelId || null;
+    let selectedPerson = null;
     let selectedPersonnelSuffix = '';
-    if (expenseData.personnelId) {
-      const selectedPerson = personnel.find(p => p.id === expenseData.personnelId);
+    if (personIdToUse) {
+      selectedPerson = personnel.find(p => p.id === personIdToUse);
       if (selectedPerson) {
         selectedPersonnelSuffix = ` [Pagado a: ${selectedPerson.name} - Cédula: ${selectedPerson.documentId}]`;
       }
     }
 
-    // Log in global ledger
+    // Log in global ledger with full metadata
     const newTx = {
       projectId: project.id,
       projectName: project.name,
       type: 'expense',
       category: category.category, // 'materials' | 'labor' | 'permits'
+      budgetItemId: category.id || null,
+      budgetItemName: category.name,
+      personnelId: personIdToUse,
+      personnelName: selectedPerson ? selectedPerson.name : null,
       description: `${category.name} || Compra: ${expenseData.description}${selectedPersonnelSuffix} (Obra: ${project.name})`,
       amount: amt,
       date: expenseData.date,
@@ -543,9 +592,12 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         const oldTx = transactions.find(t => String(t.id) === String(editingExpenseId));
         if (oldTx) {
           const oldAmt = oldTx.amount;
-          // Find old budget item name from description
+          // Find old budget item name from description or ID
           const oldBudgetItemName = oldTx.description.split(' || ')[0];
-          let oldBudgetItem = updatedBudgetItems.find(item => item.name === oldBudgetItemName);
+          let oldBudgetItem = updatedBudgetItems.find(item => 
+            (oldTx.budgetItemId && item.id === oldTx.budgetItemId) ||
+            item.name === oldBudgetItemName
+          );
           if (!oldBudgetItem) {
             oldBudgetItem = updatedBudgetItems.find(item => item.category === oldTx.category);
           }
@@ -603,9 +655,9 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     const parts = exp.description.split(' || ');
     const originalDesc = parts[1] ? parts[1].replace(`Compra: `, '').replace(` (Obra: ${project.name})`, '') : exp.description;
 
-    // Detect associated personnel
-    let foundPersonnelId = '';
-    if (personnel && personnel.length > 0) {
+    // Detect associated personnel (check direct ID first, fallback to regex in desc)
+    let foundPersonnelId = exp.personnelId || '';
+    if (!foundPersonnelId && personnel && personnel.length > 0) {
       const match = originalDesc.match(/\[Pagado a: .*? - Cédula: (.*?)\]/);
       if (match && match[1]) {
         const docId = match[1].trim();
@@ -616,9 +668,27 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
     const cleanedDesc = originalDesc.replace(/ \[Pagado a: .*? - Cédula: .*?\]/, '');
 
+    // Resolve which budget item matches this expense
+    let resolvedIdx = budgetItemIdx;
+    if (project.budgetItems && project.budgetItems.length > 0) {
+      let foundIdx = project.budgetItems.findIndex(b => 
+        (exp.budgetItemId && b.id && String(b.id) === String(exp.budgetItemId)) ||
+        (parts[0] && b.name === parts[0])
+      );
+      if (foundIdx === -1 && foundPersonnelId) {
+        const itemsWithPerson = project.budgetItems
+          .map((b, i) => ({ b, i }))
+          .filter(({ b }) => b.personnelId === foundPersonnelId);
+        if (itemsWithPerson.length === 1) {
+          foundIdx = itemsWithPerson[0].i;
+        }
+      }
+      if (foundIdx !== -1) resolvedIdx = foundIdx;
+    }
+
     setExpenseData({
       description: cleanedDesc,
-      categoryIndex: budgetItemIdx,
+      categoryIndex: resolvedIdx,
       amount: exp.amount.toString(),
       date: exp.date,
       personnelId: foundPersonnelId
@@ -691,6 +761,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         if (idx === editingBudgetItemIndex) {
           return {
             ...item,
+            id: item.id || `bi_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             name: newBudgetItem.name.trim(),
             estimated: est,
             category: newBudgetItem.category,
@@ -702,6 +773,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     } else {
       // Adding new
       const newItem = {
+        id: `bi_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
         name: newBudgetItem.name.trim(),
         estimated: est,
         actual: 0,
@@ -934,8 +1006,12 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     return sum + paidForHito;
   }, 0);
 
-  const totalBudgetEst = project.budgetItems.reduce((sum, i) => sum + i.estimated, 0);
-  const totalBudgetAct = project.budgetItems.reduce((sum, i) => sum + (i.actual || 0), 0);
+  const totalBudgetEst = (project.budgetItems || []).reduce((sum, i) => sum + (i.estimated || 0), 0);
+  const totalBudgetAct = (project.budgetItems || []).reduce((sum, i) => {
+    const expenses = transactions.filter(t => transactionBelongsToBudgetItem(t, i));
+    const spent = expenses.length > 0 ? expenses.reduce((s, e) => s + (e.amount || 0), 0) : (i.actual || 0);
+    return sum + spent;
+  }, 0);
 
   return (
     <div className="project-detail-view animate-fade-in">
@@ -1442,14 +1518,17 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
             {/* Budget list comparison */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '15px' }}>
               {project.budgetItems.map((item, idx) => {
-                const diff = item.estimated - (item.actual || 0);
-                const percent = Math.round(((item.actual || 0) / item.estimated) * 100) || 0;
+                const itemExpenses = transactions.filter(t => transactionBelongsToBudgetItem(t, item));
+                const spentFromExpenses = itemExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+                const currentActual = itemExpenses.length > 0 ? spentFromExpenses : (item.actual || 0);
+                const diff = item.estimated - currentActual;
+                const percent = item.estimated > 0 ? Math.round((currentActual / item.estimated) * 100) : 0;
                 let colorBar = 'var(--primary-cyan)';
                 if (percent > 90 && percent <= 100) colorBar = 'var(--primary-orange)';
                 if (percent > 100) colorBar = 'var(--primary-red)';
 
                 return (
-                  <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)', padding: '16px', borderRadius: '12px' }}>
+                  <div key={item.id || idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)', padding: '16px', borderRadius: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1496,7 +1575,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                          Gastado: <strong style={{ color: item.actual > item.estimated ? 'var(--primary-red)' : 'var(--text-primary)' }}>{formatCurrency(item.actual || 0)}</strong> / {formatCurrency(item.estimated)}
+                          Gastado: <strong style={{ color: currentActual > item.estimated ? 'var(--primary-red)' : 'var(--text-primary)' }}>{formatCurrency(currentActual)}</strong> / {formatCurrency(item.estimated)}
                         </span>
                         <div style={{ fontSize: '0.75rem', color: diff >= 0 ? '#10b981' : '#f43f5e', marginTop: '2px' }}>
                           {diff >= 0 ? `Disponible: ${formatCurrency(diff)}` : `Excedido por: ${formatCurrency(Math.abs(diff))}`}
@@ -1513,98 +1592,94 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                     </div>
 
                     {/* Gastos asociados a este renglón */}
-                    {(() => {
-                      const itemExpenses = transactions.filter(t => 
-                        String(t.projectId) === String(project.id) &&
-                        t.type === 'expense' &&
-                        t.description.startsWith(item.name + ' || ')
-                      );
-
-                      if (itemExpenses.length === 0) return null;
-
-                      return (
-                        <div style={{ marginTop: '12px', borderTop: '1px dashed var(--border-glass)', paddingTop: '10px' }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Gastos / Compras registrados:</span>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                            {itemExpenses.map((exp) => {
-                              const descParts = exp.description.split(' || ');
-                              const displayDesc = descParts[1] 
-                                ? descParts[1].replace('Compra: ', '').replace(` (Obra: ${project.name})`, '')
-                                : exp.description;
-                              return (
-                                <div key={exp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', padding: '6px 10px', borderRadius: '6px' }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{displayDesc}</span>
-                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{exp.date}</span>
+                    {itemExpenses.length > 0 && (
+                      <div style={{ marginTop: '12px', borderTop: '1px dashed var(--border-glass)', paddingTop: '10px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Gastos / Compras registrados:</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                          {itemExpenses.map((exp) => {
+                            const descParts = exp.description.split(' || ');
+                            const displayDesc = descParts[1] 
+                              ? descParts[1].replace('Compra: ', '').replace(` (Obra: ${project.name})`, '')
+                              : exp.description;
+                            return (
+                              <div key={exp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', padding: '6px 10px', borderRadius: '6px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{displayDesc}</span>
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                    <span>{exp.date}</span>
+                                    {exp.personnelName && (
+                                      <span style={{ color: 'var(--primary-teal)', fontWeight: 600 }}>👤 {exp.personnelName}</span>
+                                    )}
                                   </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(exp.amount)}</span>
-                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(exp.amount)}</span>
+                                  <div style={{ display: 'flex', gap: '6px' }}>
+                                    <button 
+                                      type="button" 
+                                      style={{ background: 'none', border: 'none', color: 'var(--primary-orange)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                      onClick={() => setShowExpenseReceipt(exp)}
+                                      title="Imprimir comprobante de egreso"
+                                    >
+                                      <Printer size={11} />
+                                    </button>
+                                    {exp.receiptBase64 && (
                                       <button 
                                         type="button" 
-                                        style={{ background: 'none', border: 'none', color: 'var(--primary-orange)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
-                                        onClick={() => setShowExpenseReceipt(exp)}
-                                        title="Imprimir comprobante de egreso"
+                                        style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                        onClick={() => {
+                                          const w = window.open();
+                                          if (exp.receiptBase64.startsWith('data:application/pdf')) {
+                                            w.document.write(`<embed width="100%" height="100%" src="${exp.receiptBase64}" type="application/pdf" />`);
+                                          } else {
+                                            w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${exp.receiptBase64}" style="max-width:100%; max-height:100vh;" /></div>`);
+                                          }
+                                          w.document.body.style.margin = '0';
+                                        }}
+                                        title="Ver archivo adjunto"
                                       >
-                                        <Printer size={11} />
+                                        <Eye size={11} />
                                       </button>
-                                      {exp.receiptBase64 && (
+                                    )}
+                                    {userRole !== 'viewer' && (
+                                      <>
                                         <button 
                                           type="button" 
                                           style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
-                                          onClick={() => {
-                                            const w = window.open();
-                                            if (exp.receiptBase64.startsWith('data:application/pdf')) {
-                                              w.document.write(`<embed width="100%" height="100%" src="${exp.receiptBase64}" type="application/pdf" />`);
-                                            } else {
-                                              w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${exp.receiptBase64}" style="max-width:100%; max-height:100vh;" /></div>`);
-                                            }
-                                            w.document.body.style.margin = '0';
-                                          }}
-                                          title="Ver archivo adjunto"
+                                          onClick={() => handleOpenEditExpense(exp, idx)}
+                                          title="Editar gasto"
                                         >
-                                          <Eye size={11} />
+                                          <Edit3 size={11} />
                                         </button>
-                                      )}
-                                      {userRole !== 'viewer' && (
-                                        <>
-                                          <button 
-                                            type="button" 
-                                            style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
-                                            onClick={() => handleOpenEditExpense(exp, idx)}
-                                            title="Editar gasto"
-                                          >
-                                            <Edit3 size={11} />
-                                          </button>
-                                          <button 
-                                            type="button" 
-                                            style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
-                                            onClick={() => handleDeleteExpense(exp, idx)}
-                                            title="Eliminar gasto"
-                                          >
-                                            <Trash2 size={11} />
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
+                                        <button 
+                                          type="button" 
+                                          style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                          onClick={() => handleDeleteExpense(exp, idx)}
+                                          title="Eliminar gasto"
+                                        >
+                                          <Trash2 size={11} />
+                                        </button>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
-                              );
-                            })}
-                          </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })()}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
 
-            {/* Unclassified expenses (Legacy) */}
+            {/* Unclassified expenses */}
             {(() => {
               const unclassifiedExpenses = transactions.filter(t => {
                 if (String(t.projectId) !== String(project.id) || t.type !== 'expense') return false;
-                const belongsToAnyItem = project.budgetItems.some(item => t.description.startsWith(item.name + ' || '));
+                if (t.description?.startsWith('[CANCELADO]') || t.description?.startsWith('[ANULADO]') || !t.amount) return false;
+                const belongsToAnyItem = project.budgetItems.some(item => transactionBelongsToBudgetItem(t, item));
                 return !belongsToAnyItem;
               });
 

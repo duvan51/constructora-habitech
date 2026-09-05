@@ -44,10 +44,13 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         category: selectedTx.category,
         milestoneId: selectedTx.milestoneId || '',
         method: selectedTx.method || 'Transferencia',
+        budgetItemId: selectedTx.budgetItemId || '',
+        budgetItemName: selectedTx.budgetItemName || '',
         description: selectedTx.description,
         amount: selectedTx.amount,
         date: selectedTx.date,
-        receiptBase64: selectedTx.receiptBase64 || ''
+        receiptBase64: selectedTx.receiptBase64 || '',
+        personnelId: selectedTx.personnelId || ''
       });
       setUploadMode('file');
       setFileBase64(selectedTx.receiptBase64 || '');
@@ -155,15 +158,44 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       const next = { ...prev, [name]: value };
 
       // If user switches project or type, update default category / milestone
-      if (name === 'projectId' && value !== 'general') {
-        const selProj = projects.find(p => p.id === value);
-        if (next.type === 'income' && selProj?.paymentPlan?.length > 0) {
-          const firstUnpaid = selProj.paymentPlan.find(m => {
-            const mPaid = (m.payments || []).reduce((s, p) => s + p.amount, 0) || (m.status === 'paid' ? m.amount : 0);
-            return mPaid < m.amount;
-          }) || selProj.paymentPlan[0];
-          if (firstUnpaid && !next.milestoneId) {
-            next.milestoneId = firstUnpaid.id;
+      if (name === 'projectId') {
+        next.budgetItemId = '';
+        if (value !== 'general') {
+          const selProj = projects.find(p => p.id === value);
+          if (next.type === 'income' && selProj?.paymentPlan?.length > 0) {
+            const firstUnpaid = selProj.paymentPlan.find(m => {
+              const mPaid = (m.payments || []).reduce((s, p) => s + p.amount, 0) || (m.status === 'paid' ? m.amount : 0);
+              return mPaid < m.amount;
+            }) || selProj.paymentPlan[0];
+            if (firstUnpaid && !next.milestoneId) {
+              next.milestoneId = firstUnpaid.id;
+            }
+          }
+        }
+      }
+
+      // If user selects a contractor/personnel, suggest matching budget item ONLY if there is exactly 1 budget item for this person
+      if (name === 'personnelId' && value && next.projectId !== 'general') {
+        const selProj = projects.find(p => p.id === next.projectId);
+        if (selProj?.budgetItems) {
+          const matchingItems = selProj.budgetItems.filter(b => b.personnelId === value);
+          if (matchingItems.length === 1 && !prev.budgetItemId) {
+            next.budgetItemId = matchingItems[0].id || matchingItems[0].name;
+            next.category = matchingItems[0].category || next.category;
+          }
+        }
+      }
+
+      // If user selects a budget item, auto-select its contractor and category
+      if (name === 'budgetItemId' && value && next.projectId !== 'general') {
+        const selProj = projects.find(p => p.id === next.projectId);
+        if (selProj?.budgetItems) {
+          const matchingItem = selProj.budgetItems.find(b => (b.id && b.id === value) || b.name === value);
+          if (matchingItem) {
+            next.category = matchingItem.category || next.category;
+            if (matchingItem.personnelId) {
+              next.personnelId = matchingItem.personnelId;
+            }
           }
         }
       }
@@ -171,6 +203,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       if (name === 'type') {
         if (value === 'income') {
           next.category = 'client_payment';
+          next.budgetItemId = '';
           if (next.projectId !== 'general') {
             const selProj = projects.find(p => p.id === next.projectId);
             if (selProj?.paymentPlan?.length > 0) {
@@ -208,9 +241,10 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     }
 
     let personnelName = null;
+    let selectedPerson = null;
     if (txData.personnelId && personnel) {
-      const p = personnel.find(per => per.id === txData.personnelId);
-      if (p) personnelName = p.name;
+      selectedPerson = personnel.find(per => per.id === txData.personnelId);
+      if (selectedPerson) personnelName = selectedPerson.name;
     }
 
     let milestoneName = null;
@@ -219,23 +253,50 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       if (m) milestoneName = m.name;
     }
 
+    // Resolve budget item for expenses
+    let targetBudgetItem = null;
+    if (txData.type === 'expense' && targetProject && targetProject.budgetItems) {
+      if (txData.budgetItemId) {
+        targetBudgetItem = targetProject.budgetItems.find(b => (b.id && b.id === txData.budgetItemId) || b.name === txData.budgetItemId);
+      } else if (txData.personnelId) {
+        const matchingItems = targetProject.budgetItems.filter(b => b.personnelId === txData.personnelId);
+        if (matchingItems.length === 1) {
+          targetBudgetItem = matchingItems[0];
+        }
+      }
+    }
+
+    let finalCategory = txData.category;
+    let finalDesc = txData.description;
+    const personnelSuffix = selectedPerson ? ` [Pagado a: ${selectedPerson.name} - Cédula: ${selectedPerson.documentId || ''}]` : '';
+
+    if (targetBudgetItem) {
+      finalCategory = targetBudgetItem.category || txData.category;
+      if (!finalDesc.includes(' || ')) {
+        finalDesc = `${targetBudgetItem.name} || Compra: ${txData.description}${personnelSuffix} (Obra: ${targetProject.name})`;
+      }
+    } else if (targetProject && !finalDesc.includes(' || ') && selectedPerson) {
+      finalDesc = `${txData.description}${personnelSuffix} (Obra: ${targetProject.name})`;
+    }
+
     const receiptImg = uploadMode === 'file' ? fileBase64 : capturedImage;
 
     const newTx = {
       projectId: txData.projectId,
       projectName: projName,
       type: txData.type,
-      category: txData.category,
+      category: finalCategory,
       milestoneId: txData.milestoneId || null,
       milestoneName: milestoneName,
       method: txData.method || 'Transferencia',
-      budgetItemId: txData.budgetItemId || null,
-      description: txData.description,
+      budgetItemId: targetBudgetItem ? (targetBudgetItem.id || targetBudgetItem.name) : (txData.budgetItemId || null),
+      budgetItemName: targetBudgetItem ? targetBudgetItem.name : null,
+      description: finalDesc,
       amount: amt,
       date: txData.date,
       receiptBase64: receiptImg || null,
       files: receiptImg ? [{ fileName: fileName || 'Comprobante de Caja', fileType: 'image', fileBase64: receiptImg }] : [],
-      personnelId: txData.personnelId || null,
+      personnelId: txData.personnelId || targetBudgetItem?.personnelId || null,
       personnelName: personnelName
     };
 
@@ -278,15 +339,40 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     }
 
     let personnelName = null;
+    let selectedPerson = null;
     if (editTxData.personnelId && personnel) {
-      const p = personnel.find(per => per.id === editTxData.personnelId);
-      if (p) personnelName = p.name;
+      selectedPerson = personnel.find(per => per.id === editTxData.personnelId);
+      if (selectedPerson) personnelName = selectedPerson.name;
     }
 
     let milestoneName = null;
     if (editTxData.type === 'income' && targetProject && editTxData.milestoneId) {
       const m = targetProject.paymentPlan?.find(item => item.id === editTxData.milestoneId);
       if (m) milestoneName = m.name;
+    }
+
+    // Resolve target budget item
+    let targetBudgetItem = null;
+    if (editTxData.type === 'expense' && targetProject && targetProject.budgetItems) {
+      if (editTxData.budgetItemId) {
+        targetBudgetItem = targetProject.budgetItems.find(b => (b.id && b.id === editTxData.budgetItemId) || b.name === editTxData.budgetItemId);
+      } else if (editTxData.personnelId) {
+        const matchingItems = targetProject.budgetItems.filter(b => b.personnelId === editTxData.personnelId);
+        if (matchingItems.length === 1) {
+          targetBudgetItem = matchingItems[0];
+        }
+      }
+    }
+
+    let finalCategory = editTxData.category;
+    let finalDesc = editTxData.description;
+    const personnelSuffix = selectedPerson ? ` [Pagado a: ${selectedPerson.name} - Cédula: ${selectedPerson.documentId || ''}]` : '';
+
+    if (targetBudgetItem) {
+      finalCategory = targetBudgetItem.category || editTxData.category;
+      if (!finalDesc.includes(' || ')) {
+        finalDesc = `${targetBudgetItem.name} || Compra: ${editTxData.description}${personnelSuffix} (Obra: ${targetProject.name})`;
+      }
     }
 
     const receiptImg = uploadMode === 'file' ? fileBase64 : capturedImage;
@@ -296,16 +382,18 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       projectId: editTxData.projectId,
       projectName: projName,
       type: editTxData.type,
-      category: editTxData.category,
+      category: finalCategory,
       milestoneId: editTxData.milestoneId || selectedTx.milestoneId || null,
       milestoneName: milestoneName || selectedTx.milestoneName || null,
       method: editTxData.method || selectedTx.method || 'Transferencia',
-      description: editTxData.description,
+      budgetItemId: targetBudgetItem ? (targetBudgetItem.id || targetBudgetItem.name) : (editTxData.budgetItemId || selectedTx.budgetItemId || null),
+      budgetItemName: targetBudgetItem ? targetBudgetItem.name : (selectedTx.budgetItemName || null),
+      description: finalDesc,
       amount: amt,
       date: editTxData.date,
       receiptBase64: receiptImg || selectedTx.receiptBase64 || null,
       files: receiptImg ? [{ fileName: fileName || 'Comprobante de Caja', fileType: 'image', fileBase64: receiptImg }] : (selectedTx.files || []),
-      personnelId: editTxData.personnelId || null,
+      personnelId: editTxData.personnelId || targetBudgetItem?.personnelId || null,
       personnelName: personnelName
     };
 
@@ -1149,18 +1237,38 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                       <td style={{ padding: '14px 12px', fontSize: '0.9rem', color: isCanceled ? 'var(--text-muted)' : 'var(--text-primary)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <span style={{ textDecoration: isCanceled ? 'line-through' : 'none' }}>{tx.description}</span>
-                          {tx.personnelName && (
+                          {(() => {
+                            const pName = tx.personnelName || (tx.personnelId && personnel ? personnel.find(p => p.id === tx.personnelId)?.name : null);
+                            if (pName) {
+                              return (
+                                <span style={{ 
+                                  background: 'rgba(168, 85, 247, 0.1)', 
+                                  border: '1px solid rgba(168, 85, 247, 0.2)', 
+                                  color: '#d8b4fe', 
+                                  padding: '2px 8px', 
+                                  borderRadius: '12px', 
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  👤 {pName}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
+                          {tx.budgetItemName && (
                             <span style={{ 
-                              background: 'rgba(168, 85, 247, 0.1)', 
-                              border: '1px solid rgba(168, 85, 247, 0.2)', 
-                              color: '#d8b4fe', 
+                              background: 'rgba(6, 182, 212, 0.1)', 
+                              border: '1px solid rgba(6, 182, 212, 0.2)', 
+                              color: 'var(--primary-cyan)', 
                               padding: '2px 8px', 
                               borderRadius: '12px', 
                               fontSize: '0.7rem',
                               fontWeight: 600,
                               whiteSpace: 'nowrap'
                             }}>
-                              👤 {tx.personnelName}
+                              🏷️ {tx.budgetItemName}
                             </span>
                           )}
                         </div>
@@ -1426,6 +1534,34 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                         <option value="Consignación">Consignación Bancaria</option>
                         <option value="Cheque">Cheque</option>
                       </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* If Expense and linked to a project, show Budget Item / Contract Selector */}
+                {txData.type === 'expense' && txData.projectId !== 'general' && (
+                  <div style={{ background: 'rgba(6, 182, 212, 0.04)', border: '1px solid rgba(6, 182, 212, 0.18)', padding: '12px', borderRadius: '8px', marginBottom: '15px' }}>
+                    <div className="form-group" style={{ marginBottom: '4px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-cyan)', fontWeight: 700 }}>
+                        <Layers size={15} />
+                        Renglón Presupuestario / Contrato de Obra
+                      </label>
+                      <select
+                        name="budgetItemId"
+                        className="form-control"
+                        value={txData.budgetItemId}
+                        onChange={handleInputChange}
+                      >
+                        <option value="">-- Sin renglón específico (Gasto general de obra) --</option>
+                        {projects.find(p => p.id === txData.projectId)?.budgetItems?.map((b, idx) => (
+                          <option key={b.id || idx} value={b.id || b.name}>
+                            {b.name} {txData.personnelId && b.personnelId === txData.personnelId ? '👤 (Asignado a este contratista)' : ''} ({b.category === 'materials' ? 'Materiales' : b.category === 'labor' ? 'Mano de Obra' : 'Licencias'}) — Presupuesto: {formatCurrency(b.estimated)}
+                          </option>
+                        ))}
+                      </select>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', marginBottom: 0 }}>
+                        💡 Este egreso se reflejará directamente en el presupuesto y ejecución de la obra.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -1700,13 +1836,65 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                     </select>
                   </div>
 
+                  {/* If Expense and linked to project in Edit Modal */}
+                  {editTxData.type === 'expense' && editTxData.projectId !== 'general' && (
+                    <div style={{ background: 'rgba(6, 182, 212, 0.04)', border: '1px solid rgba(6, 182, 212, 0.18)', padding: '12px', borderRadius: '8px', marginBottom: '15px' }}>
+                      <div className="form-group" style={{ marginBottom: '4px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-cyan)', fontWeight: 700 }}>
+                          <Layers size={15} />
+                          Renglón Presupuestario / Contrato de Obra
+                        </label>
+                        <select
+                          className="form-control"
+                          value={editTxData.budgetItemId || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditTxData(prev => {
+                              const next = { ...prev, budgetItemId: val };
+                              if (val && prev.projectId !== 'general') {
+                                const selProj = projects.find(p => p.id === prev.projectId);
+                                const matchingItem = selProj?.budgetItems?.find(b => (b.id && b.id === val) || b.name === val);
+                                if (matchingItem) {
+                                  next.category = matchingItem.category || next.category;
+                                  if (matchingItem.personnelId) next.personnelId = matchingItem.personnelId;
+                                }
+                              }
+                              return next;
+                            });
+                          }}
+                        >
+                          <option value="">-- Sin renglón específico (Gasto general de obra) --</option>
+                          {projects.find(p => p.id === editTxData.projectId)?.budgetItems?.map((b, idx) => (
+                            <option key={b.id || idx} value={b.id || b.name}>
+                              {b.name} {editTxData.personnelId && b.personnelId === editTxData.personnelId ? '👤 (Asignado a este contratista)' : ''} ({b.category === 'materials' ? 'Materiales' : b.category === 'labor' ? 'Mano de Obra' : 'Licencias'}) — Presupuesto: {formatCurrency(b.estimated)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
                   {editTxData.type === 'expense' && personnel && personnel.length > 0 && (
                     <div className="form-group">
                       <label>Asociar Personal / Contratista (Opcional)</label>
                       <select
                         className="form-control"
                         value={editTxData.personnelId || ''}
-                        onChange={(e) => setEditTxData(prev => ({ ...prev, personnelId: e.target.value }))}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditTxData(prev => {
+                            const next = { ...prev, personnelId: val };
+                            if (val && prev.projectId !== 'general') {
+                              const selProj = projects.find(p => p.id === prev.projectId);
+                              const matchingItems = selProj?.budgetItems?.filter(b => b.personnelId === val) || [];
+                              if (matchingItems.length === 1 && !prev.budgetItemId) {
+                                next.budgetItemId = matchingItems[0].id || matchingItems[0].name;
+                                next.category = matchingItems[0].category || next.category;
+                              }
+                            }
+                            return next;
+                          });
+                        }}
                       >
                         <option value="">-- No asociar a persona --</option>
                         {personnel.map(p => (

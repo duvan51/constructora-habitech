@@ -259,11 +259,12 @@ export default function ProjectForm({ project, onClose, onSave }) {
     // Default budget category seeding if empty
     if (updatedFormData.budgetItems.length === 0) {
       const c = formData.totalCost;
+      const now = Date.now();
       updatedFormData.budgetItems = [
-        { name: 'Materiales Generales', estimated: Math.round(c * 0.4), actual: 0, category: 'materials' },
-        { name: 'Mano de Obra Estimada', estimated: Math.round(c * 0.35), actual: 0, category: 'labor' },
-        { name: 'Licencias y Curaduría', estimated: Math.round(c * 0.08), actual: 0, category: 'permits' },
-        { name: 'Otros Imprevistos', estimated: Math.round(c * 0.17), actual: 0, category: 'materials' }
+        { id: `bi_${now}_1`, name: 'Materiales Generales', estimated: Math.round(c * 0.4), actual: 0, category: 'materials' },
+        { id: `bi_${now}_2`, name: 'Mano de Obra Estimada', estimated: Math.round(c * 0.35), actual: 0, category: 'labor' },
+        { id: `bi_${now}_3`, name: 'Licencias y Curaduría', estimated: Math.round(c * 0.08), actual: 0, category: 'permits' },
+        { id: `bi_${now}_4`, name: 'Otros Imprevistos', estimated: Math.round(c * 0.17), actual: 0, category: 'materials' }
       ];
     }
 
