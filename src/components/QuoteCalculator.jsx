@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Save, Edit, Trash2, Plus, FileText, Printer, Undo, Image, X, RotateCcw, Layers } from 'lucide-react';
+import { Calculator, Save, Edit, Trash2, Plus, FileText, Printer, Undo, Image, X, RotateCcw, Layers, Home, Copy, Percent, DollarSign, Minus, Tag } from 'lucide-react';
 
 const DEFAULT_PRICES = {
   obra_blanca_tradicional: 1500000,
@@ -30,6 +30,7 @@ function QuoteDocument({
   quoteNumber,
   clientData,
   quoteMode,
+  printedHouses = [],
   finishType,
   getFinishTypeLabel,
   houseArea,
@@ -52,10 +53,15 @@ function QuoteDocument({
   printedStairsRate,
   printedStairsSubtotal,
   concepts,
+  conceptsHouseQty = 1,
+  conceptsUnitSubtotal = 0,
   factor,
   subtotalBeforeDiscount,
-  discountPercent,
-  discountVal,
+  discountType = 'percent',
+  discountValue = '0',
+  discountPercent = '0',
+  discountVal = 0,
+  effectiveDiscountPercent = '0',
   totalQuote,
   notes,
   blueprintImg,
@@ -178,14 +184,24 @@ function QuoteDocument({
     <div style={{ marginTop: 'auto' }}>
       {/* Totals Box */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '14px' }}>
-        <div style={{ width: '100%', maxWidth: '300px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.8rem' }}>
+        <div style={{ width: '100%', maxWidth: '320px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.8rem' }}>
+          {quoteMode === 'concepts' && conceptsHouseQty > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', borderBottom: '1px dashed #cbd5e1', paddingBottom: '4px', marginBottom: '2px' }}>
+              <span>Subtotal por Casa/Cabaña:</span>
+              <span style={{ fontWeight: 600 }}>{formatCurrency(conceptsUnitSubtotal)}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-            <span>Subtotal Cotización:</span>
+            <span>
+              Subtotal Cotización {quoteMode === 'concepts' && conceptsHouseQty > 1 ? `(${conceptsHouseQty} Unds.)` : ''}:
+            </span>
             <span style={{ fontWeight: 600 }}>{formatCurrency(subtotalBeforeDiscount)}</span>
           </div>
-          {parseFloat(discountPercent) > 0 && (
+          {discountVal > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669', fontWeight: 600 }}>
-              <span>Descuento Comercial ({discountPercent}%):</span>
+              <span>
+                Descuento Comercial {discountType === 'percent' ? `(${discountValue}%)` : `(-${effectiveDiscountPercent}%)`}:
+              </span>
               <span>- {formatCurrency(discountVal)}</span>
             </div>
           )}
@@ -253,25 +269,57 @@ function QuoteDocument({
                 <th style={{ padding: '8px 10px', fontWeight: 700 }}>Descripción de la Actividad / Renglón</th>
                 {quoteMode === 'm2' && <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'center' }}>Medidas / Cantidad</th>}
                 {quoteMode === 'm2' && <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>Valor Unitario</th>}
-                <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
+                {quoteMode === 'concepts' && conceptsHouseQty > 1 && (
+                  <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>Unitario (1 Und.)</th>
+                )}
+                <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>
+                  {quoteMode === 'concepts' && conceptsHouseQty > 1 ? `Subtotal (${conceptsHouseQty} Unds.)` : 'Subtotal'}
+                </th>
               </tr>
             </thead>
             <tbody>
               {/* Mode A: Area M2 rows */}
               {quoteMode === 'm2' && (
                 <>
-                  {houseArea > 0 && (
-                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '10px' }}>
-                        <div style={{ fontWeight: 700, color: '#0f172a' }}>Área de Vivienda ({getFinishTypeLabel(finishType)})</div>
-                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Construcción principal en metros cuadrados</div>
-                      </td>
-                      <td style={{ padding: '10px', textAlign: 'center' }}>
-                        {houseDims.width && houseDims.length ? `${houseDims.width}m x ${houseDims.length}m` : ''} ({houseDims.area} m²)
-                      </td>
-                      <td style={{ padding: '10px', textAlign: 'right' }}>{formatCurrency(printedHouseRate)}</td>
-                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedHouseSubtotal)}</td>
-                    </tr>
+                  {printedHouses && printedHouses.length > 0 ? (
+                    printedHouses.filter(h => h.totalArea > 0).map((h, idx) => (
+                      <tr key={h.id || idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '10px' }}>
+                          <div style={{ fontWeight: 700, color: '#0f172a' }}>
+                            {h.name || `Casa / Cabaña ${idx + 1}`} ({getFinishTypeLabel(h.finishType)})
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                            {h.quantity > 1 
+                              ? `${h.quantity} unidades de ${h.unitArea} m² c/u — Área total: ${h.totalArea} m²` 
+                              : 'Construcción principal en metros cuadrados'}
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px', textAlign: 'center' }}>
+                          <div>{h.dims.width && h.dims.length ? `${h.dims.width}m x ${h.dims.length}m` : ''} ({h.unitArea} m²)</div>
+                          {h.quantity > 1 && (
+                            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#FF6D00', marginTop: '2px' }}>
+                              × {h.quantity} Unidades ({h.totalArea} m²)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px', textAlign: 'right' }}>{formatCurrency(h.printedRate)}</td>
+                        <td style={{ padding: '10px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(h.printedSubtotal)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    houseArea > 0 && (
+                      <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '10px' }}>
+                          <div style={{ fontWeight: 700, color: '#0f172a' }}>Área de Vivienda ({getFinishTypeLabel(finishType)})</div>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Construcción principal en metros cuadrados</div>
+                        </td>
+                        <td style={{ padding: '10px', textAlign: 'center' }}>
+                          {houseDims.width && houseDims.length ? `${houseDims.width}m x ${houseDims.length}m` : ''} ({houseDims.area} m²)
+                        </td>
+                        <td style={{ padding: '10px', textAlign: 'right' }}>{formatCurrency(printedHouseRate)}</td>
+                        <td style={{ padding: '10px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(printedHouseSubtotal)}</td>
+                      </tr>
+                    )
                   )}
 
                   {includeSlab && slabArea > 0 && (
@@ -319,22 +367,31 @@ function QuoteDocument({
               {/* Mode B: Custom Concepts Rows (Page 1 Batch) */}
               {quoteMode === 'concepts' && (
                 <>
-                  {conceptsPage1.map((concept, idx) => (
-                    <tr key={concept.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '9px 10px' }}>
-                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{idx + 1}. {concept.name}</div>
-                      </td>
-                      <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700 }}>
-                        {formatCurrency(Math.round(concept.amount * factor))}
-                      </td>
-                    </tr>
-                  ))}
+                  {conceptsPage1.map((concept, idx) => {
+                    const unitAmt = Math.round(concept.amount * factor);
+                    const lineAmt = unitAmt * conceptsHouseQty;
+                    return (
+                      <tr key={concept.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '9px 10px' }}>
+                          <div style={{ fontWeight: 700, color: '#0f172a' }}>{idx + 1}. {concept.name}</div>
+                        </td>
+                        {conceptsHouseQty > 1 && (
+                          <td style={{ padding: '9px 10px', textAlign: 'right', color: '#64748b' }}>
+                            {formatCurrency(unitAmt)}
+                          </td>
+                        )}
+                        <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700 }}>
+                          {formatCurrency(lineAmt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </>
               )}
 
               {subtotalBeforeDiscount === 0 && (
                 <tr>
-                  <td colSpan={quoteMode === 'm2' ? 4 : 2} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
+                  <td colSpan={quoteMode === 'm2' ? 4 : (conceptsHouseQty > 1 ? 3 : 2)} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
                     Sin conceptos registrados. Configura los valores en el panel de edición.
                   </td>
                 </tr>
@@ -384,20 +441,34 @@ function QuoteDocument({
                 <thead>
                   <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1', color: '#0f172a' }}>
                     <th style={{ padding: '8px 10px', fontWeight: 700 }}>Descripción de la Actividad / Renglón (Continuación)</th>
-                    <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>Subtotal</th>
+                    {conceptsHouseQty > 1 && (
+                      <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>Unitario (1 Und.)</th>
+                    )}
+                    <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>
+                      {conceptsHouseQty > 1 ? `Subtotal (${conceptsHouseQty} Unds.)` : 'Subtotal'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {conceptsPage2.map((concept, idx) => (
-                    <tr key={concept.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '9px 10px' }}>
-                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{idx + 7}. {concept.name}</div>
-                      </td>
-                      <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700 }}>
-                        {formatCurrency(Math.round(concept.amount * factor))}
-                      </td>
-                    </tr>
-                  ))}
+                  {conceptsPage2.map((concept, idx) => {
+                    const unitAmt = Math.round(concept.amount * factor);
+                    const lineAmt = unitAmt * conceptsHouseQty;
+                    return (
+                      <tr key={concept.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '9px 10px' }}>
+                          <div style={{ fontWeight: 700, color: '#0f172a' }}>{idx + 7}. {concept.name}</div>
+                        </td>
+                        {conceptsHouseQty > 1 && (
+                          <td style={{ padding: '9px 10px', textAlign: 'right', color: '#64748b' }}>
+                            {formatCurrency(unitAmt)}
+                          </td>
+                        )}
+                        <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700 }}>
+                          {formatCurrency(lineAmt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -527,10 +598,33 @@ export default function QuoteCalculator() {
   // Blueprint Plan Image
   const [blueprintImg, setBlueprintImg] = useState(null);
 
-  // M2 Mode States
-  const [finishType, setFinishType] = useState('obra_blanca_tradicional');
-  const [houseAreaMode, setHouseAreaMode] = useState('dims'); 
-  const [houseDims, setHouseDims] = useState({ width: '', length: '', area: '' });
+  // M2 Mode States - Houses and Cabins List
+  const [houses, setHouses] = useState(() => {
+    const saved = localStorage.getItem('habitech_quote_houses');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error('Error parsing saved houses:', e);
+      }
+    }
+    return [
+      {
+        id: 'h_' + Date.now(),
+        name: 'Casa / Cabaña 1',
+        finishType: 'obra_blanca_tradicional',
+        areaMode: 'dims',
+        dims: { width: '', length: '', area: '' },
+        quantity: 1
+      }
+    ];
+  });
+
+  const finishType = houses[0]?.finishType || 'obra_blanca_tradicional';
+  const setFinishType = (val) => {
+    setHouses(prev => prev.map((h, i) => i === 0 ? { ...h, finishType: val } : h));
+  };
   
   const [includeSlab, setIncludeSlab] = useState(false);
   const [slabAreaMode, setSlabAreaMode] = useState('dims');
@@ -548,9 +642,22 @@ export default function QuoteCalculator() {
     const saved = localStorage.getItem('habitech_quote_concepts');
     return saved ? JSON.parse(saved) : INITIAL_CONCEPTS;
   });
+  const [conceptsHouseQty, setConceptsHouseQty] = useState(() => {
+    const saved = localStorage.getItem('habitech_quote_concepts_qty');
+    return saved ? Math.max(1, parseInt(saved) || 1) : 1;
+  });
 
-  // Additional settings
-  const [discountPercent, setDiscountPercent] = useState('0');
+  useEffect(() => {
+    localStorage.setItem('habitech_quote_concepts_qty', conceptsHouseQty.toString());
+  }, [conceptsHouseQty]);
+
+  // Additional settings: Discount mode (percent or amount in money)
+  const [discountType, setDiscountType] = useState(() => {
+    return localStorage.getItem('habitech_quote_discount_type') || 'percent';
+  });
+  const [discountValue, setDiscountValue] = useState(() => {
+    return localStorage.getItem('habitech_quote_discount_value') || '0';
+  });
   const [adjustmentAmount, setAdjustmentAmount] = useState('0');
   const [notes, setNotes] = useState('Garantía de construcción de 5 años estructural. Validez de esta cotización de 30 días calendario.');
 
@@ -568,14 +675,108 @@ export default function QuoteCalculator() {
     localStorage.setItem('habitech_saved_quotes', JSON.stringify(savedQuotes));
   }, [savedQuotes]);
 
-  // Auto-calculate areas when dimensions change
   useEffect(() => {
-    if (houseAreaMode === 'dims') {
-      const w = parseFloat(houseDims.width) || 0;
-      const l = parseFloat(houseDims.length) || 0;
-      setHouseDims(prev => ({ ...prev, area: (w * l).toFixed(2) }));
-    }
-  }, [houseDims.width, houseDims.length, houseAreaMode]);
+    localStorage.setItem('habitech_quote_houses', JSON.stringify(houses));
+  }, [houses]);
+
+  useEffect(() => {
+    localStorage.setItem('habitech_quote_discount_type', discountType);
+  }, [discountType]);
+
+  useEffect(() => {
+    localStorage.setItem('habitech_quote_discount_value', discountValue);
+  }, [discountValue]);
+
+  // Houses handlers
+  const handleAddHouse = () => {
+    const newId = 'h_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    const count = houses.length + 1;
+    const lastFinish = houses[houses.length - 1]?.finishType || 'obra_blanca_tradicional';
+    setHouses(prev => [
+      ...prev,
+      {
+        id: newId,
+        name: `Casa / Cabaña ${count}`,
+        finishType: lastFinish,
+        areaMode: 'dims',
+        dims: { width: '', length: '', area: '' },
+        quantity: 1
+      }
+    ]);
+  };
+
+  const handleDeleteHouse = (id) => {
+    if (houses.length <= 1) return;
+    setHouses(prev => prev.filter(h => h.id !== id));
+  };
+
+  const handleDuplicateHouse = (house) => {
+    const newId = 'h_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    setHouses(prev => [
+      ...prev,
+      {
+        ...house,
+        id: newId,
+        name: `${house.name} (Copia)`,
+        dims: { ...house.dims }
+      }
+    ]);
+  };
+
+  const handleHouseChange = (id, field, value) => {
+    setHouses(prev => prev.map(h => {
+      if (h.id === id) {
+        return { ...h, [field]: value };
+      }
+      return h;
+    }));
+  };
+
+  const handleHouseDimsChange = (id, dimField, value) => {
+    setHouses(prev => prev.map(h => {
+      if (h.id === id) {
+        const updatedDims = { ...h.dims, [dimField]: value };
+        if (h.areaMode === 'dims') {
+          const w = parseFloat(dimField === 'width' ? value : h.dims.width) || 0;
+          const l = parseFloat(dimField === 'length' ? value : h.dims.length) || 0;
+          updatedDims.area = (w * l > 0) ? (w * l).toFixed(2) : '';
+        }
+        return { ...h, dims: updatedDims };
+      }
+      return h;
+    }));
+  };
+
+  const handleHouseAreaModeChange = (id, newMode) => {
+    setHouses(prev => prev.map(h => {
+      if (h.id === id) {
+        const updatedDims = { ...h.dims };
+        if (newMode === 'dims') {
+          const w = parseFloat(updatedDims.width) || 0;
+          const l = parseFloat(updatedDims.length) || 0;
+          updatedDims.area = (w * l > 0) ? (w * l).toFixed(2) : '';
+        }
+        return { ...h, areaMode: newMode, dims: updatedDims };
+      }
+      return h;
+    }));
+  };
+
+  const handleHouseQuantityChange = (id, val) => {
+    const parsed = Math.max(1, parseInt(val) || 1);
+    setHouses(prev => prev.map(h => h.id === id ? { ...h, quantity: parsed } : h));
+  };
+
+  const handleHouseQuantityStep = (id, delta) => {
+    setHouses(prev => prev.map(h => {
+      if (h.id === id) {
+        const current = parseInt(h.quantity) || 1;
+        const next = Math.max(1, current + delta);
+        return { ...h, quantity: next };
+      }
+      return h;
+    }));
+  };
 
   useEffect(() => {
     if (slabAreaMode === 'dims') {
@@ -712,14 +913,25 @@ export default function QuoteCalculator() {
         project: '',
         date: new Date().toISOString().split('T')[0]
       });
-      setHouseDims({ width: '', length: '', area: '' });
+      setHouses([
+        {
+          id: 'h_' + Date.now(),
+          name: 'Casa / Cabaña 1',
+          finishType: 'obra_blanca_tradicional',
+          areaMode: 'dims',
+          dims: { width: '', length: '', area: '' },
+          quantity: 1
+        }
+      ]);
+      setConceptsHouseQty(1);
       setSlabDims({ width: '', length: '', area: '' });
       setCorridorDims({ width: '', length: '', area: '' });
       setIncludeSlab(false);
       setIncludeCorridors(false);
       setIncludeStairs(false);
       setStairsQty('1');
-      setDiscountPercent('0');
+      setDiscountType('percent');
+      setDiscountValue('0');
       setAdjustmentAmount('0');
       setBlueprintImg(null);
     }
@@ -728,44 +940,64 @@ export default function QuoteCalculator() {
   // Math Calculations (Pro-rated adjustment)
   const adjAmt = parseFloat(adjustmentAmount) || 0;
   
-  let baseHouseSubtotal = 0;
-  let baseSlabSubtotal = 0;
-  let baseCorridorSubtotal = 0;
-  let baseStairsSubtotal = 0;
-  
-  let rawSubtotal = 0;
-  
-  const houseArea = parseFloat(houseDims.area) || 0;
-  const houseRate = prices[finishType] || 0;
-  baseHouseSubtotal = houseArea * houseRate;
+  let baseHousesSubtotal = 0;
+  let totalHousesArea = 0;
+  let totalHousesCount = 0;
+
+  houses.forEach(h => {
+    const hArea = parseFloat(h.dims.area) || 0;
+    const hQty = Math.max(1, parseInt(h.quantity) || 1);
+    const hRate = prices[h.finishType] || 0;
+    const itemTotalArea = hArea * hQty;
+    baseHousesSubtotal += (itemTotalArea * hRate);
+    totalHousesArea += itemTotalArea;
+    totalHousesCount += hQty;
+  });
 
   const slabArea = includeSlab ? (parseFloat(slabDims.area) || 0) : 0;
   const slabRate = prices.placa_niveles || 0;
-  baseSlabSubtotal = slabArea * slabRate;
+  const baseSlabSubtotal = slabArea * slabRate;
 
   const corridorArea = includeCorridors ? (parseFloat(corridorDims.area) || 0) : 0;
   const corridorRate = prices.corredores_exteriores || 0;
-  baseCorridorSubtotal = corridorArea * corridorRate;
+  const baseCorridorSubtotal = corridorArea * corridorRate;
 
   const stairsCount = includeStairs ? (parseInt(stairsQty) || 0) : 0;
   const stairsRate = prices.escalera || 0;
-  baseStairsSubtotal = stairsCount * stairsRate;
+  const baseStairsSubtotal = stairsCount * stairsRate;
 
+  const conceptsHouseQtyVal = Math.max(1, parseInt(conceptsHouseQty) || 1);
+  const baseConceptsUnitSubtotal = concepts
+    .filter(c => c.included)
+    .reduce((sum, c) => sum + c.amount, 0);
+
+  let rawSubtotal = 0;
   if (quoteMode === 'm2') {
-    rawSubtotal = baseHouseSubtotal + baseSlabSubtotal + baseCorridorSubtotal + baseStairsSubtotal;
+    rawSubtotal = baseHousesSubtotal + baseSlabSubtotal + baseCorridorSubtotal + baseStairsSubtotal;
   } else {
-    rawSubtotal = concepts
-      .filter(c => c.included)
-      .reduce((sum, c) => sum + c.amount, 0);
+    rawSubtotal = baseConceptsUnitSubtotal * conceptsHouseQtyVal;
   }
 
   // Calculate pro-rating factor
   const factor = rawSubtotal > 0 ? (rawSubtotal + adjAmt) / rawSubtotal : 1;
 
   // Prorated items for rendering (Rounded to nearest Colombian Peso to avoid cents)
-  const printedHouseRate = Math.round(houseRate * factor);
-  const printedHouseSubtotal = Math.round(baseHouseSubtotal * factor);
-  
+  const printedHouses = houses.map(h => {
+    const hArea = parseFloat(h.dims.area) || 0;
+    const hQty = Math.max(1, parseInt(h.quantity) || 1);
+    const totalHArea = hArea * hQty;
+    const hRate = prices[h.finishType] || 0;
+    return {
+      ...h,
+      unitArea: hArea,
+      quantity: hQty,
+      totalArea: totalHArea,
+      baseRate: hRate,
+      printedRate: Math.round(hRate * factor),
+      printedSubtotal: Math.round(totalHArea * hRate * factor)
+    };
+  });
+
   const printedSlabRate = Math.round(slabRate * factor);
   const printedSlabSubtotal = Math.round(baseSlabSubtotal * factor);
   
@@ -776,12 +1008,33 @@ export default function QuoteCalculator() {
   const printedStairsSubtotal = Math.round(baseStairsSubtotal * factor);
 
   // Sum of prorated lines
-  const subtotalBeforeDiscount = quoteMode === 'm2'
-    ? (printedHouseSubtotal + printedSlabSubtotal + printedCorridorSubtotal + printedStairsSubtotal)
-    : concepts.filter(c => c.included).reduce((sum, c) => sum + Math.round(c.amount * factor), 0);
+  const printedHousesSubtotal = printedHouses.reduce((sum, h) => sum + h.printedSubtotal, 0);
 
-  const discountVal = (subtotalBeforeDiscount * (parseFloat(discountPercent) || 0)) / 100;
-  const totalQuote = subtotalBeforeDiscount - discountVal;
+  const conceptsUnitSubtotal = concepts
+    .filter(c => c.included)
+    .reduce((sum, c) => sum + Math.round(c.amount * factor), 0);
+
+  const conceptsTotalSubtotal = conceptsUnitSubtotal * conceptsHouseQtyVal;
+
+  const subtotalBeforeDiscount = quoteMode === 'm2'
+    ? (printedHousesSubtotal + printedSlabSubtotal + printedCorridorSubtotal + printedStairsSubtotal)
+    : conceptsTotalSubtotal;
+
+  // Discount calculation (in % or direct $ amount)
+  let discountVal = 0;
+  if (discountType === 'percent') {
+    const pct = Math.max(0, Math.min(100, parseFloat(discountValue) || 0));
+    discountVal = (subtotalBeforeDiscount * pct) / 100;
+  } else {
+    const amt = Math.max(0, parseFloat(discountValue) || 0);
+    discountVal = Math.min(subtotalBeforeDiscount, amt);
+  }
+
+  const effectiveDiscountPercent = subtotalBeforeDiscount > 0
+    ? ((discountVal / subtotalBeforeDiscount) * 100).toFixed(1)
+    : '0';
+
+  const totalQuote = Math.max(0, subtotalBeforeDiscount - discountVal);
 
   const handlePrint = () => {
     window.print();
@@ -798,9 +1051,9 @@ export default function QuoteCalculator() {
       savedAt: new Date().toISOString(),
       clientData,
       quoteMode,
-      finishType,
-      houseAreaMode,
-      houseDims,
+      finishType: houses[0]?.finishType || 'obra_blanca_tradicional',
+      houses,
+      conceptsHouseQty: conceptsHouseQtyVal,
       includeSlab,
       slabAreaMode,
       slabDims,
@@ -810,7 +1063,9 @@ export default function QuoteCalculator() {
       includeStairs,
       stairsQty,
       concepts,
-      discountPercent,
+      discountType,
+      discountValue,
+      discountPercent: effectiveDiscountPercent,
       adjustmentAmount,
       notes,
       blueprintImg,
@@ -825,9 +1080,24 @@ export default function QuoteCalculator() {
       setQuoteNumber(q.quoteNumber || ('COT-' + q.id.substring(2, 8)));
       setClientData(q.clientData);
       setQuoteMode(q.quoteMode);
-      setFinishType(q.finishType);
-      setHouseAreaMode(q.houseAreaMode);
-      setHouseDims(q.houseDims);
+      
+      // Load houses or adapt legacy single house format
+      if (q.houses && Array.isArray(q.houses) && q.houses.length > 0) {
+        setHouses(q.houses);
+      } else {
+        setHouses([
+          {
+            id: 'h_legacy_' + Date.now(),
+            name: 'Casa / Cabaña 1',
+            finishType: q.finishType || 'obra_blanca_tradicional',
+            areaMode: q.houseAreaMode || 'dims',
+            dims: q.houseDims || { width: '', length: '', area: '' },
+            quantity: parseInt(q.houseQty) || 1
+          }
+        ]);
+      }
+
+      setConceptsHouseQty(parseInt(q.conceptsHouseQty) || 1);
       setIncludeSlab(q.includeSlab);
       setSlabAreaMode(q.slabAreaMode);
       setSlabDims(q.slabDims);
@@ -837,8 +1107,17 @@ export default function QuoteCalculator() {
       setIncludeStairs(q.includeStairs);
       setStairsQty(q.stairsQty);
       setConcepts(q.concepts || INITIAL_CONCEPTS);
-      setDiscountPercent(q.discountPercent);
-      setAdjustmentAmount(q.adjustmentAmount);
+
+      // Load discount
+      if (q.discountType) {
+        setDiscountType(q.discountType);
+        setDiscountValue(q.discountValue || '0');
+      } else {
+        setDiscountType('percent');
+        setDiscountValue(q.discountPercent || '0');
+      }
+
+      setAdjustmentAmount(q.adjustmentAmount || '0');
       setNotes(q.notes);
       setBlueprintImg(q.blueprintImg || null);
       setShowHistoryModal(false);
@@ -855,12 +1134,9 @@ export default function QuoteCalculator() {
     quoteNumber,
     clientData,
     quoteMode,
-    finishType,
+    printedHouses,
+    finishType: houses[0]?.finishType || 'obra_blanca_tradicional',
     getFinishTypeLabel,
-    houseArea,
-    houseDims,
-    printedHouseRate,
-    printedHouseSubtotal,
     includeSlab,
     slabArea,
     slabDims,
@@ -877,10 +1153,14 @@ export default function QuoteCalculator() {
     printedStairsRate,
     printedStairsSubtotal,
     concepts,
+    conceptsHouseQty: conceptsHouseQtyVal,
+    conceptsUnitSubtotal,
     factor,
     subtotalBeforeDiscount,
-    discountPercent,
+    discountType,
+    discountValue,
     discountVal,
+    effectiveDiscountPercent,
     totalQuote,
     notes,
     blueprintImg,
@@ -1126,84 +1406,238 @@ export default function QuoteCalculator() {
           {quoteMode === 'm2' && (
             <>
               <div className="glass-panel" style={{ padding: '20px' }}>
-                <h3 style={{ marginBottom: '15px', fontSize: '1rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
-                  Área Principal de Construcción (Vivienda)
-                </h3>
-
-                <div className="form-group">
-                  <label>Tipo de Acabado / Sistema</label>
-                  <select
-                    className="form-control"
-                    value={finishType}
-                    onChange={(e) => setFinishType(e.target.value)}
-                  >
-                    <option value="obra_blanca_tradicional">Obra Blanca Tradicional ({formatCurrency(prices.obra_blanca_tradicional)}/m²)</option>
-                    <option value="obra_gris_tradicional">Obra Gris Tradicional ({formatCurrency(prices.obra_gris_tradicional)}/m²)</option>
-                    <option value="obra_negra_tradicional">Obra Negra Tradicional ({formatCurrency(prices.obra_negra_tradicional)}/m²)</option>
-                    <option value="obra_blanca_prefabricado">Obra Blanca Prefabricado ({formatCurrency(prices.obra_blanca_prefabricado)}/m²)</option>
-                    <option value="obra_gris_prefabricado">Obra Gris Prefabricado ({formatCurrency(prices.obra_gris_prefabricado)}/m²)</option>
-                    <option value="obra_blanca_liviano">Obra Blanca Liviano ({formatCurrency(prices.obra_blanca_liviano)}/m²)</option>
-                  </select>
-                </div>
-
-                <div className="form-row" style={{ alignItems: 'flex-end', marginBottom: '10px' }}>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label>Modo de Medida</label>
-                    <select
-                      className="form-control"
-                      value={houseAreaMode}
-                      onChange={(e) => setHouseAreaMode(e.target.value)}
-                    >
-                      <option value="dims">Por Medidas (Ancho x Largo)</option>
-                      <option value="direct">M² Directos</option>
-                    </select>
-                  </div>
-
-                  {houseAreaMode === 'dims' ? (
-                    <>
-                      <div className="form-group" style={{ flex: 1 }}>
-                        <label>Ancho (m)</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          placeholder="Ej. 6"
-                          value={houseDims.width}
-                          onChange={(e) => setHouseDims({ ...houseDims, width: e.target.value })}
-                        />
-                      </div>
-                      <div className="form-group" style={{ flex: 1 }}>
-                        <label>Largo (m)</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          placeholder="Ej. 10"
-                          value={houseDims.length}
-                          onChange={(e) => setHouseDims({ ...houseDims, length: e.target.value })}
-                        />
-                      </div>
-                    </>
-                  ) : null}
-
-                  <div className="form-group" style={{ minWidth: '100px', flex: 1 }}>
-                    <label>Área Total (M²)</label>
-                    <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', borderRadius: '8px', fontWeight: 700, color: 'var(--primary-cyan)' }}>
-                      {houseDims.area || 0} m²
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                      <Home size={18} style={{ color: 'var(--primary-cyan)' }} />
+                      Casas y Cabañas del Proyecto
+                    </h3>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                      {totalHousesCount} {totalHousesCount === 1 ? 'unidad cotizada' : 'unidades cotizadas'} • {totalHousesArea.toFixed(1)} m² de construcción total
                     </div>
                   </div>
+                  
+                  <button 
+                    type="button" 
+                    className="btn btn-primary" 
+                    style={{ padding: '6px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--primary-orange)' }}
+                    onClick={handleAddHouse}
+                    title="Agregar otro modelo o cantidad de casa/cabaña"
+                  >
+                    <Plus size={15} /> Agregar Casa / Cabaña
+                  </button>
                 </div>
 
-                {houseAreaMode === 'direct' && (
-                  <div className="form-group">
-                    <label>Metros Cuadrados Directos</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      placeholder="Ej. 75"
-                      value={houseDims.area}
-                      onChange={(e) => setHouseDims({ ...houseDims, area: e.target.value })}
-                    />
-                  </div>
-                )}
+                {/* Houses and Cabins list */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {houses.map((house, idx) => {
+                    const unitArea = parseFloat(house.dims.area) || 0;
+                    const qty = Math.max(1, parseInt(house.quantity) || 1);
+                    const lineTotalArea = unitArea * qty;
+                    const rate = prices[house.finishType] || 0;
+                    const lineSubtotal = lineTotalArea * rate;
+
+                    return (
+                      <div 
+                        key={house.id || idx} 
+                        style={{ 
+                          background: 'rgba(255, 255, 255, 0.02)', 
+                          border: '1px solid var(--border-glass)', 
+                          borderRadius: '10px', 
+                          padding: '16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '12px',
+                          position: 'relative'
+                        }}
+                      >
+                        {/* House Card Top Bar */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', borderBottom: '1px dashed var(--border-glass)', paddingBottom: '10px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '200px' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary-cyan)', background: 'rgba(6,182,212,0.1)', padding: '2px 8px', borderRadius: '4px' }}>
+                              #{idx + 1}
+                            </span>
+                            <input
+                              type="text"
+                              className="form-control"
+                              style={{ fontWeight: 700, fontSize: '0.9rem', padding: '4px 8px', height: '32px' }}
+                              value={house.name}
+                              onChange={(e) => handleHouseChange(house.id, 'name', e.target.value)}
+                              placeholder={`Ej. Cabaña Modelo ${idx + 1}`}
+                            />
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              onClick={() => handleDuplicateHouse(house)}
+                              title="Duplicar esta cabaña o casa"
+                            >
+                              <Copy size={13} /> Duplicar
+                            </button>
+                            {houses.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', color: 'var(--primary-red)', border: '1px solid rgba(239,68,68,0.3)' }}
+                                onClick={() => handleDeleteHouse(house.id)}
+                                title="Eliminar esta cabaña o casa"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Row: Quantity and Finish Type */}
+                        <div className="form-row" style={{ alignItems: 'flex-end', gap: '12px', margin: 0 }}>
+                          {/* Quantity Selector with steppers and chips */}
+                          <div className="form-group" style={{ flex: 1, minWidth: '180px', margin: 0 }}>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
+                              <span>Cantidad de Cabañas / Casas:</span>
+                              <span style={{ color: 'var(--primary-orange)', fontWeight: 700 }}>{qty} {qty === 1 ? 'Unidad' : 'Unidades'}</span>
+                            </label>
+                            
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                style={{ padding: '6px 10px', height: '38px', minWidth: '36px' }}
+                                onClick={() => handleHouseQuantityStep(house.id, -1)}
+                                title="Restar 1 unidad"
+                              >
+                                <Minus size={14} />
+                              </button>
+                              
+                              <input
+                                type="number"
+                                min="1"
+                                className="form-control"
+                                style={{ textAlign: 'center', fontWeight: 800, fontSize: '0.95rem', height: '38px', minWidth: '60px' }}
+                                value={house.quantity}
+                                onChange={(e) => handleHouseQuantityChange(house.id, e.target.value)}
+                              />
+                              
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                style={{ padding: '6px 10px', height: '38px', minWidth: '36px' }}
+                                onClick={() => handleHouseQuantityStep(house.id, 1)}
+                                title="Sumar 1 unidad"
+                              >
+                                <Plus size={14} />
+                              </button>
+
+                              {/* Quick Presets */}
+                              <div style={{ display: 'flex', gap: '4px', marginLeft: '4px' }}>
+                                {[1, 2, 3, 4, 5].map(preset => (
+                                  <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => handleHouseQuantityChange(house.id, preset)}
+                                    style={{
+                                      padding: '4px 7px',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      borderRadius: '4px',
+                                      border: qty === preset ? '1px solid var(--primary-orange)' : '1px solid var(--border-glass)',
+                                      background: qty === preset ? 'rgba(255,109,0,0.2)' : 'rgba(255,255,255,0.03)',
+                                      color: qty === preset ? '#FF6D00' : 'var(--text-secondary)',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {preset}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Finish type */}
+                          <div className="form-group" style={{ flex: 1.5, minWidth: '220px', margin: 0 }}>
+                            <label style={{ fontSize: '0.78rem' }}>Tipo de Acabado / Sistema</label>
+                            <select
+                              className="form-control"
+                              style={{ height: '38px' }}
+                              value={house.finishType}
+                              onChange={(e) => handleHouseChange(house.id, 'finishType', e.target.value)}
+                            >
+                              <option value="obra_blanca_tradicional">Obra Blanca Tradicional ({formatCurrency(prices.obra_blanca_tradicional)}/m²)</option>
+                              <option value="obra_gris_tradicional">Obra Gris Tradicional ({formatCurrency(prices.obra_gris_tradicional)}/m²)</option>
+                              <option value="obra_negra_tradicional">Obra Negra Tradicional ({formatCurrency(prices.obra_negra_tradicional)}/m²)</option>
+                              <option value="obra_blanca_prefabricado">Obra Blanca Prefabricado ({formatCurrency(prices.obra_blanca_prefabricado)}/m²)</option>
+                              <option value="obra_gris_prefabricado">Obra Gris Prefabricado ({formatCurrency(prices.obra_gris_prefabricado)}/m²)</option>
+                              <option value="obra_blanca_liviano">Obra Blanca Liviano ({formatCurrency(prices.obra_blanca_liviano)}/m²)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Row: Dimensions */}
+                        <div className="form-row" style={{ alignItems: 'flex-end', gap: '10px', margin: 0 }}>
+                          <div className="form-group" style={{ flex: 1, minWidth: '130px', margin: 0 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Método de Medida</label>
+                            <select
+                              className="form-control"
+                              value={house.areaMode || 'dims'}
+                              onChange={(e) => handleHouseAreaModeChange(house.id, e.target.value)}
+                            >
+                              <option value="dims">Por Medidas (Ancho x Largo)</option>
+                              <option value="direct">M² Directos</option>
+                            </select>
+                          </div>
+
+                          {house.areaMode === 'dims' ? (
+                            <>
+                              <div className="form-group" style={{ flex: 0.8, minWidth: '80px', margin: 0 }}>
+                                <label style={{ fontSize: '0.75rem' }}>Ancho (m)</label>
+                                <input
+                                  type="number"
+                                  className="form-control"
+                                  placeholder="Ej. 6"
+                                  value={house.dims.width}
+                                  onChange={(e) => handleHouseDimsChange(house.id, 'width', e.target.value)}
+                                />
+                              </div>
+                              <div className="form-group" style={{ flex: 0.8, minWidth: '80px', margin: 0 }}>
+                                <label style={{ fontSize: '0.75rem' }}>Largo (m)</label>
+                                <input
+                                  type="number"
+                                  className="form-control"
+                                  placeholder="Ej. 6"
+                                  value={house.dims.length}
+                                  onChange={(e) => handleHouseDimsChange(house.id, 'length', e.target.value)}
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <div className="form-group" style={{ flex: 1.6, minWidth: '140px', margin: 0 }}>
+                              <label style={{ fontSize: '0.75rem' }}>M² por Unidad</label>
+                              <input
+                                type="number"
+                                className="form-control"
+                                placeholder="Ej. 36"
+                                value={house.dims.area}
+                                onChange={(e) => handleHouseDimsChange(house.id, 'area', e.target.value)}
+                              />
+                            </div>
+                          )}
+
+                          <div className="form-group" style={{ flex: 1.2, minWidth: '160px', margin: 0 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Área y Subtotal Renglón</label>
+                            <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-glass)', borderRadius: '8px', fontSize: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>
+                                <strong style={{ color: 'var(--primary-cyan)' }}>{unitArea} m²</strong> {qty > 1 && <span style={{ color: 'var(--text-muted)' }}>× {qty} = {lineTotalArea.toFixed(1)} m²</span>}
+                              </span>
+                              <strong style={{ color: 'var(--primary-orange)' }}>{formatCurrency(lineSubtotal)}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Adicionales */}
@@ -1343,6 +1777,83 @@ export default function QuoteCalculator() {
                 </button>
               </div>
 
+              {/* Quantities multiplier card for Concepts Mode */}
+              <div style={{ background: 'rgba(255, 109, 0, 0.05)', border: '1px solid rgba(255, 109, 0, 0.25)', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--primary-orange)', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                      <Home size={16} /> Cantidad de Casas / Cabañas (Multiplicador):
+                    </label>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                      El desglose de actividades corresponde a 1 unidad. Este multiplicador calculará el total global.
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '6px 10px', height: '36px', minWidth: '34px' }}
+                      onClick={() => setConceptsHouseQty(prev => Math.max(1, prev - 1))}
+                      title="Restar 1 casa/cabaña"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    
+                    <input
+                      type="number"
+                      min="1"
+                      className="form-control"
+                      style={{ width: '60px', textAlign: 'center', fontWeight: 800, fontSize: '1rem', height: '36px', color: 'var(--primary-orange)' }}
+                      value={conceptsHouseQty}
+                      onChange={(e) => setConceptsHouseQty(Math.max(1, parseInt(e.target.value) || 1))}
+                    />
+
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '6px 10px', height: '36px', minWidth: '34px' }}
+                      onClick={() => setConceptsHouseQty(prev => prev + 1)}
+                      title="Sumar 1 casa/cabaña"
+                    >
+                      <Plus size={14} />
+                    </button>
+
+                    <div style={{ display: 'flex', gap: '4px', marginLeft: '4px' }}>
+                      {[1, 2, 3, 4, 5, 10].map(preset => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setConceptsHouseQty(preset)}
+                          style={{
+                            padding: '4px 7px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            borderRadius: '4px',
+                            border: conceptsHouseQty === preset ? '1px solid var(--primary-orange)' : '1px solid var(--border-glass)',
+                            background: conceptsHouseQty === preset ? 'rgba(255,109,0,0.25)' : 'rgba(255,255,255,0.03)',
+                            color: conceptsHouseQty === preset ? '#FF6D00' : 'var(--text-secondary)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Real-time Summary preview */}
+                <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed rgba(255, 109, 0, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', flexWrap: 'wrap', gap: '6px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    Subtotal 1 casa/cabaña: <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(conceptsUnitSubtotal)}</strong>
+                  </span>
+                  <span style={{ color: 'var(--primary-cyan)', fontWeight: 700 }}>
+                    Subtotal x {conceptsHouseQty} {conceptsHouseQty === 1 ? 'casa' : 'casas'}: <strong style={{ fontSize: '0.95rem', color: '#FF6D00' }}>{formatCurrency(conceptsTotalSubtotal)}</strong>
+                  </span>
+                </div>
+              </div>
+
               {/* Finishing Select (Obra Blanca / Gris / Negra) for First Concept */}
               <div className="form-group" style={{ marginBottom: '15px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', padding: '12px', borderRadius: '8px' }}>
                 <label>1. Tipo Acabado Estructural (Casa)</label>
@@ -1420,8 +1931,8 @@ export default function QuoteCalculator() {
               Descuentos, Margen y Condiciones
             </h3>
             
-            <div className="form-row" style={{ marginBottom: '12px' }}>
-              <div className="form-group">
+            <div className="form-row" style={{ marginBottom: '16px' }}>
+              <div className="form-group" style={{ flex: 1 }}>
                 <label>Ajuste / Margen Global ($)</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ color: 'var(--text-muted)' }}>$</span>
@@ -1435,18 +1946,181 @@ export default function QuoteCalculator() {
                 </div>
                 <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>Este valor se distribuirá proporcionalmente en los precios mostrados al cliente.</p>
               </div>
+            </div>
 
-              <div className="form-group" style={{ maxWidth: '120px' }}>
-                <label>Descuento (%)</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  min="0"
-                  max="100"
-                  value={discountPercent}
-                  onChange={(e) => setDiscountPercent(e.target.value)}
-                />
+            {/* Discount Configuration Card */}
+            <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-glass)', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Tag size={15} style={{ color: 'var(--primary-teal)' }} />
+                  Descuento Comercial Total:
+                </label>
+
+                {/* Mode Selector Toggle */}
+                <div style={{ display: 'flex', background: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '3px', border: '1px solid var(--border-glass)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType('percent')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      background: discountType === 'percent' ? 'var(--primary-teal)' : 'transparent',
+                      color: discountType === 'percent' ? '#000' : 'var(--text-secondary)',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    <Percent size={12} /> Porcentaje (%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType('amount')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      background: discountType === 'amount' ? 'var(--primary-teal)' : 'transparent',
+                      color: discountType === 'amount' ? '#000' : 'var(--text-secondary)',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    <DollarSign size={12} /> En Dinero ($)
+                  </button>
+                </div>
               </div>
+
+              {/* Mode Specific Inputs */}
+              {discountType === 'percent' ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ position: 'relative', flex: 1, maxWidth: '140px' }}>
+                      <input
+                        type="number"
+                        className="form-control"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        placeholder="Ej. 5"
+                        value={discountValue}
+                        onChange={(e) => setDiscountValue(e.target.value)}
+                        style={{ fontWeight: 800, paddingRight: '28px', fontSize: '1rem', color: '#10b981' }}
+                      />
+                      <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-muted)' }}>%</span>
+                    </div>
+
+                    {/* Quick percentage buttons */}
+                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                      {[3, 5, 8, 10, 15].map(pct => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setDiscountValue(pct.toString())}
+                          style={{
+                            padding: '6px 9px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            borderRadius: '6px',
+                            border: discountValue === pct.toString() ? '1px solid var(--primary-teal)' : '1px solid var(--border-glass)',
+                            background: discountValue === pct.toString() ? 'rgba(20,184,166,0.2)' : 'rgba(255,255,255,0.03)',
+                            color: discountValue === pct.toString() ? 'var(--primary-teal)' : 'var(--text-secondary)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {pct}%
+                        </button>
+                      ))}
+                      {parseFloat(discountValue) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setDiscountValue('0')}
+                          style={{ padding: '6px 8px', fontSize: '0.72rem', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', color: 'var(--primary-red)', borderRadius: '6px', cursor: 'pointer' }}
+                          title="Quitar descuento"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Real-time calculated equivalent */}
+                  <div style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.08)', padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                    <span>💡 Descuento aplicado: <strong>- {formatCurrency(discountVal)}</strong></span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '180px' }}>
+                      <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-muted)' }}>$</span>
+                      <input
+                        type="number"
+                        className="form-control"
+                        min="0"
+                        step="500000"
+                        placeholder="Ej. 5000000"
+                        value={discountValue}
+                        onChange={(e) => setDiscountValue(e.target.value)}
+                        style={{ paddingLeft: '24px', fontWeight: 800, fontSize: '1rem', color: '#10b981' }}
+                      />
+                    </div>
+
+                    {/* Quick money buttons */}
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      {[
+                        { label: '$1M', val: 1000000 },
+                        { label: '$2M', val: 2000000 },
+                        { label: '$5M', val: 5000000 },
+                        { label: '$10M', val: 10000000 }
+                      ].map(item => (
+                        <button
+                          key={item.val}
+                          type="button"
+                          onClick={() => setDiscountValue(item.val.toString())}
+                          style={{
+                            padding: '6px 8px',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            borderRadius: '6px',
+                            border: discountValue === item.val.toString() ? '1px solid var(--primary-teal)' : '1px solid var(--border-glass)',
+                            background: discountValue === item.val.toString() ? 'rgba(20,184,166,0.2)' : 'rgba(255,255,255,0.03)',
+                            color: discountValue === item.val.toString() ? 'var(--primary-teal)' : 'var(--text-secondary)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                      {parseFloat(discountValue) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setDiscountValue('0')}
+                          style={{ padding: '6px 8px', fontSize: '0.72rem', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', color: 'var(--primary-red)', borderRadius: '6px', cursor: 'pointer' }}
+                          title="Quitar descuento"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Real-time calculated equivalent */}
+                  <div style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.08)', padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                    <span>💡 Descuento de <strong>{formatCurrency(parseFloat(discountValue) || 0)}</strong> equivale al <strong>{effectiveDiscountPercent}%</strong> del subtotal</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="form-group">
