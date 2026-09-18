@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Hammer, MapPin, DollarSign, User, Plus, Trash2, Calendar } from 'lucide-react';
+import { X, Save, Hammer, MapPin, DollarSign, User, Plus, Trash2, Calendar, CreditCard } from 'lucide-react';
 import MapSelector from './MapSelector';
 
 const generateDefaultPhases = (startDateStr, endDateStr) => {
@@ -53,6 +53,7 @@ export default function ProjectForm({ project, onClose, onSave }) {
       id: project?.id || `proj_${new Date().getTime()}`,
       name: project?.name || '',
       clientName: project?.clientName || '',
+      clientDocumentId: project?.clientDocumentId || '',
       clientPhone: project?.clientPhone || '',
       clientEmail: project?.clientEmail || '',
       location: project?.location || { lat: 6.2518, lng: -75.5636, address: 'Medellín, Colombia' },
@@ -424,6 +425,28 @@ export default function ProjectForm({ project, onClose, onSave }) {
                   />
                   <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Cédula o NIT del Cliente (Acceso Portal Clientes)</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--primary-cyan)', fontWeight: 600 }}>Login Portal</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    name="clientDocumentId"
+                    className="form-control"
+                    style={{ paddingLeft: '35px' }}
+                    placeholder="Ej. 1020304050"
+                    value={formData.clientDocumentId || ''}
+                    onChange={handleInputChange}
+                  />
+                  <CreditCard size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                </div>
+                <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                  Con este número de cédula el cliente podrá ingresar al portal para ver su bitácora, avances fotográficos, ficha técnica y expedientes.
+                </small>
               </div>
 
               <div className="form-row">

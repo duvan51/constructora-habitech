@@ -167,6 +167,7 @@ const mapProjectToCamel = (p) => {
     clientName: p.client_name,
     clientPhone: p.client_phone,
     clientEmail: p.client_email,
+    clientDocumentId: p.client_document_id || p.clientDocumentId || '',
     location: p.location,
     status: p.status,
     totalCost: parseFloat(p.total_cost) || 0,
@@ -191,6 +192,7 @@ const mapProjectToSnake = (p) => {
     client_name: p.clientName,
     client_phone: p.clientPhone,
     client_email: p.clientEmail,
+    client_document_id: p.clientDocumentId || null,
     location: p.location,
     status: p.status,
     total_cost: p.totalCost,
@@ -227,6 +229,7 @@ export const seedMockData = async () => {
           client_name: 'Alejandro Restrepo',
           client_phone: '+57 312 456 7890',
           client_email: 'alejandro.restrepo@email.com',
+          client_document_id: '1020304050',
           location: {
             lat: 6.2518,
             lng: -75.5636,
@@ -258,6 +261,7 @@ export const seedMockData = async () => {
           client_name: 'Liliana Patricia Gómez',
           client_phone: '+57 300 765 4321',
           client_email: 'liliana.gomez@email.com',
+          client_document_id: '987654321',
           location: {
             lat: 6.2730,
             lng: -75.5925,

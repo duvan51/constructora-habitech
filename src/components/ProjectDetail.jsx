@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Edit3, MapPin, Calendar, User, Phone, Mail, 
   DollarSign, CheckSquare, FileText, Image as ImageIcon, Camera, 
-  TrendingUp, Plus, Trash2, Eye, Download, CheckCircle, Clock, X, Printer 
+  TrendingUp, Plus, Trash2, Eye, Download, CheckCircle, Clock, X, Printer,
+  Receipt, Search, ChevronDown, ChevronUp, CreditCard, Calculator, FolderOpen, Info
 } from 'lucide-react';
 import { 
   getDocumentsForProject, 
@@ -117,6 +118,13 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   const [isEditingDoc, setIsEditingDoc] = useState(false);
   const [editingDocData, setEditingDocData] = useState({ name: '', type: '' });
 
+  // Guard against client accessing financial tabs
+  useEffect(() => {
+    if (userRole === 'client' && (activeTab === 'payments' || activeTab === 'budget')) {
+      setActiveTab('general');
+    }
+  }, [userRole, activeTab]);
+
   console.log("ProjectDetail transactions count:", transactions.length);
   console.log("ProjectDetail current project ID:", project.id);
   console.log("ProjectDetail transactions for project:", transactions.filter(t => String(t.projectId) === String(project.id)));
@@ -169,6 +177,9 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   });
   const [calcPercentage, setCalcPercentage] = useState('');
   const [expensePercentage, setExpensePercentage] = useState('');
+  const [expenseFilter, setExpenseFilter] = useState('all'); // 'all', 'assigned', 'unassigned'
+  const [expenseSearch, setExpenseSearch] = useState('');
+  const [expandedBudgetItem, setExpandedBudgetItem] = useState(null); // idx of item whose embedded expenses are expanded
 
   // Restructure Payment Plan States
   const [showEditPaymentPlan, setShowEditPaymentPlan] = useState(false);
@@ -1016,18 +1027,18 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   return (
     <div className="project-detail-view animate-fade-in">
       {/* Header Navigation */}
-      <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '25px', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '25px', justifyContent: 'space-between', width: '100%', maxWidth: '100%', minWidth: 0, flexWrap: 'wrap', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flex: '1 1 auto', minWidth: 0 }}>
           <button className="btn-icon" onClick={onBack}>
             <ArrowLeft size={18} />
           </button>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
-              Obra / Detalles
+              {userRole === 'client' ? 'Portal del Cliente / Seguimiento de Obra' : 'Obra / Detalles'}
             </span>
-            <h2 style={{ margin: 0, fontSize: '1.6rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h2 style={{ margin: 0, fontSize: '1.6rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px', wordBreak: 'break-word', overflowWrap: 'anywhere', flexWrap: 'wrap' }}>
               {project.name}
-              {userRole !== 'viewer' && (
+              {userRole !== 'viewer' && userRole !== 'client' && (
                 <button className="btn-icon" onClick={() => setShowEditProject(true)} title="Editar Ficha Técnica" style={{ padding: '6px', color: 'var(--primary-cyan)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                   <Edit3 size={16} />
                 </button>
@@ -1049,21 +1060,63 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       </div>
 
       {/* Tabs Menu */}
-      <div className="tabs-header">
-        <button className={`tab-btn ${activeTab === 'general' ? 'active' : ''}`} onClick={() => setActiveTab('general')}>
-          Resumen General
+      <div className="tabs-header project-tabs-header">
+        <button 
+          className={`tab-btn project-tab-btn ${activeTab === 'general' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('general')}
+          title="Resumen General"
+        >
+          <Info size={18} className="tab-btn-icon" />
+          <span className="tab-btn-text">Resumen General</span>
         </button>
-        <button className={`tab-btn ${activeTab === 'payments' ? 'active' : ''}`} onClick={() => setActiveTab('payments')}>
-          Plan de Pagos ({project.paymentPlan.length})
+
+        {userRole !== 'client' && (
+          <button 
+            className={`tab-btn project-tab-btn ${activeTab === 'payments' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('payments')}
+            title={`Plan de Pagos (${project.paymentPlan.length})`}
+          >
+            <CreditCard size={18} className="tab-btn-icon" />
+            <span className="tab-btn-text">Plan de Pagos</span>
+            {project.paymentPlan.length > 0 && (
+              <span className="tab-badge">{project.paymentPlan.length}</span>
+            )}
+          </button>
+        )}
+
+        {userRole !== 'client' && (
+          <button 
+            className={`tab-btn project-tab-btn ${activeTab === 'budget' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('budget')}
+            title="Presupuesto y Gastos"
+          >
+            <Calculator size={18} className="tab-btn-icon" />
+            <span className="tab-btn-text">Presupuesto y Gastos</span>
+          </button>
+        )}
+
+        <button 
+          className={`tab-btn project-tab-btn ${activeTab === 'docs' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('docs')}
+          title={`Expediente Documentos (${documents.length})`}
+        >
+          <FolderOpen size={18} className="tab-btn-icon" />
+          <span className="tab-btn-text">Expediente Documentos</span>
+          {documents.length > 0 && (
+            <span className="tab-badge">{documents.length}</span>
+          )}
         </button>
-        <button className={`tab-btn ${activeTab === 'budget' ? 'active' : ''}`} onClick={() => setActiveTab('budget')}>
-          Presupuesto y Gastos
-        </button>
-        <button className={`tab-btn ${activeTab === 'docs' ? 'active' : ''}`} onClick={() => setActiveTab('docs')}>
-          Expediente Documentos ({documents.length})
-        </button>
-        <button className={`tab-btn ${activeTab === 'gallery' ? 'active' : ''}`} onClick={() => setActiveTab('gallery')}>
-          Bitácora y Avances ({progressLogs.length})
+
+        <button 
+          className={`tab-btn project-tab-btn ${activeTab === 'gallery' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('gallery')}
+          title={`Bitácora y Avances (${progressLogs.length})`}
+        >
+          <Camera size={18} className="tab-btn-icon" />
+          <span className="tab-btn-text">Bitácora y Avances</span>
+          {progressLogs.length > 0 && (
+            <span className="tab-badge">{progressLogs.length}</span>
+          )}
         </button>
       </div>
 
@@ -1081,6 +1134,12 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                   <span style={{ color: 'var(--text-secondary)' }}>Cliente:</span>
                   <span style={{ fontWeight: 600 }}>{project.clientName}</span>
                 </div>
+                {project.clientDocumentId && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Cédula / Documento:</span>
+                    <span style={{ fontWeight: 600, color: 'var(--primary-cyan)' }}>{project.clientDocumentId}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Teléfono:</span>
                   <span>{project.clientPhone || 'No registrado'}</span>
@@ -1103,18 +1162,22 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                     {project.managerName || 'No asignado'} {project.managerPhone ? `(${project.managerPhone})` : ''}
                   </span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-glass)', paddingTop: '10px', marginTop: '5px' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Presupuesto Contratado:</span>
-                  <span style={{ fontWeight: 800, color: 'var(--primary-teal)' }}>{formatCurrency(project.totalCost)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Total Cobrado:</span>
-                  <span style={{ fontWeight: 800, color: 'var(--primary-cyan)' }}>{formatCurrency(totalPaid)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Saldo Pendiente:</span>
-                  <span style={{ fontWeight: 700, color: 'var(--primary-orange)' }}>{formatCurrency(project.totalCost - totalPaid)}</span>
-                </div>
+                {userRole !== 'client' && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-glass)', paddingTop: '10px', marginTop: '5px' }}>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Presupuesto Contratado:</span>
+                      <span style={{ fontWeight: 800, color: 'var(--primary-teal)' }}>{formatCurrency(project.totalCost)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Total Cobrado:</span>
+                      <span style={{ fontWeight: 800, color: 'var(--primary-cyan)' }}>{formatCurrency(totalPaid)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Saldo Pendiente:</span>
+                      <span style={{ fontWeight: 700, color: 'var(--primary-orange)' }}>{formatCurrency(project.totalCost - totalPaid)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -1156,19 +1219,39 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary-cyan)' }}>{project.progress}%</div>
             </div>
             <div style={{ borderLeft: '1px solid var(--border-glass)' }}></div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '5px' }}>Cobrado Hitos</div>
-              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary-teal)' }}>
-                {Math.round((totalPaid / project.totalCost) * 100)}%
-              </div>
-            </div>
-            <div style={{ borderLeft: '1px solid var(--border-glass)' }}></div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '5px' }}>Margen de Gasto Real</div>
-              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: totalBudgetAct > totalBudgetEst ? 'var(--primary-red)' : '#818cf8' }}>
-                {Math.round((totalBudgetAct / project.totalCost) * 100) || 0}%
-              </div>
-            </div>
+            {userRole === 'client' ? (
+              <>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '5px' }}>Bitácora de Avances</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary-teal)' }}>
+                    {progressLogs.length}
+                  </div>
+                </div>
+                <div style={{ borderLeft: '1px solid var(--border-glass)' }}></div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '5px' }}>Documentos Registrados</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary-cyan)' }}>
+                    {documents.length}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '5px' }}>Cobrado Hitos</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary-teal)' }}>
+                    {Math.round((totalPaid / project.totalCost) * 100)}%
+                  </div>
+                </div>
+                <div style={{ borderLeft: '1px solid var(--border-glass)' }}></div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '5px' }}>Margen de Gasto Real</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: totalBudgetAct > totalBudgetEst ? 'var(--primary-red)' : '#818cf8' }}>
+                    {Math.round((totalBudgetAct / project.totalCost) * 100) || 0}%
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Project Manager Panel */}
@@ -1304,7 +1387,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                       <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{contact.name}</div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{contact.role} - {contact.phone}</div>
                     </div>
-                    {userRole !== 'viewer' && (
+                    {userRole !== 'viewer' && userRole !== 'client' && (
                       <button className="btn-icon" style={{ padding: '5px', color: 'var(--primary-red)' }} onClick={() => handleRemoveContact(contact.id)}>
                         <Trash2 size={14} />
                       </button>
@@ -1316,7 +1399,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                 )}
               </div>
 
-              {userRole !== 'viewer' && (
+              {userRole !== 'viewer' && userRole !== 'client' && (
                 showAddContact ? (
                   <form onSubmit={handleAddContact} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px', background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px' }}>
                     <input type="text" className="form-control" placeholder="Nombre (Ej. Ferretería El Sol)" value={newContact.name} onChange={(e) => setNewContact({...newContact, name: e.target.value})} required />
@@ -1351,7 +1434,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                       <div style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>{note.text}</div>
                       <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>{new Date(note.date).toLocaleDateString()}</div>
                     </div>
-                    {userRole !== 'viewer' && (
+                    {userRole !== 'viewer' && userRole !== 'client' && (
                       <button className="btn-icon" style={{ padding: '5px', color: 'var(--primary-red)' }} onClick={() => handleRemoveNote(note.id)}>
                         <Trash2 size={14} />
                       </button>
@@ -1363,7 +1446,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                 )}
               </div>
 
-              {userRole !== 'viewer' && (
+              {userRole !== 'viewer' && userRole !== 'client' && (
                 showAddNote ? (
                   <form onSubmit={handleAddNote} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px', background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px' }}>
                     <textarea className="form-control" placeholder="Escribe una nota rápida..." value={newNote.text} onChange={(e) => setNewNote({text: e.target.value})} required rows="3"></textarea>
@@ -1391,7 +1474,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               <h3>Planificación de Formas de Pago</h3>
               <p style={{ fontSize: '0.85rem' }}>Estructura de cobros y facturación convenida con el cliente.</p>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                 Total Cobrado: <strong style={{ color: 'var(--primary-teal)' }}>{formatCurrency(totalPaid)}</strong> / {formatCurrency(project.totalCost)}
               </span>
@@ -1403,16 +1486,17 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+          {/* 1. DESKTOP VIEW: Table */}
+          <div className="table-desktop-view">
+            <table className="modern-glass-table">
               <thead>
-                <tr style={{ borderBottom: '2px solid var(--border-glass)' }}>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Hito / Descripción</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>%</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Monto sugerido</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Fecha Límite</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Estado</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'right' }}>Acciones</th>
+                <tr>
+                  <th>Hito / Descripción</th>
+                  <th>%</th>
+                  <th>Monto sugerido</th>
+                  <th>Fecha Límite</th>
+                  <th>Estado</th>
+                  <th style={{ textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -1426,8 +1510,8 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                   const hitoRemaining = Math.max(0, pay.amount - hitoTotalPaid);
 
                   return (
-                    <tr key={pay.id} style={{ borderBottom: '1px solid var(--border-glass)', background: isPaid ? 'rgba(16,185,129,0.02)' : isPartial ? 'rgba(245,158,11,0.02)' : 'transparent' }}>
-                      <td style={{ padding: '15px 12px' }}>
+                    <tr key={pay.id} style={{ background: isPaid ? 'rgba(16,185,129,0.02)' : isPartial ? 'rgba(245,158,11,0.02)' : 'transparent' }}>
+                      <td>
                         <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{pay.name}</div>
                         {isPartial && (
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
@@ -1435,12 +1519,12 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                           </div>
                         )}
                       </td>
-                      <td style={{ padding: '15px 12px', fontWeight: 600 }}>{pay.percentage}%</td>
-                      <td style={{ padding: '15px 12px', fontWeight: 700, color: 'var(--text-primary)' }}>{formatCurrency(pay.amount)}</td>
-                      <td style={{ padding: '15px 12px', color: isOverdue ? 'var(--primary-red)' : 'var(--text-secondary)' }}>
+                      <td style={{ fontWeight: 600 }}>{pay.percentage}%</td>
+                      <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{formatCurrency(pay.amount)}</td>
+                      <td style={{ color: isOverdue ? 'var(--primary-red)' : 'var(--text-secondary)' }}>
                         {pay.dueDate || 'Hito de avance'}
                       </td>
-                      <td style={{ padding: '15px 12px' }}>
+                      <td>
                         {isPaid ? (
                           <span className="badge badge-completed" style={{ fontSize: '0.7rem' }}>Cobrado</span>
                         ) : isPartial ? (
@@ -1451,7 +1535,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                           <span className="badge badge-planning" style={{ fontSize: '0.7rem' }}>Pendiente</span>
                         )}
                       </td>
-                      <td style={{ padding: '15px 12px', textAlign: 'right' }}>
+                      <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                           <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => {
                             setNewPayment({
@@ -1478,13 +1562,95 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               </tbody>
             </table>
           </div>
+
+          {/* 2. MOBILE VIEW: Responsive Milestone Cards */}
+          <div className="table-mobile-cards">
+            {project.paymentPlan.map((pay) => {
+              const isPaid = pay.status === 'paid';
+              const isPartial = pay.status === 'partial';
+              const isOverdue = pay.status === 'pending' && pay.dueDate && pay.dueDate < new Date().toISOString().split('T')[0];
+
+              const milestonePayments = pay.payments || (pay.status === 'paid' ? [{ id: 'legacy', amount: pay.amount, date: pay.paidDate || pay.dueDate, method: 'Transferencia', files: [] }] : []);
+              const hitoTotalPaid = milestonePayments.reduce((s, p) => s + p.amount, 0);
+              const hitoRemaining = Math.max(0, pay.amount - hitoTotalPaid);
+
+              return (
+                <div key={pay.id} className="payment-milestone-card" style={{ 
+                  borderLeft: isPaid ? '4px solid #10b981' : isPartial ? '4px solid #f59e0b' : isOverdue ? '4px solid #f43f5e' : '4px solid var(--border-glass)'
+                }}>
+                  <div className="payment-milestone-header">
+                    <div>
+                      <div className="payment-milestone-title">{pay.name}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Vence: <strong style={{ color: isOverdue ? 'var(--primary-red)' : 'var(--text-secondary)' }}>{pay.dueDate || 'Hito de avance'}</strong>
+                      </div>
+                    </div>
+                    <div>
+                      {isPaid ? (
+                        <span className="badge badge-completed" style={{ fontSize: '0.7rem' }}>Cobrado</span>
+                      ) : isPartial ? (
+                        <span className="badge badge-planning" style={{ fontSize: '0.7rem', background: 'rgba(245, 158, 11, 0.15)', color: '#fde047', borderColor: 'rgba(245, 158, 11, 0.3)' }}>Parcial</span>
+                      ) : isOverdue ? (
+                        <span className="badge badge-halted" style={{ fontSize: '0.7rem', background: 'rgba(244,63,94,0.15)', color: '#fda4af', borderColor: 'rgba(244,63,94,0.3)' }}>Vencido</span>
+                      ) : (
+                        <span className="badge badge-planning" style={{ fontSize: '0.7rem' }}>Pendiente</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="payment-milestone-details">
+                    <div>
+                      <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.72rem', textTransform: 'uppercase' }}>Porcentaje</span>
+                      <strong style={{ fontSize: '0.95rem', color: 'var(--primary-cyan)' }}>{pay.percentage}%</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.72rem', textTransform: 'uppercase' }}>Monto Sugerido</span>
+                      <strong style={{ fontSize: '0.95rem' }}>{formatCurrency(pay.amount)}</strong>
+                    </div>
+                    {isPartial && (
+                      <>
+                        <div>
+                          <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.72rem', textTransform: 'uppercase' }}>Cobrado</span>
+                          <strong style={{ color: 'var(--primary-teal)' }}>{formatCurrency(hitoTotalPaid)}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.72rem', textTransform: 'uppercase' }}>Falta</span>
+                          <strong style={{ color: 'var(--primary-cyan)' }}>{formatCurrency(hitoRemaining)}</strong>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="payment-milestone-actions">
+                    <button className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => {
+                      setNewPayment({
+                        id: null,
+                        amount: hitoRemaining > 0 ? hitoRemaining.toString() : '',
+                        date: new Date().toISOString().split('T')[0],
+                        method: 'Transferencia',
+                        files: []
+                      });
+                      setShowHitoPayments(pay);
+                    }}>
+                      <Eye size={14} /> {userRole === 'viewer' ? 'Ver Cobros' : 'Gestionar Cobros'}
+                    </button>
+                    {isPaid && (
+                      <button className="btn btn-primary" style={{ padding: '8px 12px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setShowReceipt(pay)}>
+                        <Printer size={14} /> Recibo
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* 3. BUDGET & EXPENSES TAB */}
       {activeTab === 'budget' && (
-        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div className="glass-panel" style={{ padding: '22px' }}>
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+          <div className="glass-panel project-detail-panel">
             <div className="budget-header-bar">
               <div className="budget-header-title">
                 <h3>Presupuesto y Ejecución de Egresos</h3>
@@ -1593,22 +1759,29 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                       <span style={{ fontWeight: 700 }}>{percent}%</span>
                     </div>
 
-                    {/* Gastos asociados a este renglón */}
+                    {/* Gastos asociados a este renglón - Fijo sin acordeón */}
                     {itemExpenses.length > 0 && (
-                      <div style={{ marginTop: '12px', borderTop: '1px dashed var(--border-glass)', paddingTop: '10px' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Gastos / Compras registrados:</span>
+                      <div style={{ marginTop: '12px', borderTop: '1px dashed var(--border-glass)', paddingTop: '10px', width: '100%' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                          <Receipt size={13} style={{ color: 'var(--primary-cyan)' }} />
+                          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            Gastos registrados en este renglón ({itemExpenses.length}):
+                          </span>
+                        </div>
+
                         <div className="budget-expenses-list">
                           {itemExpenses.map((exp) => {
                             const descParts = exp.description.split(' || ');
-                            const displayDesc = descParts[1] 
+                            const rawDisplay = descParts[1] 
                               ? descParts[1].replace('Compra: ', '').replace(` (Obra: ${project.name})`, '')
                               : exp.description;
+                            const displayDesc = rawDisplay.replace(/ \[Pagado a: .*?\]/, '');
                             return (
                               <div key={exp.id} className="budget-expense-row">
                                 <div className="budget-expense-info">
                                   <span className="budget-expense-desc">{displayDesc}</span>
                                   <div className="budget-expense-meta">
-                                    <span>{exp.date}</span>
+                                    <span>📅 {exp.date}</span>
                                     {exp.personnelName && (
                                       <span style={{ color: 'var(--primary-teal)', fontWeight: 600 }}>👤 {exp.personnelName}</span>
                                     )}
@@ -1680,71 +1853,393 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               })}
             </div>
 
-            {/* Unclassified expenses */}
+            {/* CONSOLIDATED RESPONSIVE EXPENSES SECTION */}
             {(() => {
-              const unclassifiedExpenses = transactions.filter(t => {
+              const allProjectExpenses = transactions.filter(t => {
                 if (String(t.projectId) !== String(project.id) || t.type !== 'expense') return false;
                 if (t.description?.startsWith('[CANCELADO]') || t.description?.startsWith('[ANULADO]') || !t.amount) return false;
-                const belongsToAnyItem = project.budgetItems.some(item => transactionBelongsToBudgetItem(t, item));
-                return !belongsToAnyItem;
+                return true;
               });
 
-              if (unclassifiedExpenses.length === 0) return null;
+              const unclassifiedExpenses = allProjectExpenses.filter(t => 
+                !project.budgetItems.some(item => transactionBelongsToBudgetItem(t, item))
+              );
+
+              const assignedExpenses = allProjectExpenses.filter(t => 
+                project.budgetItems.some(item => transactionBelongsToBudgetItem(t, item))
+              );
+
+              // Filter by selection
+              let filteredExpenses = allProjectExpenses;
+              if (expenseFilter === 'assigned') {
+                filteredExpenses = assignedExpenses;
+              } else if (expenseFilter === 'unassigned') {
+                filteredExpenses = unclassifiedExpenses;
+              }
+
+              // Filter by search query
+              if (expenseSearch.trim()) {
+                const q = expenseSearch.toLowerCase();
+                filteredExpenses = filteredExpenses.filter(exp => {
+                  const desc = (exp.description || '').toLowerCase();
+                  const person = (exp.personnelName || '').toLowerCase();
+                  const date = (exp.date || '').toLowerCase();
+                  const matched = project.budgetItems.find(i => transactionBelongsToBudgetItem(exp, i));
+                  const itemName = (matched?.name || '').toLowerCase();
+                  return desc.includes(q) || person.includes(q) || date.includes(q) || itemName.includes(q);
+                });
+              }
+
+              const filteredTotal = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
               return (
-                <div className="glass-panel" style={{ padding: '16px', borderRadius: '12px', background: 'rgba(245,158,11,0.02)', border: '1px dashed rgba(245,158,11,0.2)', marginBottom: '15px' }}>
-                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--primary-orange)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    ⚠️ Gastos sin Clasificar en Renglón ({unclassifiedExpenses.length})
-                  </h4>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                    Estos gastos fueron registrados previamente. Haz clic en el lápiz para editarlos y asignarlos a un renglón presupuestario específico.
-                  </p>
-                  <div className="budget-expenses-list">
-                    {unclassifiedExpenses.map((exp) => (
-                      <div key={exp.id} className="budget-expense-row">
-                        <div className="budget-expense-info">
-                          <span className="budget-expense-desc">{exp.description}</span>
-                          <span className="budget-expense-meta">{exp.date}</span>
-                        </div>
-                        <div className="budget-expense-actions-bar">
-                          <span className="budget-expense-amount">{formatCurrency(exp.amount)}</span>
-                          <div className="budget-expense-buttons">
-                            <button 
-                              type="button" 
-                              className="budget-action-btn"
-                              style={{ color: 'var(--primary-orange)' }}
-                              onClick={() => setShowExpenseReceipt(exp)}
-                              title="Imprimir comprobante de egreso"
-                            >
-                              <Printer size={13} />
-                            </button>
-                            {userRole !== 'viewer' && (
-                              <>
-                                <button 
-                                  type="button" 
-                                  className="budget-action-btn"
-                                  style={{ color: 'var(--primary-cyan)' }}
-                                  onClick={() => handleOpenEditExpense(exp, 0)}
-                                  title="Asignar a un renglón"
-                                >
-                                  <Edit3 size={13} />
-                                </button>
-                                <button 
-                                  type="button" 
-                                  className="budget-action-btn"
-                                  style={{ color: 'var(--primary-red)' }}
-                                  onClick={() => handleDeleteExpense(exp, 0)}
-                                  title="Eliminar gasto"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                <div className="glass-panel project-detail-panel" style={{ marginTop: '10px', marginBottom: '15px', borderRadius: '14px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                  {/* Header & Metrics */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                    <div>
+                      <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                        <Receipt size={18} style={{ color: 'var(--primary-cyan)' }} />
+                        Tabla y Registro de Gastos de Obra
+                        <span className="badge" style={{ fontSize: '0.72rem', background: 'rgba(6, 182, 212, 0.12)', color: 'var(--primary-cyan)' }}>
+                          {allProjectExpenses.length} registrados
+                        </span>
+                      </h4>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: 0 }}>
+                        Listado completo, auditable y filtrable de todos los egresos y compras de insumos/personal de esta obra.
+                      </p>
+                    </div>
+
+                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Filtrado</span>
+                      <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-cyan)' }}>{formatCurrency(filteredTotal)}</span>
+                    </div>
                   </div>
+
+                  {/* Warning banner if there are unclassified expenses */}
+                  {unclassifiedExpenses.length > 0 && expenseFilter !== 'unassigned' && (
+                    <div style={{ 
+                      background: 'rgba(245, 158, 11, 0.08)', 
+                      border: '1px solid rgba(245, 158, 11, 0.25)', 
+                      borderRadius: '10px', 
+                      padding: '10px 14px', 
+                      marginBottom: '16px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '8px'
+                    }}>
+                      <div style={{ fontSize: '0.82rem', color: '#fde047', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>⚠️</span>
+                        <span>Hay <strong>{unclassifiedExpenses.length}</strong> gasto(s) sin asignar a un renglón presupuestario.</span>
+                      </div>
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary" 
+                        style={{ padding: '4px 10px', fontSize: '0.75rem', borderColor: 'rgba(245, 158, 11, 0.4)', color: '#fbbf24' }}
+                        onClick={() => setExpenseFilter('unassigned')}
+                      >
+                        Ver gastos sin clasificar
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Search and Filters Toolbar */}
+                  <div className="expenses-section-toolbar">
+                    <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: '360px' }}>
+                      <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      <input 
+                        type="text"
+                        placeholder="Buscar por concepto, personal, fecha..."
+                        value={expenseSearch}
+                        onChange={(e) => setExpenseSearch(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px 8px 34px',
+                          fontSize: '0.82rem',
+                          borderRadius: '20px',
+                          background: 'rgba(0, 0, 0, 0.25)',
+                          border: '1px solid var(--border-glass)',
+                          color: 'var(--text-primary)'
+                        }}
+                      />
+                      {expenseSearch && (
+                        <button 
+                          type="button" 
+                          onClick={() => setExpenseSearch('')}
+                          style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="expenses-filter-pills">
+                      <button 
+                        type="button" 
+                        className={`filter-pill-btn ${expenseFilter === 'all' ? 'active' : ''}`}
+                        onClick={() => setExpenseFilter('all')}
+                      >
+                        Todos ({allProjectExpenses.length})
+                      </button>
+                      <button 
+                        type="button" 
+                        className={`filter-pill-btn ${expenseFilter === 'assigned' ? 'active' : ''}`}
+                        onClick={() => setExpenseFilter('assigned')}
+                      >
+                        Asignados ({assignedExpenses.length})
+                      </button>
+                      {unclassifiedExpenses.length > 0 && (
+                        <button 
+                          type="button" 
+                          className={`filter-pill-btn ${expenseFilter === 'unassigned' ? 'active' : ''}`}
+                          style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: expenseFilter === 'unassigned' ? '#fbbf24' : 'var(--text-secondary)' }}
+                          onClick={() => setExpenseFilter('unassigned')}
+                        >
+                          ⚠️ Sin Clasificar ({unclassifiedExpenses.length})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* EXPENSES LISTING */}
+                  {filteredExpenses.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '30px 15px', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                      {allProjectExpenses.length === 0 ? (
+                        <>
+                          <Receipt size={36} style={{ marginBottom: '8px', opacity: 0.4 }} />
+                          <p style={{ margin: 0, fontWeight: 500, color: 'var(--text-primary)' }}>No hay gastos registrados en esta obra.</p>
+                          <p style={{ fontSize: '0.78rem', margin: '4px 0 0 0' }}>Haz clic arriba en "Registrar Compra / Gasto" para agregar el primero.</p>
+                        </>
+                      ) : (
+                        <p style={{ margin: 0 }}>No se encontraron gastos que coincidan con la búsqueda o filtro aplicado.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {/* 1. DESKTOP VIEW: Clean Modern Glass Table */}
+                      <div className="table-desktop-view">
+                        <table className="modern-glass-table">
+                          <thead>
+                            <tr>
+                              <th>Fecha</th>
+                              <th>Concepto / Compra</th>
+                              <th>Renglón Asignado</th>
+                              <th>Personal / Proveedor</th>
+                              <th style={{ textAlign: 'right' }}>Monto</th>
+                              <th style={{ textAlign: 'center' }}>Adjunto</th>
+                              <th style={{ textAlign: 'right' }}>Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredExpenses.map((exp) => {
+                              const descParts = exp.description.split(' || ');
+                              const displayDesc = descParts[1] 
+                                ? descParts[1].replace('Compra: ', '').replace(` (Obra: ${project.name})`, '')
+                                : exp.description;
+                              const matchedItem = project.budgetItems.find(item => transactionBelongsToBudgetItem(exp, item));
+                              const matchedIdx = matchedItem ? project.budgetItems.indexOf(matchedItem) : 0;
+
+                              return (
+                                <tr key={exp.id}>
+                                  <td style={{ whiteSpace: 'nowrap', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                    {exp.date}
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', wordBreak: 'break-word', maxWidth: '280px' }}>
+                                      {displayDesc}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    {matchedItem ? (
+                                      <span className="badge" style={{ 
+                                        fontSize: '0.72rem',
+                                        background: matchedItem.category === 'materials' ? 'rgba(6,182,212,0.1)' : matchedItem.category === 'labor' ? 'rgba(16,185,129,0.1)' : 'rgba(168,85,247,0.1)',
+                                        color: matchedItem.category === 'materials' ? 'var(--primary-cyan)' : matchedItem.category === 'labor' ? '#34d399' : '#c084fc',
+                                        borderColor: 'transparent'
+                                      }}>
+                                        {matchedItem.name}
+                                      </span>
+                                    ) : (
+                                      <span className="badge" style={{ fontSize: '0.7rem', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.3)' }}>
+                                        ⚠️ Sin Renglón
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td>
+                                    {exp.personnelName ? (
+                                      <span style={{ fontSize: '0.82rem', color: 'var(--primary-teal)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        👤 {exp.personnelName}
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>—</span>
+                                    )}
+                                  </td>
+                                  <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                                    {formatCurrency(exp.amount)}
+                                  </td>
+                                  <td style={{ textAlign: 'center' }}>
+                                    {exp.receiptBase64 ? (
+                                      <button 
+                                        type="button" 
+                                        className="budget-action-btn"
+                                        style={{ color: 'var(--primary-cyan)' }}
+                                        onClick={() => {
+                                          const w = window.open();
+                                          if (exp.receiptBase64.startsWith('data:application/pdf')) {
+                                            w.document.write(`<embed width="100%" height="100%" src="${exp.receiptBase64}" type="application/pdf" />`);
+                                          } else {
+                                            w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${exp.receiptBase64}" style="max-width:100%; max-height:100vh;" /></div>`);
+                                          }
+                                          w.document.body.style.margin = '0';
+                                        }}
+                                        title="Ver comprobante adjunto"
+                                      >
+                                        <Eye size={13} />
+                                      </button>
+                                    ) : (
+                                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>—</span>
+                                    )}
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                      <button 
+                                        type="button" 
+                                        className="budget-action-btn"
+                                        style={{ color: 'var(--primary-orange)' }}
+                                        onClick={() => setShowExpenseReceipt(exp)}
+                                        title="Imprimir comprobante de egreso"
+                                      >
+                                        <Printer size={13} />
+                                      </button>
+                                      {userRole !== 'viewer' && (
+                                        <>
+                                          <button 
+                                            type="button" 
+                                            className="budget-action-btn"
+                                            style={{ color: 'var(--primary-cyan)' }}
+                                            onClick={() => handleOpenEditExpense(exp, matchedIdx)}
+                                            title="Editar gasto"
+                                          >
+                                            <Edit3 size={13} />
+                                          </button>
+                                          <button 
+                                            type="button" 
+                                            className="budget-action-btn"
+                                            style={{ color: 'var(--primary-red)' }}
+                                            onClick={() => handleDeleteExpense(exp, matchedIdx)}
+                                            title="Eliminar gasto"
+                                          >
+                                            <Trash2 size={13} />
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* 2. MOBILE VIEW: Touch-Friendly Responsive Cards */}
+                      <div className="table-mobile-cards">
+                        {filteredExpenses.map((exp) => {
+                          const descParts = exp.description.split(' || ');
+                          const displayDesc = descParts[1] 
+                            ? descParts[1].replace('Compra: ', '').replace(` (Obra: ${project.name})`, '')
+                            : exp.description;
+                          const matchedItem = project.budgetItems.find(item => transactionBelongsToBudgetItem(exp, item));
+                          const matchedIdx = matchedItem ? project.budgetItems.indexOf(matchedItem) : 0;
+
+                          return (
+                            <div key={exp.id} className="mobile-expense-card">
+                              <div className="mobile-expense-top">
+                                <span className="mobile-expense-desc">{displayDesc}</span>
+                                {matchedItem ? (
+                                  <span className="badge" style={{ 
+                                    fontSize: '0.68rem',
+                                    background: matchedItem.category === 'materials' ? 'rgba(6,182,212,0.12)' : matchedItem.category === 'labor' ? 'rgba(16,185,129,0.12)' : 'rgba(168,85,247,0.12)',
+                                    color: matchedItem.category === 'materials' ? 'var(--primary-cyan)' : matchedItem.category === 'labor' ? '#34d399' : '#c084fc'
+                                  }}>
+                                    {matchedItem.name}
+                                  </span>
+                                ) : (
+                                  <span className="badge" style={{ fontSize: '0.68rem', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' }}>
+                                    ⚠️ Sin Renglón
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="mobile-expense-meta-grid">
+                                <div>📅 Fecha: <strong style={{ color: 'var(--text-primary)' }}>{exp.date}</strong></div>
+                                {exp.personnelName && (
+                                  <div>👤 Responsable: <strong style={{ color: 'var(--primary-teal)' }}>{exp.personnelName}</strong></div>
+                                )}
+                              </div>
+
+                              <div className="mobile-expense-footer">
+                                <span className="mobile-expense-amount">{formatCurrency(exp.amount)}</span>
+                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                  <button 
+                                    type="button" 
+                                    className="budget-action-btn"
+                                    style={{ color: 'var(--primary-orange)' }}
+                                    onClick={() => setShowExpenseReceipt(exp)}
+                                    title="Imprimir comprobante de egreso"
+                                  >
+                                    <Printer size={14} />
+                                  </button>
+                                  {exp.receiptBase64 && (
+                                    <button 
+                                      type="button" 
+                                      className="budget-action-btn"
+                                      style={{ color: 'var(--primary-cyan)' }}
+                                      onClick={() => {
+                                        const w = window.open();
+                                        if (exp.receiptBase64.startsWith('data:application/pdf')) {
+                                          w.document.write(`<embed width="100%" height="100%" src="${exp.receiptBase64}" type="application/pdf" />`);
+                                        } else {
+                                          w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${exp.receiptBase64}" style="max-width:100%; max-height:100vh;" /></div>`);
+                                        }
+                                        w.document.body.style.margin = '0';
+                                      }}
+                                      title="Ver comprobante adjunto"
+                                    >
+                                      <Eye size={14} />
+                                    </button>
+                                  )}
+                                  {userRole !== 'viewer' && (
+                                    <>
+                                      <button 
+                                        type="button" 
+                                        className="budget-action-btn"
+                                        style={{ color: 'var(--primary-cyan)' }}
+                                        onClick={() => handleOpenEditExpense(exp, matchedIdx)}
+                                        title="Editar gasto"
+                                      >
+                                        <Edit3 size={14} />
+                                      </button>
+                                      <button 
+                                        type="button" 
+                                        className="budget-action-btn"
+                                        style={{ color: 'var(--primary-red)' }}
+                                        onClick={() => handleDeleteExpense(exp, matchedIdx)}
+                                        title="Eliminar gasto"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })()}
@@ -1787,7 +2282,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
               <h3>Expediente de Documentación y Contratos</h3>
               <p style={{ fontSize: '0.85rem' }}>Archivo seguro digitalizado del cliente (contratos, comprobantes de pago).</p>
             </div>
-            {userRole !== 'viewer' && (
+            {userRole !== 'viewer' && userRole !== 'client' && (
               <button className="btn btn-primary" onClick={() => setShowScanner(true)}>
                 <Plus size={16} /> Escanear o Subir Archivo
               </button>
@@ -1861,7 +2356,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
           <div className="glass-panel" style={{ padding: '22px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <h3 style={{ margin: 0, color: 'var(--primary-cyan)' }}>Cronograma de Fases (Plan vs Real)</h3>
-              {userRole !== 'viewer' && (
+              {userRole !== 'viewer' && userRole !== 'client' && (
                 <button 
                   className="btn btn-secondary" 
                   onClick={() => {
@@ -1887,9 +2382,9 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div 
-                          style={{ display: 'flex', alignItems: 'center', cursor: userRole !== 'viewer' ? 'pointer' : 'default' }}
+                          style={{ display: 'flex', alignItems: 'center', cursor: (userRole !== 'viewer' && userRole !== 'client') ? 'pointer' : 'default' }}
                           onClick={async () => {
-                            if (userRole === 'viewer') return;
+                            if (userRole === 'viewer' || userRole === 'client') return;
                             const newProgress = phase.progress === 100 ? 0 : 100;
                             const updatedPhases = project.phases.map(p => p.id === phase.id ? { ...p, progress: newProgress } : p);
                             await onUpdate({ ...project, phases: updatedPhases });
@@ -1914,7 +2409,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                           {phase.startDate} a {phase.endDate}
                         </div>
-                        {userRole !== 'viewer' && (
+                        {userRole !== 'viewer' && userRole !== 'client' && (
                           <button 
                             className="btn-icon" 
                             style={{ color: 'var(--primary-cyan)', padding: '2px' }} 
@@ -1952,7 +2447,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                 <h3>Bitácora Fotográfica de Obra</h3>
                 <p style={{ fontSize: '0.85rem' }}>Línea de tiempo del avance físico y registro multimedia.</p>
               </div>
-            {userRole !== 'viewer' && (
+            {userRole !== 'viewer' && userRole !== 'client' && (
               <button 
                 className="btn btn-primary" 
                 onClick={() => {
@@ -1992,7 +2487,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                           </span>
                         )}
                       </div>
-                      {userRole !== 'viewer' && (
+                      {userRole !== 'viewer' && userRole !== 'client' && (
                         <div style={{ display: 'flex', gap: '10px' }}>
                           <button 
                             type="button"

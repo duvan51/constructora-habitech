@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS projects (
   payment_plan JSONB NOT NULL DEFAULT '[]'::jsonb,
   manager_name TEXT,
   manager_phone TEXT,
+  client_document_id TEXT,
   phases JSONB NOT NULL DEFAULT '[]'::jsonb,
   contacts JSONB NOT NULL DEFAULT '[]'::jsonb,
   notes JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS projects (
 -- para agregar las nuevas columnas necesarias sin borrar tu información:
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS manager_name TEXT;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS manager_phone TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_document_id TEXT;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS phases JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS contacts JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS notes JSONB NOT NULL DEFAULT '[]'::jsonb;

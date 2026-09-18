@@ -184,6 +184,14 @@ export default function App() {
     setCurrentUser(user);
     setIsLocked(false);
     localStorage.setItem('habitech_user_session', JSON.stringify(user));
+    if (user.role === 'client') {
+      setTab('projects');
+      if (user.projectIds && user.projectIds.length === 1) {
+        setSelectedProjectId(user.projectIds[0]);
+      } else {
+        setSelectedProjectId(null);
+      }
+    }
   };
 
   const handleLogout = () => {
@@ -497,9 +505,31 @@ export default function App() {
     }
   };
 
-  const activeProject = projects.find(p => p.id === selectedProjectId);
+  const isClient = currentUser?.role === 'client';
+  const clientProjects = isClient
+    ? projects.filter(p => {
+        const pDoc = String(p.clientDocumentId || '').trim();
+        const userDoc = String(currentUser.clientDocumentId || '').trim();
+        return (pDoc && userDoc && (pDoc === userDoc || pDoc.replace(/\D/g, '') === userDoc.replace(/\D/g, ''))) ||
+               (currentUser.projectIds && currentUser.projectIds.includes(p.id));
+      })
+    : projects;
 
-  // Inactivity tracking (5 minutes lock for all users)
+  // Auto-redirect client to projects tab and their single project if applicable
+  useEffect(() => {
+    if (isClient) {
+      if (currentTab !== 'projects') {
+        setTab('projects');
+      }
+      if (clientProjects.length === 1 && !selectedProjectId) {
+        setSelectedProjectId(clientProjects[0].id);
+      }
+    }
+  }, [isClient, currentTab, clientProjects.length, selectedProjectId]);
+
+  const activeProject = (isClient ? clientProjects : projects).find(p => p.id === selectedProjectId);
+
+  // Inactivity tracking (5 minutes lock for staff, auto-logout for clients)
   useEffect(() => {
     if (!currentUser || isLocked) {
       return;
@@ -511,7 +541,11 @@ export default function App() {
     const resetTimer = () => {
       if (timeoutId) clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        setIsLocked(true);
+        if (currentUser.role === 'client') {
+          handleLogout();
+        } else {
+          setIsLocked(true);
+        }
       }, INACTIVITY_TIMEOUT);
     };
 
@@ -537,7 +571,7 @@ export default function App() {
   }, [currentUser, isLocked]);
 
   // Filtering projects
-  const filteredProjects = projects.filter(p => 
+  const filteredProjects = (isClient ? clientProjects : projects).filter(p => 
     p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
     p.clientName.toLowerCase().includes(projectSearch.toLowerCase()) ||
     (p.location.address || '').toLowerCase().includes(projectSearch.toLowerCase()) ||
@@ -562,7 +596,7 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return <Login onLoginSuccess={handleLoginSuccess} projects={projects} />;
   }
 
 
@@ -605,7 +639,7 @@ export default function App() {
           setSelectedProjectId(null); 
           setIsSidebarOpen(false); 
         }} 
-        projectCount={projects.length}
+        projectCount={isClient ? clientProjects.length : projects.length}
         currentUser={currentUser}
         onLogout={handleLogout}
         isOpen={isSidebarOpen}
@@ -615,7 +649,7 @@ export default function App() {
       <main className="main-content">
         {/* Render Project Details if an active project is open */}
         {activeProject ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
             <ProjectDetail 
               project={activeProject} 
               onBack={() => setSelectedProjectId(null)}
@@ -626,7 +660,7 @@ export default function App() {
               personnel={personnel}
             />
             
-            {currentUser.role !== 'viewer' && (
+            {currentUser.role !== 'viewer' && currentUser.role !== 'client' && (
               <div style={{ alignSelf: 'flex-start', marginTop: '20px' }}>
                 <button 
                   type="button" 
@@ -655,10 +689,12 @@ export default function App() {
               <div className="projects-directory animate-fade-in">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                   <div>
-                    <h1>Obras y Proyectos</h1>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Directorio activo de frentes de obra y contrataciones.</p>
+                    <h1>{isClient ? 'Mis Obras y Proyectos' : 'Obras y Proyectos'}</h1>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                      {isClient ? `Bienvenido ${currentUser.name}. Consulta el avance y documentación de tu obra.` : 'Directorio activo de frentes de obra y contrataciones.'}
+                    </p>
                   </div>
-                  {currentUser.role !== 'viewer' && (
+                  {currentUser.role !== 'viewer' && currentUser.role !== 'client' && (
                     <button className="btn btn-primary" onClick={() => setShowProjectForm(true)}>
                       <Plus size={16} /> Registrar Nueva Obra
                     </button>

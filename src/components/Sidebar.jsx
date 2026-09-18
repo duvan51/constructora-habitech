@@ -1,20 +1,29 @@
 import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, CheckSquare, Calculator, UserCheck, Scale } from 'lucide-react';
 
 export default function Sidebar({ currentTab, setTab, projectCount, currentUser, onLogout, isOpen, onClose }) {
-  const menuItems = [
-    { id: 'dashboard', name: 'Panel de Control', icon: <Home size={18} /> },
-    { id: 'projects', name: 'Obras y Proyectos', icon: <HardHat size={18} />, count: projectCount },
-    { id: 'management', name: 'Gestión de Obras', icon: <CheckSquare size={18} /> },
-    { id: 'personnel', name: 'Gestionar Personal', icon: <UserCheck size={18} /> },
-    { id: 'adjustments', name: 'Ajustes Totales', icon: <Scale size={18} /> },
-    { id: 'portfolio', name: 'Portafolio Proyectos', icon: <Briefcase size={18} /> },
-    { id: 'ledger', name: 'Libro de Caja', icon: <DollarSign size={18} /> },
-    { id: 'quote', name: 'Cotizador Habitech', icon: <Calculator size={18} /> }
-  ];
+  const isClient = currentUser?.role === 'client';
 
-  if (currentUser && currentUser.role === 'admin') {
-    menuItems.push({ id: 'users', name: 'Gestión Usuarios', icon: <Users size={18} /> });
-    menuItems.push({ id: 'settings', name: 'Configuración', icon: <Settings size={18} /> });
+  let menuItems = [];
+  if (isClient) {
+    menuItems = [
+      { id: 'projects', name: 'Mis Obras y Avances', icon: <HardHat size={18} />, count: projectCount }
+    ];
+  } else {
+    menuItems = [
+      { id: 'dashboard', name: 'Panel de Control', icon: <Home size={18} /> },
+      { id: 'projects', name: 'Obras y Proyectos', icon: <HardHat size={18} />, count: projectCount },
+      { id: 'management', name: 'Gestión de Obras', icon: <CheckSquare size={18} /> },
+      { id: 'personnel', name: 'Gestionar Personal', icon: <UserCheck size={18} /> },
+      { id: 'adjustments', name: 'Ajustes Totales', icon: <Scale size={18} /> },
+      { id: 'portfolio', name: 'Portafolio Proyectos', icon: <Briefcase size={18} /> },
+      { id: 'ledger', name: 'Libro de Caja', icon: <DollarSign size={18} /> },
+      { id: 'quote', name: 'Cotizador Habitech', icon: <Calculator size={18} /> }
+    ];
+
+    if (currentUser && currentUser.role === 'admin') {
+      menuItems.push({ id: 'users', name: 'Gestión Usuarios', icon: <Users size={18} /> });
+      menuItems.push({ id: 'settings', name: 'Configuración', icon: <Settings size={18} /> });
+    }
   }
 
   const getInitials = (name) => {
@@ -27,6 +36,7 @@ export default function Sidebar({ currentTab, setTab, projectCount, currentUser,
       case 'admin': return 'Administrador';
       case 'editor': return 'Editor';
       case 'viewer': return 'Solo Ver';
+      case 'client': return 'Cliente Propietario';
       default: return 'Usuario';
     }
   };
@@ -165,6 +175,11 @@ export default function Sidebar({ currentTab, setTab, projectCount, currentUser,
             <div style={{ fontSize: '0.75rem', color: 'var(--primary-cyan)', fontWeight: 500 }}>
               {getRoleLabel(currentUser?.role)}
             </div>
+            {currentUser?.clientDocumentId && (
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                CC: {currentUser.clientDocumentId}
+              </div>
+            )}
           </div>
         </div>
 
