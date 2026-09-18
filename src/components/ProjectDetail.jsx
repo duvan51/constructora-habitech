@@ -1485,13 +1485,13 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       {activeTab === 'budget' && (
         <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div className="glass-panel" style={{ padding: '22px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-              <div>
+            <div className="budget-header-bar">
+              <div className="budget-header-title">
                 <h3>Presupuesto y Ejecución de Egresos</h3>
-                <p style={{ fontSize: '0.85rem' }}>Control y balance de insumos, materiales y mano de obra.</p>
+                <p>Control y balance de insumos, materiales y mano de obra.</p>
               </div>
               {userRole !== 'viewer' && (
-                <div style={{ display: 'flex', gap: '10px' }}>
+                <div className="budget-btn-group">
                   <button className="btn btn-secondary" onClick={() => { setEditingBudgetItemIndex(null); setNewBudgetItem({ name: '', estimated: '', category: 'materials', personnelId: '' }); setCalcPercentage(''); setShowAddBudgetItem(true); }}>
                     <Plus size={16} /> Agregar Renglón
                   </button>
@@ -1528,42 +1528,19 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                 if (percent > 100) colorBar = 'var(--primary-red)';
 
                 return (
-                  <div key={item.id || idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)', padding: '16px', borderRadius: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <div>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div key={item.id || idx} className="budget-item-card">
+                    <div className="budget-item-header">
+                      <div className="budget-item-info">
+                        <div className="budget-item-tags">
                           <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700 }}>
                             {item.category === 'materials' ? 'Materiales' : item.category === 'labor' ? 'Mano de Obra' : 'Licencias/Otros'}
                           </span>
-                          {userRole !== 'viewer' && (
-                            <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
-                              <button
-                                type="button"
-                                style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
-                                onClick={() => handleOpenEditBudgetItem(idx)}
-                                title="Editar renglón presupuestario"
-                              >
-                                <Edit3 size={12} />
-                              </button>
-                              <button
-                                type="button"
-                                style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
-                                onClick={() => handleRemoveBudgetItem(idx)}
-                                title="Eliminar renglón presupuestario"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {item.name}
                           {(() => {
                             if (item.personnelId && personnel && personnel.length > 0) {
                               const p = personnel.find(person => person.id === item.personnelId);
                               if (p) {
                                 return (
-                                  <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--primary-cyan)', background: 'rgba(6,182,212,0.08)', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(6,182,212,0.15)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--primary-cyan)', background: 'rgba(6,182,212,0.08)', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(6,182,212,0.15)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                     👤 {p.name}
                                   </span>
                                 );
@@ -1571,13 +1548,38 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                             }
                             return null;
                           })()}
+                          {userRole !== 'viewer' && (
+                            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', marginLeft: 'auto' }}>
+                              <button
+                                type="button"
+                                className="budget-action-btn"
+                                style={{ color: 'var(--primary-cyan)' }}
+                                onClick={() => handleOpenEditBudgetItem(idx)}
+                                title="Editar renglón presupuestario"
+                              >
+                                <Edit3 size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                className="budget-action-btn"
+                                style={{ color: 'var(--primary-red)' }}
+                                onClick={() => handleRemoveBudgetItem(idx)}
+                                title="Eliminar renglón presupuestario"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <h4 className="budget-item-title">
+                          {item.name}
                         </h4>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                      <div className="budget-item-metrics">
+                        <span className="budget-item-spent">
                           Gastado: <strong style={{ color: currentActual > item.estimated ? 'var(--primary-red)' : 'var(--text-primary)' }}>{formatCurrency(currentActual)}</strong> / {formatCurrency(item.estimated)}
                         </span>
-                        <div style={{ fontSize: '0.75rem', color: diff >= 0 ? '#10b981' : '#f43f5e', marginTop: '2px' }}>
+                        <div className="budget-item-diff" style={{ color: diff >= 0 ? '#10b981' : '#f43f5e' }}>
                           {diff >= 0 ? `Disponible: ${formatCurrency(diff)}` : `Excedido por: ${formatCurrency(Math.abs(diff))}`}
                         </div>
                       </div>
@@ -1595,38 +1597,40 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                     {itemExpenses.length > 0 && (
                       <div style={{ marginTop: '12px', borderTop: '1px dashed var(--border-glass)', paddingTop: '10px' }}>
                         <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Gastos / Compras registrados:</span>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                        <div className="budget-expenses-list">
                           {itemExpenses.map((exp) => {
                             const descParts = exp.description.split(' || ');
                             const displayDesc = descParts[1] 
                               ? descParts[1].replace('Compra: ', '').replace(` (Obra: ${project.name})`, '')
                               : exp.description;
                             return (
-                              <div key={exp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', padding: '6px 10px', borderRadius: '6px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{displayDesc}</span>
-                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              <div key={exp.id} className="budget-expense-row">
+                                <div className="budget-expense-info">
+                                  <span className="budget-expense-desc">{displayDesc}</span>
+                                  <div className="budget-expense-meta">
                                     <span>{exp.date}</span>
                                     {exp.personnelName && (
                                       <span style={{ color: 'var(--primary-teal)', fontWeight: 600 }}>👤 {exp.personnelName}</span>
                                     )}
                                   </div>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(exp.amount)}</span>
-                                  <div style={{ display: 'flex', gap: '6px' }}>
+                                <div className="budget-expense-actions-bar">
+                                  <span className="budget-expense-amount">{formatCurrency(exp.amount)}</span>
+                                  <div className="budget-expense-buttons">
                                     <button 
                                       type="button" 
-                                      style={{ background: 'none', border: 'none', color: 'var(--primary-orange)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                      className="budget-action-btn"
+                                      style={{ color: 'var(--primary-orange)' }}
                                       onClick={() => setShowExpenseReceipt(exp)}
                                       title="Imprimir comprobante de egreso"
                                     >
-                                      <Printer size={11} />
+                                      <Printer size={13} />
                                     </button>
                                     {exp.receiptBase64 && (
                                       <button 
                                         type="button" 
-                                        style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                        className="budget-action-btn"
+                                        style={{ color: 'var(--primary-cyan)' }}
                                         onClick={() => {
                                           const w = window.open();
                                           if (exp.receiptBase64.startsWith('data:application/pdf')) {
@@ -1638,26 +1642,28 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                                         }}
                                         title="Ver archivo adjunto"
                                       >
-                                        <Eye size={11} />
+                                        <Eye size={13} />
                                       </button>
                                     )}
                                     {userRole !== 'viewer' && (
                                       <>
                                         <button 
                                           type="button" 
-                                          style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                          className="budget-action-btn"
+                                          style={{ color: 'var(--primary-cyan)' }}
                                           onClick={() => handleOpenEditExpense(exp, idx)}
                                           title="Editar gasto"
                                         >
-                                          <Edit3 size={11} />
+                                          <Edit3 size={13} />
                                         </button>
                                         <button 
                                           type="button" 
-                                          style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                          className="budget-action-btn"
+                                          style={{ color: 'var(--primary-red)' }}
                                           onClick={() => handleDeleteExpense(exp, idx)}
                                           title="Eliminar gasto"
                                         >
-                                          <Trash2 size={11} />
+                                          <Trash2 size={13} />
                                         </button>
                                       </>
                                     )}
@@ -1693,41 +1699,44 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
                     Estos gastos fueron registrados previamente. Haz clic en el lápiz para editarlos y asignarlos a un renglón presupuestario específico.
                   </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div className="budget-expenses-list">
                     {unclassifiedExpenses.map((exp) => (
-                      <div key={exp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', padding: '6px 10px', borderRadius: '6px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{exp.description}</span>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{exp.date}</span>
+                      <div key={exp.id} className="budget-expense-row">
+                        <div className="budget-expense-info">
+                          <span className="budget-expense-desc">{exp.description}</span>
+                          <span className="budget-expense-meta">{exp.date}</span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(exp.amount)}</span>
-                          <div style={{ display: 'flex', gap: '6px' }}>
+                        <div className="budget-expense-actions-bar">
+                          <span className="budget-expense-amount">{formatCurrency(exp.amount)}</span>
+                          <div className="budget-expense-buttons">
                             <button 
                               type="button" 
-                              style={{ background: 'none', border: 'none', color: 'var(--primary-orange)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                              className="budget-action-btn"
+                              style={{ color: 'var(--primary-orange)' }}
                               onClick={() => setShowExpenseReceipt(exp)}
                               title="Imprimir comprobante de egreso"
                             >
-                              <Printer size={11} />
+                              <Printer size={13} />
                             </button>
                             {userRole !== 'viewer' && (
                               <>
                                 <button 
                                   type="button" 
-                                  style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                  className="budget-action-btn"
+                                  style={{ color: 'var(--primary-cyan)' }}
                                   onClick={() => handleOpenEditExpense(exp, 0)}
                                   title="Asignar a un renglón"
                                 >
-                                  <Edit3 size={11} />
+                                  <Edit3 size={13} />
                                 </button>
                                 <button 
                                   type="button" 
-                                  style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', padding: '0', display: 'inline-flex', alignItems: 'center' }}
+                                  className="budget-action-btn"
+                                  style={{ color: 'var(--primary-red)' }}
                                   onClick={() => handleDeleteExpense(exp, 0)}
                                   title="Eliminar gasto"
                                 >
-                                  <Trash2 size={11} />
+                                  <Trash2 size={13} />
                                 </button>
                               </>
                             )}
@@ -1741,20 +1750,27 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
             })()}
 
             {/* Total Budget Summary card */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid var(--border-glass)', paddingTop: '20px', marginTop: '10px', flexWrap: 'wrap', gap: '20px' }}>
-              <div>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Estimado Presupuestado Total:</span>
-                <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{formatCurrency(totalBudgetEst)}</div>
+            <div className="budget-summary-grid">
+              <div className="budget-summary-card">
+                <span className="budget-summary-label">Estimado Presupuestado Total</span>
+                <div className="budget-summary-value" style={{ color: 'var(--text-primary)' }}>
+                  {formatCurrency(totalBudgetEst)}
+                </div>
               </div>
-              <div>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Total Ejecutado en Obra:</span>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: totalBudgetAct > totalBudgetEst ? 'var(--primary-red)' : 'var(--primary-cyan)' }}>
+              <div className="budget-summary-card">
+                <span className="budget-summary-label">Total Ejecutado en Obra</span>
+                <div className="budget-summary-value" style={{ color: totalBudgetAct > totalBudgetEst ? 'var(--primary-red)' : 'var(--primary-cyan)' }}>
                   {formatCurrency(totalBudgetAct)}
                 </div>
               </div>
-              <div>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Diferencia Global:</span>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: (totalBudgetEst - totalBudgetAct) >= 0 ? '#10b981' : '#f43f5e' }}>
+              <div className="budget-summary-card" style={{ 
+                borderColor: (totalBudgetEst - totalBudgetAct) >= 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)',
+                background: (totalBudgetEst - totalBudgetAct) >= 0 ? 'rgba(16, 185, 129, 0.03)' : 'rgba(244, 63, 94, 0.03)'
+              }}>
+                <span className="budget-summary-label">
+                  {(totalBudgetEst - totalBudgetAct) >= 0 ? 'Saldo Disponible Global' : 'Sobrecosto / Déficit'}
+                </span>
+                <div className="budget-summary-value" style={{ color: (totalBudgetEst - totalBudgetAct) >= 0 ? '#10b981' : '#f43f5e' }}>
                   {formatCurrency(totalBudgetEst - totalBudgetAct)}
                 </div>
               </div>
@@ -2204,11 +2220,11 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
                   {/* Reactive Expense Percentage Calculator Widget */}
                   <div className="form-group" style={{ gridColumn: 'span 2', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-glass)', marginTop: '5px' }}>
-                    <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '5px', display: 'block' }}>
                       Calculadora de Gasto por % de la Obra
                     </label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flex: 1, minWidth: '150px' }}>
+                    <div className="budget-calc-container">
+                      <div className="budget-calc-input-wrap">
                         <input
                           type="number"
                           className="form-control"
@@ -2222,7 +2238,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                         />
                         <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>%</span>
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flex: 1.5, minWidth: '200px' }}>
+                      <div className="budget-calc-info">
                         De un total contratado de: <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(project.totalCost)}</strong>
                       </div>
                     </div>
@@ -2784,11 +2800,11 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
                   {/* Reactive Percentage Calculator Widget */}
                   <div className="form-group" style={{ gridColumn: 'span 2', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-glass)', marginTop: '5px' }}>
-                    <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '5px', display: 'block' }}>
                       Calculadora de Presupuesto por %
                     </label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flex: 1, minWidth: '150px' }}>
+                    <div className="budget-calc-container">
+                      <div className="budget-calc-input-wrap">
                         <input
                           type="number"
                           className="form-control"
@@ -2802,7 +2818,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                         />
                         <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>%</span>
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flex: 1.5, minWidth: '200px' }}>
+                      <div className="budget-calc-info">
                         De un total contratado de: <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(project.totalCost)}</strong>
                       </div>
                     </div>

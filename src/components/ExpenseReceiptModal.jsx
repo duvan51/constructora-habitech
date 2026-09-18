@@ -148,32 +148,34 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
             </div>
 
             {/* Itemized Table */}
-            <table className="receipt-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px', marginBottom: '20px' }}>
-              <thead>
-                <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb', color: '#374151', fontSize: '0.85rem', textAlign: 'left' }}>
-                  <th style={{ padding: '10px' }}>Detalle de la Transacción / Compra</th>
-                  <th style={{ padding: '10px' }}>Categoría Presupuesto</th>
-                  <th style={{ padding: '10px', textAlign: 'right' }}>Valor Retirado (Egreso)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={{ borderBottom: '1px solid #e5e7eb', fontSize: '0.9rem', color: '#4b5563' }}>
-                  <td style={{ padding: '12px 10px' }}>
-                    <div style={{ fontWeight: 600, color: '#1f2937' }}>{getCleanDescription()}</div>
-                    <div style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '3px' }}>
-                      <strong>Renglón Presupuestario Asociado:</strong> {getBudgetLine()}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '2px' }}>
-                      Egreso cargado a costos de obra
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 10px' }}>{getCategoryLabel(transaction.category)}</td>
-                  <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#ef4444' }}>
-                    {formatCurrency(transaction.amount)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="receipt-table-wrapper">
+              <table className="receipt-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', marginBottom: '10px' }}>
+                <thead>
+                  <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb', color: '#374151', fontSize: '0.85rem', textAlign: 'left' }}>
+                    <th style={{ padding: '10px', minWidth: '200px' }}>Detalle de la Transacción / Compra</th>
+                    <th style={{ padding: '10px', minWidth: '120px' }}>Categoría Presupuesto</th>
+                    <th style={{ padding: '10px', textAlign: 'right', minWidth: '120px' }}>Valor Retirado (Egreso)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid #e5e7eb', fontSize: '0.9rem', color: '#4b5563' }}>
+                    <td style={{ padding: '12px 10px' }}>
+                      <div style={{ fontWeight: 600, color: '#1f2937' }}>{getCleanDescription()}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '3px' }}>
+                        <strong>Renglón Presupuestario Asociado:</strong> {getBudgetLine()}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '2px' }}>
+                        Egreso cargado a costos de obra
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 10px' }}>{getCategoryLabel(transaction.category)}</td>
+                    <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#ef4444' }}>
+                      {formatCurrency(transaction.amount)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
             {/* Financial Summary */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
