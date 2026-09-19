@@ -488,42 +488,67 @@ p {
   }
 }
 
-/* Financial Dashboard Metrics */
+/* Financial Dashboard Metrics (Universal Responsive & Overflow-Proof) */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-  margin-bottom: 30px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
 }
 
 .metric-card {
-  padding: 22px;
+  padding: 18px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.metric-info {
+  flex: 1;
+  min-width: 0;
 }
 
 .metric-info h3 {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .metric-value {
-  font-size: 1.8rem;
-  font-weight: 700;
+  font-size: clamp(1.2rem, 1.8vw, 1.75rem);
+  font-weight: 800;
   color: var(--text-primary);
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .metric-icon {
-  width: 46px;
-  height: 46px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .metric-icon.blue { background: rgba(6, 182, 212, 0.15); color: var(--primary-cyan); }
@@ -531,6 +556,299 @@ p {
 .metric-icon.orange { background: rgba(245, 158, 11, 0.15); color: var(--primary-orange); }
 .metric-icon.red { background: rgba(244, 63, 94, 0.15); color: var(--primary-red); }
 .metric-icon.purple { background: rgba(99, 102, 241, 0.15); color: var(--primary-indigo); }
+
+@media (max-width: 1024px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .metric-card {
+    padding: 16px 18px;
+  }
+
+  .metric-value {
+    font-size: clamp(1.2rem, 2.5vw, 1.55rem);
+  }
+}
+
+@media (max-width: 600px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .metric-card {
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .metric-info h3 {
+    font-size: 0.78rem;
+    margin-bottom: 4px;
+  }
+
+  .metric-value {
+    font-size: clamp(1.25rem, 5.2vw, 1.6rem);
+  }
+
+  .metric-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+  }
+}
+
+/* Total Adjustments Top KPI Grid */
+.adjustments-kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.adjustments-kpi-card {
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.adjustments-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.adjustments-kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.adjustments-kpi-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.adjustments-kpi-icon-box {
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.adjustments-kpi-val {
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.adjustments-kpi-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+@media (max-width: 1024px) {
+  .adjustments-kpis-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .adjustments-kpi-card {
+    padding: 16px 18px;
+  }
+
+  .adjustments-kpi-val {
+    font-size: clamp(1.2rem, 3vw, 1.55rem);
+  }
+}
+
+@media (max-width: 600px) {
+  .adjustments-kpis-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .adjustments-kpi-card {
+    padding: 14px 16px;
+  }
+
+  .adjustments-kpi-val {
+    font-size: clamp(1.25rem, 5.2vw, 1.6rem);
+  }
+}
+
+/* Ledger Filter Sums Grid */
+.ledger-filter-sums-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.ledger-filter-sum-card {
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ledger-filter-sum-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ledger-filter-sum-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.ledger-filter-sum-val {
+  font-size: clamp(1.15rem, 1.8vw, 1.45rem);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.ledger-filter-sum-sub {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+  line-height: 1.2;
+}
+
+.ledger-filter-sum-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .ledger-filter-sums-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .ledger-filter-sum-card {
+    padding: 12px 14px;
+  }
+
+  .ledger-filter-sum-val {
+    font-size: clamp(1.2rem, 4.8vw, 1.5rem);
+  }
+}
+
+/* Dashboard Project Status Grid */
+.project-status-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 30px;
+}
+
+@media (max-width: 1100px) {
+  .project-status-metrics-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .project-status-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+}
+
+/* Dashboard Cashflow Banner */
+.cashflow-banner {
+  padding: 20px 25px;
+  margin-bottom: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(99, 102, 241, 0.1));
+  border: 1px solid rgba(6, 182, 212, 0.2);
+  border-radius: 14px;
+}
+
+.cashflow-banner-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cashflow-banner-val-box {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.cashflow-banner-val {
+  font-size: clamp(1.3rem, 2.5vw, 1.85rem);
+  font-weight: 800;
+  white-space: nowrap;
+  letter-spacing: -0.5px;
+}
+
+@media (max-width: 640px) {
+  .cashflow-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px 18px;
+    gap: 12px;
+  }
+
+  .cashflow-banner-val-box {
+    text-align: left;
+    width: 100%;
+    border-top: 1px dashed rgba(255, 255, 255, 0.1);
+    padding-top: 10px;
+  }
+
+  .cashflow-banner-val {
+    font-size: clamp(1.35rem, 5.5vw, 1.7rem);
+  }
+}
 
 /* Progress Timeline */
 .timeline {
@@ -1387,6 +1705,8 @@ p {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .budget-summary-label {
@@ -1395,12 +1715,17 @@ p {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 600;
+  line-height: 1.25;
 }
 
 .budget-summary-value {
-  font-size: 1.35rem;
+  font-size: clamp(1.15rem, 4vw, 1.45rem);
   font-weight: 800;
   letter-spacing: -0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 @media (max-width: 860px) {
@@ -1689,6 +2014,390 @@ p {
     grid-template-columns: 1fr !important;
     gap: 12px !important;
   }
+}
+
+/* ==========================================================================
+   TOTAL ADJUSTMENTS & PERSONAL ACCOUNTS RESPONSIVE ENHANCEMENTS
+   ========================================================================== */
+
+.adjustments-financial-summary {
+  display: flex;
+  gap: 25px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: rgba(0, 0, 0, 0.22);
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.adjustments-financial-divider {
+  width: 1px;
+  height: 35px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 768px) {
+  .adjustments-financial-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  .adjustments-financial-divider {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .adjustments-financial-summary {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+/* Expanded accordion container */
+.adjustments-expanded-content {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(11, 15, 25, 0.45);
+  padding: 20px;
+}
+
+@media (max-width: 640px) {
+  .adjustments-expanded-content {
+    padding: 14px 10px;
+  }
+}
+
+/* Tabs switcher in expanded accordion */
+.adjustments-tabs-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.adjustments-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .adjustments-tab-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+/* Mobile Cards for TAB 1: Obras y Renglones Asignados */
+.adjustments-budget-card {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: var(--transition-smooth);
+}
+
+.adjustments-budget-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.adjustments-budget-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.adjustments-project-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+.adjustments-budget-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f3f4f6;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.adjustments-budget-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+@media (max-width: 480px) {
+  .adjustments-budget-card-metrics {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.adjustments-metric-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.adjustments-metric-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.adjustments-metric-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.adjustments-progress-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.adjustments-budget-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  border-top: 1px dashed rgba(255, 255, 255, 0.07);
+  padding-top: 8px;
+  margin-top: 2px;
+}
+
+/* Mobile Cards for TAB 2: Historial de Pagos de Caja */
+.adjustments-payment-card {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: var(--transition-smooth);
+}
+
+.adjustments-payment-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.adjustments-payment-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.adjustments-payment-concept-box {
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.adjustments-concept-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.adjustments-concept-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.adjustments-payment-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+  margin-top: 2px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.adjustments-payment-amount {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #34d399;
+}
+
+/* ==========================================================================
+   LEDGER (LIBRO DE CAJA) RESPONSIVE ENHANCEMENTS
+   ========================================================================== */
+
+/* Filters Responsive Toolbar */
+.ledger-filters-toolbar {
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .ledger-filters-toolbar {
+    padding: 14px 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  
+  .ledger-filters-toolbar select,
+  .ledger-filters-toolbar .form-control {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  
+  .ledger-filter-full {
+    grid-column: 1 / -1;
+  }
+
+  .ledger-filter-date-group {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 520px) {
+  .ledger-filters-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .ledger-filter-date-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Ledger Mobile Cards System */
+.ledger-transaction-card {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border-glass);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: var(--transition-smooth);
+}
+
+.ledger-transaction-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.ledger-transaction-card.is-canceled {
+  opacity: 0.6;
+  background: rgba(255, 255, 255, 0.01);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.ledger-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ledger-card-concept-box {
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ledger-card-concept-text {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.ledger-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ledger-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+  margin-top: 2px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ledger-card-amount {
+  font-size: 1.15rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.ledger-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ledger-mobile-total-card {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(16, 185, 129, 0.06) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 6px;
 }
 
 

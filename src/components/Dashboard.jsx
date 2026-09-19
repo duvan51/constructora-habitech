@@ -316,7 +316,7 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
         <div className="glass-panel metric-card">
           <div className="metric-info">
             <h3>Presupuesto Contratado</h3>
-            <div className="metric-value">{formatCurrency(totalBudget)}</div>
+            <div className="metric-value" title={formatCurrency(totalBudget)}>{formatCurrency(totalBudget)}</div>
           </div>
           <div className="metric-icon blue">
             <HardHat size={22} />
@@ -326,7 +326,7 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
         <div className="glass-panel metric-card">
           <div className="metric-info">
             <h3>Total Cobrado (Clientes)</h3>
-            <div className="metric-value" style={{ color: 'var(--primary-teal)' }}>
+            <div className="metric-value" style={{ color: 'var(--primary-teal)' }} title={formatCurrency(totalPaid)}>
               {formatCurrency(totalPaid)}
             </div>
           </div>
@@ -338,7 +338,7 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
         <div className="glass-panel metric-card">
           <div className="metric-info">
             <h3>Saldo por Cobrar</h3>
-            <div className="metric-value" style={{ color: 'var(--primary-orange)' }}>
+            <div className="metric-value" style={{ color: 'var(--primary-orange)' }} title={formatCurrency(pendingBalance)}>
               {formatCurrency(pendingBalance)}
             </div>
           </div>
@@ -350,7 +350,7 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
         <div className="glass-panel metric-card">
           <div className="metric-info">
             <h3>Gastos Realizados</h3>
-            <div className="metric-value" style={{ color: 'var(--primary-red)' }}>
+            <div className="metric-value" style={{ color: 'var(--primary-red)' }} title={formatCurrency(totalExpenses)}>
               {formatCurrency(totalExpenses)}
             </div>
           </div>
@@ -364,7 +364,7 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
       <h2 style={{ fontSize: '1.2rem', marginTop: '30px', marginBottom: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
         Estado de Obras y Proyectos
       </h2>
-      <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '30px' }}>
+      <div className="project-status-metrics-grid">
         
         {/* Total Projects */}
         <div className="glass-panel metric-card" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -424,16 +424,16 @@ export default function Dashboard({ projects, transactions, onViewProject }) {
       </div>
 
       {/* Cash Flow Balance Banner */}
-      <div className="glass-panel" style={{ padding: '20px 25px', marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, rgba(6,182,212,0.1), rgba(99,102,241,0.1))', border: '1px solid rgba(6,182,212,0.2)' }}>
-        <div>
+      <div className="glass-panel cashflow-banner">
+        <div className="cashflow-banner-info">
           <h3 style={{ fontSize: '1.05rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <TrendingUp size={18} style={{ color: 'var(--primary-cyan)' }} />
             Utilidad Neta / Flujo Caja Recaudado
           </h3>
           <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>Diferencia entre cobros reales liquidados y compras de materiales/mano de obra.</p>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <span style={{ fontSize: '1.8rem', fontWeight: 800, color: netCash >= 0 ? '#10b981' : '#f43f5e' }}>
+        <div className="cashflow-banner-val-box">
+          <span className="cashflow-banner-val" style={{ color: netCash >= 0 ? '#10b981' : '#f43f5e' }} title={formatCurrency(netCash)}>
             {formatCurrency(netCash)}
           </span>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 700 }}>

@@ -412,76 +412,76 @@ export default function TotalAdjustments({
       </div>
 
       {/* KPI METRIC CARDS */}
-      <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+      <div className="adjustments-kpis-grid">
         
         {/* Card 1: Presupuesto Global Contratado */}
-        <div className="glass-panel" style={{ padding: '20px', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700, letterSpacing: '0.5px' }}>
+        <div className="glass-panel adjustments-kpi-card">
+          <div className="adjustments-kpi-header">
+            <span className="adjustments-kpi-label">
               Presupuesto Total Contratado
             </span>
-            <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '6px', borderRadius: '8px' }}>
+            <div className="adjustments-kpi-icon-box" style={{ background: 'rgba(255, 255, 255, 0.05)' }}>
               <Layers size={18} style={{ color: 'var(--primary-cyan)' }} />
             </div>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+          <div className="adjustments-kpi-val" style={{ color: 'var(--text-primary)' }} title={formatCurrency(globalKPIs.totalPresupuestado)}>
             {formatCurrency(globalKPIs.totalPresupuestado)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div className="adjustments-kpi-sub" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>Suma de renglones asignados en todas las obras</span>
           </div>
         </div>
 
         {/* Card 2: Total Desembolsado / Pagado */}
-        <div className="glass-panel" style={{ padding: '20px', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700, letterSpacing: '0.5px' }}>
+        <div className="glass-panel adjustments-kpi-card">
+          <div className="adjustments-kpi-header">
+            <span className="adjustments-kpi-label">
               Total Entregado / Pagado
             </span>
-            <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '6px', borderRadius: '8px' }}>
+            <div className="adjustments-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.1)' }}>
               <ArrowDownLeft size={18} style={{ color: '#34d399' }} />
             </div>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#34d399' }}>
+          <div className="adjustments-kpi-val" style={{ color: '#34d399' }} title={formatCurrency(globalKPIs.totalPagado)}>
             {formatCurrency(globalKPIs.totalPagado)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+          <div className="adjustments-kpi-sub">
             Egresos reales y abonos registrados en Caja
           </div>
         </div>
 
         {/* Card 3: Saldo Pendiente por Pagar */}
-        <div className="glass-panel" style={{ padding: '20px', position: 'relative', overflow: 'hidden', borderLeft: '4px solid #FF6D00' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: '#FF6D00', fontWeight: 700, letterSpacing: '0.5px' }}>
+        <div className="glass-panel adjustments-kpi-card" style={{ borderLeft: '4px solid #FF6D00' }}>
+          <div className="adjustments-kpi-header">
+            <span className="adjustments-kpi-label" style={{ color: '#FF6D00' }}>
               Saldo Pendiente por Pagar
             </span>
-            <div style={{ background: 'rgba(255, 109, 0, 0.15)', padding: '6px', borderRadius: '8px' }}>
+            <div className="adjustments-kpi-icon-box" style={{ background: 'rgba(255, 109, 0, 0.15)' }}>
               <AlertTriangle size={18} style={{ color: '#FF6D00' }} />
             </div>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#FF6D00' }}>
+          <div className="adjustments-kpi-val" style={{ color: '#FF6D00' }} title={formatCurrency(globalKPIs.totalPendientePorPagar)}>
             {formatCurrency(globalKPIs.totalPendientePorPagar)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
+          <div className="adjustments-kpi-sub" style={{ color: 'var(--text-secondary)' }}>
             <strong>{globalKPIs.countPending}</strong> contratistas con saldo pendiente
           </div>
         </div>
 
         {/* Card 4: Saldos a Favor / Anticipos Excedidos */}
-        <div className="glass-panel" style={{ padding: '20px', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700, letterSpacing: '0.5px' }}>
+        <div className="glass-panel adjustments-kpi-card">
+          <div className="adjustments-kpi-header">
+            <span className="adjustments-kpi-label">
               Saldos a Favor Constructora
             </span>
-            <div style={{ background: 'rgba(56, 189, 248, 0.1)', padding: '6px', borderRadius: '8px' }}>
+            <div className="adjustments-kpi-icon-box" style={{ background: 'rgba(56, 189, 248, 0.1)' }}>
               <ArrowUpRight size={18} style={{ color: '#38bdf8' }} />
             </div>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#38bdf8' }}>
+          <div className="adjustments-kpi-val" style={{ color: '#38bdf8' }} title={formatCurrency(globalKPIs.totalSaldoAFavor)}>
             {formatCurrency(globalKPIs.totalSaldoAFavor)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+          <div className="adjustments-kpi-sub">
             {globalKPIs.countOverpaid} personas con pagos superiores al presupuesto
           </div>
         </div>
@@ -755,16 +755,7 @@ export default function TotalAdjustments({
                     </div>
 
                     {/* Financial Summary Columns */}
-                    <div style={{ 
-                      display: 'flex', 
-                      gap: '25px', 
-                      alignItems: 'center', 
-                      flexWrap: 'wrap',
-                      background: 'rgba(0, 0, 0, 0.2)',
-                      padding: '12px 20px',
-                      borderRadius: '12px',
-                      border: '1px solid rgba(255, 255, 255, 0.05)'
-                    }}>
+                    <div className="adjustments-financial-summary">
                       
                       {/* Presupuesto Total ($X + $Y) */}
                       <div>
@@ -780,7 +771,7 @@ export default function TotalAdjustments({
                       </div>
 
                       {/* Divider */}
-                      <div style={{ width: '1px', height: '35px', background: 'rgba(255, 255, 255, 0.1)' }} />
+                      <div className="adjustments-financial-divider" />
 
                       {/* Pagado Total ($F) */}
                       <div>
@@ -796,7 +787,7 @@ export default function TotalAdjustments({
                       </div>
 
                       {/* Divider */}
-                      <div style={{ width: '1px', height: '35px', background: 'rgba(255, 255, 255, 0.1)' }} />
+                      <div className="adjustments-financial-divider" />
 
                       {/* Saldo Neto ($L) */}
                       <div>
@@ -856,7 +847,7 @@ export default function TotalAdjustments({
                     flexWrap: 'wrap',
                     gap: '10px'
                   }}>
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                       {/* Abono Directo en Caja */}
                       {userRole !== 'viewer' && onAddTransaction && (
                         <button 
@@ -895,29 +886,23 @@ export default function TotalAdjustments({
 
                 {/* EXPANDED DETAILS ACCORDION */}
                 {isExpanded && (
-                  <div style={{ 
-                    borderTop: '1px solid rgba(255, 255, 255, 0.08)', 
-                    background: 'rgba(11, 15, 25, 0.45)', 
-                    padding: '20px' 
-                  }}>
+                  <div className="adjustments-expanded-content">
                     
                     {/* Tabs switcher */}
-                    <div style={{ display: 'flex', gap: '10px', marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
+                    <div className="adjustments-tabs-container">
                       <button 
-                        className={`btn ${currentTab === 'budget' ? 'btn-primary' : 'btn-secondary'}`}
+                        className={`btn adjustments-tab-btn ${currentTab === 'budget' ? 'btn-primary' : 'btn-secondary'}`}
                         onClick={() => setActiveTabByPerson(prev => ({ ...prev, [cp.person.id]: 'budget' }))}
-                        style={{ fontSize: '0.82rem', padding: '6px 14px', borderRadius: '8px' }}
                       >
-                        <Layers size={14} style={{ marginRight: '6px' }} />
+                        <Layers size={14} />
                         Obras y Renglones Asignados ({cp.assignedBudgetItems.length})
                       </button>
 
                       <button 
-                        className={`btn ${currentTab === 'payments' ? 'btn-primary' : 'btn-secondary'}`}
+                        className={`btn adjustments-tab-btn ${currentTab === 'payments' ? 'btn-primary' : 'btn-secondary'}`}
                         onClick={() => setActiveTabByPerson(prev => ({ ...prev, [cp.person.id]: 'payments' }))}
-                        style={{ fontSize: '0.82rem', padding: '6px 14px', borderRadius: '8px' }}
                       >
-                        <Receipt size={14} style={{ marginRight: '6px' }} />
+                        <Receipt size={14} />
                         Historial de Pagos de Caja ({cp.matchingExpenses.length})
                       </button>
                     </div>
@@ -936,73 +921,168 @@ export default function TotalAdjustments({
                             </p>
                           </div>
                         ) : (
-                          <div className="table-responsive">
-                            <table className="custom-table" style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-                              <thead>
-                                <tr style={{ background: 'rgba(255, 255, 255, 0.03)', textAlign: 'left', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                                  <th style={{ padding: '10px 14px' }}>Obra / Proyecto</th>
-                                  <th style={{ padding: '10px 14px' }}>Renglón Presupuestario</th>
-                                  <th style={{ padding: '10px 14px' }}>Categoría</th>
-                                  <th style={{ padding: '10px 14px', textAlign: 'right' }}>Presupuesto Contratado</th>
-                                  <th style={{ padding: '10px 14px', textAlign: 'right' }}>Pagado en Renglón</th>
-                                  <th style={{ padding: '10px 14px', textAlign: 'right' }}>Saldo Renglón</th>
-                                  <th style={{ padding: '10px 14px', textAlign: 'center' }}>Acción</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {cp.assignedBudgetItems.map((item, idx) => {
-                                  const itemRemaining = item.estimated - item.actual;
-                                  return (
-                                    <tr key={`${item.projectId}_${item.budgetItemId}_${idx}`} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
-                                      <td style={{ padding: '12px 14px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                          <HardHat size={14} style={{ color: 'var(--primary-cyan)' }} />
-                                          {item.projectName}
-                                        </div>
-                                      </td>
-                                      <td style={{ padding: '12px 14px' }}>
-                                        <span style={{ fontWeight: 600, color: '#f3f4f6' }}>{item.name}</span>
-                                      </td>
-                                      <td style={{ padding: '12px 14px' }}>
-                                        <span style={{ 
-                                          fontSize: '0.72rem', 
-                                          padding: '2px 8px', 
-                                          borderRadius: '4px',
-                                          background: item.category === 'labor' ? 'rgba(255, 109, 0, 0.15)' : 'rgba(56, 189, 248, 0.15)',
-                                          color: item.category === 'labor' ? '#FF6D00' : '#38bdf8',
-                                          textTransform: 'uppercase',
-                                          fontWeight: 600
-                                        }}>
-                                          {item.category === 'labor' ? 'Mano de Obra' : item.category === 'materials' ? 'Materiales' : 'Licencias'}
+                          <>
+                            {/* 1. DESKTOP VIEW: Clean Modern Glass Table */}
+                            <div className="table-desktop-view">
+                              <table className="modern-glass-table">
+                                <thead>
+                                  <tr>
+                                    <th>Obra / Proyecto</th>
+                                    <th>Renglón Presupuestario</th>
+                                    <th>Categoría</th>
+                                    <th style={{ textAlign: 'right' }}>Presupuesto Contratado</th>
+                                    <th style={{ textAlign: 'right' }}>Pagado en Renglón</th>
+                                    <th style={{ textAlign: 'right' }}>Saldo Renglón</th>
+                                    <th style={{ textAlign: 'center' }}>Acción</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {cp.assignedBudgetItems.map((item, idx) => {
+                                    const itemRemaining = item.estimated - item.actual;
+                                    return (
+                                      <tr key={`${item.projectId}_${item.budgetItemId}_${idx}`}>
+                                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <HardHat size={14} style={{ color: 'var(--primary-cyan)' }} />
+                                            {item.projectName}
+                                          </div>
+                                        </td>
+                                        <td>
+                                          <span style={{ fontWeight: 600, color: '#f3f4f6' }}>{item.name}</span>
+                                        </td>
+                                        <td>
+                                          <span style={{ 
+                                            fontSize: '0.72rem', 
+                                            padding: '2px 8px', 
+                                            borderRadius: '4px', 
+                                            background: item.category === 'labor' ? 'rgba(255, 109, 0, 0.15)' : 'rgba(56, 189, 248, 0.15)', 
+                                            color: item.category === 'labor' ? '#FF6D00' : '#38bdf8', 
+                                            textTransform: 'uppercase', 
+                                            fontWeight: 600 
+                                          }}>
+                                            {item.category === 'labor' ? 'Mano de Obra' : item.category === 'materials' ? 'Materiales' : 'Licencias'}
+                                          </span>
+                                        </td>
+                                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                          {formatCurrency(item.estimated)}
+                                        </td>
+                                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#34d399' }}>
+                                          {formatCurrency(item.actual)}
+                                        </td>
+                                        <td style={{ textAlign: 'right', fontWeight: 700, color: itemRemaining > 0 ? '#FF6D00' : '#34d399' }}>
+                                          {formatCurrency(itemRemaining)}
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                          {onNavigateToProject && (
+                                            <button 
+                                              className="btn-icon" 
+                                              title="Ver Obra"
+                                              onClick={() => onNavigateToProject(item.projectId)}
+                                              style={{ color: 'var(--primary-cyan)' }}
+                                            >
+                                              <ExternalLink size={15} />
+                                            </button>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {/* 2. MOBILE VIEW: Responsive Cards */}
+                            <div className="table-mobile-cards">
+                              {cp.assignedBudgetItems.map((item, idx) => {
+                                const itemRemaining = item.estimated - item.actual;
+                                const itemPercent = item.estimated > 0 ? Math.min(100, Math.round((item.actual / item.estimated) * 100)) : 0;
+                                return (
+                                  <div key={`m_item_${item.projectId}_${item.budgetItemId}_${idx}`} className="adjustments-budget-card">
+                                    <div className="adjustments-budget-card-header">
+                                      <div className="adjustments-project-badge">
+                                        <HardHat size={15} style={{ color: 'var(--primary-cyan)', flexShrink: 0 }} />
+                                        <span>{item.projectName}</span>
+                                      </div>
+                                      <span style={{ 
+                                        fontSize: '0.7rem', 
+                                        padding: '3px 8px', 
+                                        borderRadius: '6px', 
+                                        background: item.category === 'labor' ? 'rgba(255, 109, 0, 0.15)' : 'rgba(56, 189, 248, 0.15)', 
+                                        color: item.category === 'labor' ? '#FF6D00' : '#38bdf8', 
+                                        textTransform: 'uppercase', 
+                                        fontWeight: 700 
+                                      }}>
+                                        {item.category === 'labor' ? 'Mano de Obra' : item.category === 'materials' ? 'Materiales' : 'Licencias'}
+                                      </span>
+                                    </div>
+
+                                    <div>
+                                      <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                                        Renglón Presupuestario
+                                      </div>
+                                      <div className="adjustments-budget-card-title">
+                                        {item.name}
+                                      </div>
+                                    </div>
+
+                                    {/* Metrics Grid */}
+                                    <div className="adjustments-budget-card-metrics">
+                                      <div className="adjustments-metric-item">
+                                        <span className="adjustments-metric-label">Contratado</span>
+                                        <span className="adjustments-metric-value" style={{ color: 'var(--text-primary)' }}>
+                                          {formatCurrency(item.estimated)}
                                         </span>
-                                      </td>
-                                      <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                        {formatCurrency(item.estimated)}
-                                      </td>
-                                      <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 600, color: '#34d399' }}>
-                                        {formatCurrency(item.actual)}
-                                      </td>
-                                      <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: itemRemaining > 0 ? '#FF6D00' : '#34d399' }}>
-                                        {formatCurrency(itemRemaining)}
-                                      </td>
-                                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                                        {onNavigateToProject && (
-                                          <button 
-                                            className="btn-icon" 
-                                            title="Ver Obra"
-                                            onClick={() => onNavigateToProject(item.projectId)}
-                                            style={{ color: 'var(--primary-cyan)' }}
-                                          >
-                                            <ExternalLink size={15} />
-                                          </button>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
+                                      </div>
+                                      <div className="adjustments-metric-item">
+                                        <span className="adjustments-metric-label">Pagado</span>
+                                        <span className="adjustments-metric-value" style={{ color: '#34d399' }}>
+                                          {formatCurrency(item.actual)}
+                                        </span>
+                                      </div>
+                                      <div className="adjustments-metric-item">
+                                        <span className="adjustments-metric-label">Saldo</span>
+                                        <span className="adjustments-metric-value" style={{ color: itemRemaining > 0 ? '#FF6D00' : '#34d399' }}>
+                                          {formatCurrency(itemRemaining)}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Progress */}
+                                    <div>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                                        <span>Avance de Pago</span>
+                                        <span style={{ fontWeight: 600, color: itemPercent >= 100 ? '#34d399' : '#FF6D00' }}>
+                                          {itemPercent}%
+                                        </span>
+                                      </div>
+                                      <div className="adjustments-progress-track">
+                                        <div style={{ 
+                                          width: `${itemPercent}%`, 
+                                          height: '100%', 
+                                          background: itemPercent >= 100 ? '#34d399' : 'linear-gradient(90deg, #FF6D00, #ff9e40)', 
+                                          borderRadius: '3px',
+                                          transition: 'width 0.4s ease'
+                                        }} />
+                                      </div>
+                                    </div>
+
+                                    {onNavigateToProject && (
+                                      <div className="adjustments-budget-card-footer">
+                                        <button 
+                                          className="btn btn-secondary"
+                                          onClick={() => onNavigateToProject(item.projectId)}
+                                          style={{ fontSize: '0.78rem', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                        >
+                                          <ExternalLink size={13} />
+                                          <span>Ver Obra</span>
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
                         )}
                       </div>
                     )}
@@ -1018,70 +1098,167 @@ export default function TotalAdjustments({
                             </p>
                           </div>
                         ) : (
-                          <div className="table-responsive">
-                            <table className="custom-table" style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-                              <thead>
-                                <tr style={{ background: 'rgba(255, 255, 255, 0.03)', textAlign: 'left', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                                  <th style={{ padding: '10px 14px' }}>Fecha</th>
-                                  <th style={{ padding: '10px 14px' }}>Obra Destino</th>
-                                  <th style={{ padding: '10px 14px' }}>Renglón / Concepto</th>
-                                  <th style={{ padding: '10px 14px' }}>Detalle</th>
-                                  <th style={{ padding: '10px 14px', textAlign: 'right' }}>Monto Pagado</th>
-                                  <th style={{ padding: '10px 14px', textAlign: 'center' }}>Soporte</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {cp.matchingExpenses.map(t => (
-                                  <tr key={t.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
-                                    <td style={{ padding: '12px 14px', color: 'var(--text-secondary)' }}>
-                                      {formatDate(t.date)}
-                                    </td>
-                                    <td style={{ padding: '12px 14px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                      {t.projectName || (t.projectId === 'general' ? 'Caja General' : t.projectId)}
-                                    </td>
-                                    <td style={{ padding: '12px 14px' }}>
+                          <>
+                            {/* 1. DESKTOP VIEW: Clean Modern Glass Table */}
+                            <div className="table-desktop-view">
+                              <table className="modern-glass-table">
+                                <thead>
+                                  <tr>
+                                    <th>Fecha</th>
+                                    <th>Obra Destino</th>
+                                    <th>Renglón Asignado</th>
+                                    <th>Concepto / Detalle</th>
+                                    <th style={{ textAlign: 'right' }}>Monto Pagado</th>
+                                    <th style={{ textAlign: 'center' }}>Soporte</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {cp.matchingExpenses.map(t => (
+                                    <tr key={t.id}>
+                                      <td style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                        {formatDate(t.date)}
+                                      </td>
+                                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                        {t.projectName || (t.projectId === 'general' ? 'Caja General' : t.projectId)}
+                                      </td>
+                                      <td>
+                                        {t.budgetItemName ? (
+                                          <span style={{ 
+                                            fontSize: '0.75rem', 
+                                            padding: '2px 8px', 
+                                            borderRadius: '4px', 
+                                            background: 'rgba(255, 109, 0, 0.12)', 
+                                            color: '#FF6D00',
+                                            fontWeight: 600 
+                                          }}>
+                                            {t.budgetItemName}
+                                          </span>
+                                        ) : (
+                                          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Egreso Directo</span>
+                                        )}
+                                      </td>
+                                      <td style={{ maxWidth: '320px', wordBreak: 'break-word' }}>
+                                        <span style={{ color: 'var(--text-secondary)' }}>
+                                          {t.description || 'Sin detalle'}
+                                        </span>
+                                      </td>
+                                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#34d399', whiteSpace: 'nowrap' }}>
+                                        {formatCurrency(t.amount)}
+                                      </td>
+                                      <td style={{ textAlign: 'center' }}>
+                                        {t.receiptBase64 ? (
+                                          <button 
+                                            className="btn-icon" 
+                                            title="Ver Comprobante Adjunto"
+                                            onClick={() => setPreviewReceipt({ title: `Comprobante ${formatDate(t.date)} - ${formatCurrency(t.amount)}`, base64: t.receiptBase64 })}
+                                            style={{ color: 'var(--primary-teal)' }}
+                                          >
+                                            <Eye size={15} />
+                                          </button>
+                                        ) : (
+                                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>---</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {/* 2. MOBILE VIEW: Touch-Friendly Responsive Payment Cards */}
+                            <div className="table-mobile-cards">
+                              {cp.matchingExpenses.map(t => {
+                                const projectName = t.projectName || (t.projectId === 'general' ? 'Caja General' : t.projectId);
+                                return (
+                                  <div key={`m_pay_${t.id}`} className="adjustments-payment-card">
+                                    {/* Header: Obra Destino and Date */}
+                                    <div className="adjustments-payment-card-header">
+                                      <div className="adjustments-project-badge">
+                                        <Building size={14} style={{ color: 'var(--primary-cyan)', flexShrink: 0 }} />
+                                        <span>{projectName}</span>
+                                      </div>
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                                        <Calendar size={13} style={{ color: 'var(--text-muted)' }} />
+                                        <span>{formatDate(t.date)}</span>
+                                      </div>
+                                    </div>
+
+                                    {/* Concepto / Motivo de Pago */}
+                                    <div className="adjustments-payment-concept-box">
+                                      <span className="adjustments-concept-label">
+                                        Concepto / Detalle del Desembolso
+                                      </span>
+                                      <span className="adjustments-concept-text">
+                                        {t.description || 'Sin detalle especificado'}
+                                      </span>
+                                    </div>
+
+                                    {/* Renglón Presupuestario Tag */}
+                                    <div>
                                       {t.budgetItemName ? (
                                         <span style={{ 
                                           fontSize: '0.75rem', 
-                                          padding: '2px 8px', 
-                                          borderRadius: '4px', 
+                                          padding: '3px 8px', 
+                                          borderRadius: '6px', 
                                           background: 'rgba(255, 109, 0, 0.12)', 
                                           color: '#FF6D00',
-                                          fontWeight: 600 
+                                          fontWeight: 600,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '5px'
                                         }}>
-                                          {t.budgetItemName}
+                                          <Layers size={12} />
+                                          <span>Renglón: {t.budgetItemName}</span>
                                         </span>
                                       ) : (
-                                        <span style={{ color: 'var(--text-muted)' }}>Egreso Directo</span>
+                                        <span style={{ 
+                                          fontSize: '0.75rem', 
+                                          padding: '3px 8px', 
+                                          borderRadius: '6px', 
+                                          background: 'rgba(255, 255, 255, 0.05)', 
+                                          color: 'var(--text-muted)',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '5px'
+                                        }}>
+                                          Egreso Directo de Caja
+                                        </span>
                                       )}
-                                    </td>
-                                    <td style={{ padding: '12px 14px', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      <span title={t.description} style={{ color: 'var(--text-secondary)' }}>
-                                        {t.description || 'Sin detalle'}
-                                      </span>
-                                    </td>
-                                    <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#34d399' }}>
-                                      {formatCurrency(t.amount)}
-                                    </td>
-                                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                                      {t.receiptBase64 ? (
-                                        <button 
-                                          className="btn-icon" 
-                                          title="Ver Comprobante Adjunto"
-                                          onClick={() => setPreviewReceipt({ title: `Comprobante ${formatDate(t.date)} - ${formatCurrency(t.amount)}`, base64: t.receiptBase64 })}
-                                          style={{ color: 'var(--primary-teal)' }}
-                                        >
-                                          <Eye size={15} />
-                                        </button>
-                                      ) : (
-                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>---</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                                    </div>
+
+                                    {/* Footer: Monto Pagado & Soporte Button */}
+                                    <div className="adjustments-payment-card-footer">
+                                      <div>
+                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+                                          Monto Pagado
+                                        </div>
+                                        <div className="adjustments-payment-amount">
+                                          {formatCurrency(t.amount)}
+                                        </div>
+                                      </div>
+
+                                      <div>
+                                        {t.receiptBase64 ? (
+                                          <button 
+                                            className="btn btn-secondary"
+                                            onClick={() => setPreviewReceipt({ title: `Comprobante ${formatDate(t.date)} - ${formatCurrency(t.amount)}`, base64: t.receiptBase64 })}
+                                            style={{ fontSize: '0.78rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-teal)' }}
+                                          >
+                                            <Eye size={14} />
+                                            <span>Ver Soporte</span>
+                                          </button>
+                                        ) : (
+                                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            Sin soporte adjunto
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
                         )}
                       </div>
                     )}

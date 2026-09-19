@@ -612,10 +612,10 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
 
   return (
     <div className="ledger-view animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-        <h1>Libro de Caja General</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
+        <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800 }}>Libro de Caja General</h1>
         {userRole !== 'viewer' && (
-          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+          <button className="btn btn-primary" onClick={() => setShowAddModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Plus size={16} /> Registrar Transacción Manual
           </button>
         )}
@@ -629,12 +629,14 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           justifyContent: 'space-between',
           background: 'rgba(6, 182, 212, 0.08)',
           border: '1px solid rgba(6, 182, 212, 0.25)',
-          padding: '10px 16px',
+          padding: '12px 16px',
           borderRadius: '10px',
           marginBottom: '18px',
-          fontSize: '0.85rem'
+          fontSize: '0.85rem',
+          flexWrap: 'wrap',
+          gap: '10px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)', flexWrap: 'wrap' }}>
             <Filter size={15} style={{ color: 'var(--primary-cyan)' }} />
             <span>
               Métricas calculadas para <strong>{activeFilteredTxs.length} movimientos filtrados</strong>
@@ -651,13 +653,13 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
               background: 'rgba(255, 255, 255, 0.08)',
               border: '1px solid var(--border-glass)',
               color: 'var(--primary-cyan)',
-              padding: '4px 10px',
+              padding: '5px 12px',
               borderRadius: '6px',
               fontSize: '0.8rem',
               cursor: 'pointer',
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '6px'
             }}
             title="Restablecer todos los filtros"
           >
@@ -666,11 +668,11 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         </div>
       )}
 
-      <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-        <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
+      <div className="metrics-grid">
+        <div className="glass-panel metric-card">
           <div className="metric-info">
             <h3>{canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate) ? 'Movimientos Filtrados' : 'Presupuesto Contratado'}</h3>
-            <div className="metric-value" style={{ color: 'var(--primary-orange)' }}>
+            <div className="metric-value" style={{ color: 'var(--primary-orange)' }} title={canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate) ? `${activeFilteredTxs.length} transacciones` : formatCurrency(totalContracted)}>
               {canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate)
                 ? activeFilteredTxs.length
                 : formatCurrency(totalContracted)}
@@ -686,7 +688,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           </div>
         </div>
 
-        <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
+        <div className="glass-panel metric-card">
           <div className="metric-info">
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <h3>Total Cobrado (Ingresos)</h3>
@@ -694,7 +696,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                 <span className="badge" style={{ fontSize: '0.65rem', padding: '1px 5px', background: 'rgba(20, 184, 166, 0.15)', color: 'var(--primary-teal)' }}>Filtro</span>
               )}
             </div>
-            <div className="metric-value" style={{ color: 'var(--primary-teal)' }}>
+            <div className="metric-value" style={{ color: 'var(--primary-teal)' }} title={formatCurrency(canViewFilteredTotals && hasActiveFilters ? filteredIncome : totalCollected)}>
               {formatCurrency(canViewFilteredTotals && hasActiveFilters ? filteredIncome : totalCollected)}
             </div>
             {canViewFilteredTotals && hasActiveFilters && (
@@ -708,7 +710,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           </div>
         </div>
 
-        <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
+        <div className="glass-panel metric-card">
           <div className="metric-info">
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <h3>{canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate || filterType !== 'all') ? 'Balance Neto Filtro' : 'Saldo por Cobrar'}</h3>
@@ -720,7 +722,9 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
               color: canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate || filterType !== 'all')
                 ? (filteredNet >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)')
                 : 'var(--primary-cyan)'
-            }}>
+            }} title={canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate || filterType !== 'all')
+              ? `${filteredNet >= 0 ? '+' : ''}${formatCurrency(filteredNet)}`
+              : formatCurrency(remainingToCollect)}>
               {canViewFilteredTotals && hasActiveFilters && (filterPersonnel !== 'all' || filterCategory !== 'all' || startDate || endDate || filterType !== 'all')
                 ? `${filteredNet >= 0 ? '+' : ''}${formatCurrency(filteredNet)}`
                 : formatCurrency(remainingToCollect)}
@@ -734,7 +738,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           </div>
         </div>
 
-        <div className="glass-panel metric-card" style={{ padding: '18px 22px' }}>
+        <div className="glass-panel metric-card">
           <div className="metric-info">
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <h3>Gastos Realizados (Egresos)</h3>
@@ -742,7 +746,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                 <span className="badge" style={{ fontSize: '0.65rem', padding: '1px 5px', background: 'rgba(244, 63, 94, 0.15)', color: 'var(--primary-red)' }}>Filtro</span>
               )}
             </div>
-            <div className="metric-value" style={{ color: 'var(--primary-red)' }}>
+            <div className="metric-value" style={{ color: 'var(--primary-red)' }} title={formatCurrency(canViewFilteredTotals && hasActiveFilters ? filteredExpenses : totalExpenses)}>
               {formatCurrency(canViewFilteredTotals && hasActiveFilters ? filteredExpenses : totalExpenses)}
             </div>
             {canViewFilteredTotals && hasActiveFilters && (
@@ -758,7 +762,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       </div>
 
       {/* Filters Toolbar */}
-      <div className="glass-panel" style={{ padding: '15px 20px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'center' }}>
+      <div className="glass-panel ledger-filters-toolbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
           <Filter size={16} />
           <span>Filtrar por:</span>
@@ -767,7 +771,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         {/* Type Filter */}
         <select
           className="form-control"
-          style={{ width: 'auto', minWidth: '150px' }}
+          style={{ width: 'auto', minWidth: '140px' }}
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
         >
@@ -779,7 +783,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         {/* Project Filter */}
         <select
           className="form-control"
-          style={{ width: 'auto', minWidth: '220px' }}
+          style={{ width: 'auto', minWidth: '200px' }}
           value={filterProject}
           onChange={(e) => setFilterProject(e.target.value)}
         >
@@ -793,7 +797,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         {/* Category Filter */}
         <select
           className="form-control"
-          style={{ width: 'auto', minWidth: '180px' }}
+          style={{ width: 'auto', minWidth: '170px' }}
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value)}
         >
@@ -808,7 +812,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         {/* Personnel Filter */}
         <select
           className="form-control"
-          style={{ width: 'auto', minWidth: '180px' }}
+          style={{ width: 'auto', minWidth: '170px' }}
           value={filterPersonnel}
           onChange={(e) => setFilterPersonnel(e.target.value)}
         >
@@ -819,25 +823,27 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         </select>
 
         {/* Date Range Filters */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Desde:</span>
-          <input
-            type="date"
-            className="form-control"
-            style={{ width: 'auto', padding: '6px 12px' }}
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Hasta:</span>
-          <input
-            type="date"
-            className="form-control"
-            style={{ width: 'auto', padding: '6px 12px' }}
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
+        <div className="ledger-filter-date-group">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Desde:</span>
+            <input
+              type="date"
+              className="form-control"
+              style={{ width: '100%', padding: '6px 12px' }}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Hasta:</span>
+            <input
+              type="date"
+              className="form-control"
+              style={{ width: '100%', padding: '6px 12px' }}
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
         </div>
 
         {/* Clear Date Filters Button */}
@@ -877,7 +883,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         >
           <ArrowUpDown size={15} style={{ color: 'var(--primary-cyan)' }} />
           <span>
-            Orden: <strong style={{ color: 'var(--primary-cyan)' }}>{sortOrder === 'desc' ? 'Más Nuevo a Más Viejo 🔽' : 'Más Viejo a Más Nuevo 🔼'}</strong>
+            Orden: <strong style={{ color: 'var(--primary-cyan)' }}>{sortOrder === 'desc' ? 'Más Nuevo 🔽' : 'Más Viejo 🔼'}</strong>
           </span>
         </button>
 
@@ -894,8 +900,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           background: 'rgba(255, 255, 255, 0.02)',
           border: '1px solid var(--border-glass)',
           borderRadius: '8px',
-          transition: 'all 0.2s',
-          marginLeft: 'auto'
+          transition: 'all 0.2s'
         }}
         onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'}
         onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-glass)'}
@@ -1049,40 +1054,25 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           )}
 
           {/* Sum metric cards */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-            gap: '12px'
-          }}>
+          <div className="ledger-filter-sums-grid">
             {/* Sum of Expenses */}
-            <div style={{
+            <div className="ledger-filter-sum-card" style={{
               background: 'rgba(244, 63, 94, 0.08)',
-              border: '1px solid rgba(244, 63, 94, 0.25)',
-              borderRadius: '10px',
-              padding: '12px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
+              border: '1px solid rgba(244, 63, 94, 0.25)'
             }}>
-              <div>
-                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#fda4af', fontWeight: 600, marginBottom: '4px' }}>
+              <div className="ledger-filter-sum-info">
+                <div className="ledger-filter-sum-label" style={{ color: '#fda4af' }}>
                   Suma de Egresos (Gastos)
                 </div>
-                <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--primary-red)' }}>
+                <div className="ledger-filter-sum-val" style={{ color: 'var(--primary-red)' }} title={formatCurrency(filteredExpenses)}>
                   {formatCurrency(filteredExpenses)}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                <div className="ledger-filter-sum-sub">
                   {activeFilteredTxs.filter(t => t.type === 'expense').length} movimientos de egreso
                 </div>
               </div>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
+              <div className="ledger-filter-sum-icon" style={{
                 background: 'rgba(244, 63, 94, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 color: 'var(--primary-red)'
               }}>
                 <ArrowDownRight size={20} />
@@ -1090,34 +1080,23 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
             </div>
 
             {/* Sum of Income */}
-            <div style={{
+            <div className="ledger-filter-sum-card" style={{
               background: 'rgba(20, 184, 166, 0.08)',
-              border: '1px solid rgba(20, 184, 166, 0.25)',
-              borderRadius: '10px',
-              padding: '12px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
+              border: '1px solid rgba(20, 184, 166, 0.25)'
             }}>
-              <div>
-                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#5eead4', fontWeight: 600, marginBottom: '4px' }}>
+              <div className="ledger-filter-sum-info">
+                <div className="ledger-filter-sum-label" style={{ color: '#5eead4' }}>
                   Suma de Ingresos (Cobros)
                 </div>
-                <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--primary-teal)' }}>
+                <div className="ledger-filter-sum-val" style={{ color: 'var(--primary-teal)' }} title={formatCurrency(filteredIncome)}>
                   {formatCurrency(filteredIncome)}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                <div className="ledger-filter-sum-sub">
                   {activeFilteredTxs.filter(t => t.type === 'income').length} movimientos de ingreso
                 </div>
               </div>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
+              <div className="ledger-filter-sum-icon" style={{
                 background: 'rgba(20, 184, 166, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 color: 'var(--primary-teal)'
               }}>
                 <ArrowUpRight size={20} />
@@ -1125,38 +1104,25 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
             </div>
 
             {/* Net Balance */}
-            <div style={{
+            <div className="ledger-filter-sum-card" style={{
               background: filteredNet >= 0 ? 'rgba(20, 184, 166, 0.05)' : 'rgba(244, 63, 94, 0.05)',
-              border: filteredNet >= 0 ? '1px solid rgba(20, 184, 166, 0.2)' : '1px solid rgba(244, 63, 94, 0.2)',
-              borderRadius: '10px',
-              padding: '12px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
+              border: filteredNet >= 0 ? '1px solid rgba(20, 184, 166, 0.2)' : '1px solid rgba(244, 63, 94, 0.2)'
             }}>
-              <div>
-                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>
+              <div className="ledger-filter-sum-info">
+                <div className="ledger-filter-sum-label" style={{ color: 'var(--text-secondary)' }}>
                   Balance Neto {hasActiveFilters ? 'del Filtro' : 'de Caja'}
                 </div>
-                <div style={{
-                  fontSize: '1.35rem',
-                  fontWeight: 800,
+                <div className="ledger-filter-sum-val" style={{
                   color: filteredNet >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)'
-                }}>
+                }} title={`${filteredNet >= 0 ? '+' : ''}${formatCurrency(filteredNet)}`}>
                   {filteredNet >= 0 ? '+' : ''}{formatCurrency(filteredNet)}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                <div className="ledger-filter-sum-sub">
                   Ingresos menos Egresos
                 </div>
               </div>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
+              <div className="ledger-filter-sum-icon" style={{
                 background: filteredNet >= 0 ? 'rgba(20, 184, 166, 0.15)' : 'rgba(244, 63, 94, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 color: filteredNet >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)'
               }}>
                 <DollarSign size={20} />
@@ -1166,173 +1132,445 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         </div>
       )}
 
-      {/* Ledger Table */}
+      {/* Ledger Table & Cards */}
       <div className="glass-panel" style={{ padding: '20px' }}>
         {filteredTxs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)' }}>
             No se encontraron transacciones con los filtros seleccionados.
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '750px' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid var(--border-glass)' }}>
-                  <th 
-                    onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-                    style={{ 
-                      padding: '12px', 
-                      color: 'var(--text-secondary)', 
-                      fontSize: '0.85rem', 
-                      cursor: 'pointer',
-                      userSelect: 'none',
-                      whiteSpace: 'nowrap'
-                    }}
-                    title="Click para alternar orden: más nuevo / más viejo"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>Fecha</span>
-                      <ArrowUpDown size={13} style={{ color: 'var(--primary-cyan)' }} />
-                      <span style={{ fontSize: '0.7rem', color: 'var(--primary-cyan)', fontWeight: 700 }}>
-                        {sortOrder === 'desc' ? '▼ Más nuevo' : '▲ Más viejo'}
-                      </span>
-                    </div>
-                  </th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Obra / Destino</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Tipo</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Categoría</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Concepto / Detalles</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'right' }}>Monto</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', width: '130px' }}>Comprobante</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', width: '70px' }}>Ver</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTxs.map((tx) => {
-                  const isInc = tx.type === 'income';
-                  const isCanceled = tx.description.startsWith('[CANCELADO]') || tx.description.startsWith('[ANULADO]');
-                  return (
-                    <tr key={tx.id} style={{ 
-                      borderBottom: '1px solid var(--border-glass)',
-                      opacity: isCanceled ? 0.55 : 1,
-                      background: isCanceled ? 'rgba(255, 255, 255, 0.01)' : 'transparent'
-                    }}>
-                      <td style={{ padding: '14px 12px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                        {tx.date}
-                      </td>
-                      <td style={{ padding: '14px 12px', fontWeight: 600 }}>
-                        {tx.projectName}
-                      </td>
-                      <td style={{ padding: '14px 12px' }}>
-                        {isCanceled ? (
-                          <span className="badge" style={{ fontSize: '0.65rem', background: 'rgba(239, 68, 68, 0.12)', color: '#fca5a5', border: '1px solid rgba(239, 68, 68, 0.25)' }}>Anulado</span>
-                        ) : isInc ? (
-                          <span className="badge badge-completed" style={{ fontSize: '0.65rem' }}>Entrada</span>
-                        ) : (
-                          <span className="badge badge-danger" style={{ fontSize: '0.65rem', background: 'rgba(244,63,94,0.15)', color: '#fda4af', border: '1px solid rgba(244,63,94,0.3)' }}>Salida</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '14px 12px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                        {getCategoryLabel(tx.category)}
-                      </td>
-                      <td style={{ padding: '14px 12px', fontSize: '0.9rem', color: isCanceled ? 'var(--text-muted)' : 'var(--text-primary)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <span style={{ textDecoration: isCanceled ? 'line-through' : 'none' }}>{tx.description}</span>
-                          {(() => {
-                            const pName = tx.personnelName || (tx.personnelId && personnel ? personnel.find(p => p.id === tx.personnelId)?.name : null);
-                            if (pName) {
-                              return (
-                                <span style={{ 
-                                  background: 'rgba(168, 85, 247, 0.1)', 
-                                  border: '1px solid rgba(168, 85, 247, 0.2)', 
-                                  color: '#d8b4fe', 
-                                  padding: '2px 8px', 
-                                  borderRadius: '12px', 
-                                  fontSize: '0.7rem',
+          <>
+            {/* 1. DESKTOP VIEW: Clean Modern Glass Table */}
+            <div className="table-desktop-view">
+              <table className="modern-glass-table">
+                <thead>
+                  <tr>
+                    <th 
+                      onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                      style={{ cursor: 'pointer', userSelect: 'none' }}
+                      title="Click para alternar orden: más nuevo / más viejo"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>Fecha</span>
+                        <ArrowUpDown size={13} style={{ color: 'var(--primary-cyan)' }} />
+                        <span style={{ fontSize: '0.7rem', color: 'var(--primary-cyan)', fontWeight: 700 }}>
+                          {sortOrder === 'desc' ? '▼ Más nuevo' : '▲ Más viejo'}
+                        </span>
+                      </div>
+                    </th>
+                    <th>Obra / Destino</th>
+                    <th>Tipo</th>
+                    <th>Categoría</th>
+                    <th>Concepto / Detalles</th>
+                    <th style={{ textAlign: 'right' }}>Monto</th>
+                    <th style={{ textAlign: 'center', width: '130px' }}>Comprobante</th>
+                    <th style={{ textAlign: 'center', width: '70px' }}>Ver</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTxs.map((tx) => {
+                    const isInc = tx.type === 'income';
+                    const isCanceled = tx.description.startsWith('[CANCELADO]') || tx.description.startsWith('[ANULADO]');
+                    const pName = tx.personnelName || (tx.personnelId && personnel ? personnel.find(p => p.id === tx.personnelId)?.name : null);
+                    return (
+                      <tr key={tx.id} style={{ 
+                        opacity: isCanceled ? 0.55 : 1,
+                        background: isCanceled ? 'rgba(255, 255, 255, 0.01)' : 'transparent'
+                      }}>
+                        <td style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                          {tx.date}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>
+                          {tx.projectName}
+                        </td>
+                        <td>
+                          {isCanceled ? (
+                            <span className="badge" style={{ fontSize: '0.65rem', background: 'rgba(239, 68, 68, 0.12)', color: '#fca5a5', border: '1px solid rgba(239, 68, 68, 0.25)' }}>Anulado</span>
+                          ) : isInc ? (
+                            <span className="badge badge-completed" style={{ fontSize: '0.65rem' }}>Entrada</span>
+                          ) : (
+                            <span className="badge badge-danger" style={{ fontSize: '0.65rem', background: 'rgba(244,63,94,0.15)', color: '#fda4af', border: '1px solid rgba(244,63,94,0.3)' }}>Salida</span>
+                          )}
+                        </td>
+                        <td style={{ color: 'var(--text-secondary)' }}>
+                          {getCategoryLabel(tx.category)}
+                        </td>
+                        <td style={{ color: isCanceled ? 'var(--text-muted)' : 'var(--text-primary)', maxWidth: '350px', wordBreak: 'break-word' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ textDecoration: isCanceled ? 'line-through' : 'none' }}>{tx.description}</span>
+                            {pName && (
+                              <span style={{ 
+                                background: 'rgba(168, 85, 247, 0.1)', 
+                                border: '1px solid rgba(168, 85, 247, 0.2)', 
+                                color: '#d8b4fe', 
+                                padding: '2px 8px', 
+                                borderRadius: '12px', 
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                whiteSpace: 'nowrap'
+                              }}>
+                                👤 {pName}
+                              </span>
+                            )}
+                            {tx.budgetItemName && (
+                              <span style={{ 
+                                background: 'rgba(6, 182, 212, 0.1)', 
+                                border: '1px solid rgba(6, 182, 212, 0.2)', 
+                                color: 'var(--primary-cyan)', 
+                                padding: '2px 8px', 
+                                borderRadius: '12px', 
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                whiteSpace: 'nowrap'
+                              }}>
+                                🏷️ {tx.budgetItemName}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ 
+                          textAlign: 'right', 
+                          fontWeight: 700, 
+                          color: isCanceled ? 'var(--text-muted)' : isInc ? 'var(--primary-teal)' : 'var(--primary-red)',
+                          textDecoration: isCanceled ? 'line-through' : 'none',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {isCanceled ? '' : isInc ? '+' : '-'} {formatCurrency(tx.amount)}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                            {!isCanceled && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReceiptForTx(tx)}
+                                style={{
+                                  background: isInc ? 'rgba(20, 184, 166, 0.1)' : 'rgba(244, 63, 94, 0.1)',
+                                  border: isInc ? '1px solid rgba(20, 184, 166, 0.3)' : '1px solid rgba(244, 63, 94, 0.3)',
+                                  color: isInc ? 'var(--primary-teal)' : '#fda4af',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.75rem',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  cursor: 'pointer',
                                   fontWeight: 600,
-                                  whiteSpace: 'nowrap'
-                                }}>
-                                  👤 {pName}
-                                </span>
-                              );
-                            }
-                            return null;
-                          })()}
-                          {tx.budgetItemName && (
-                            <span style={{ 
-                              background: 'rgba(6, 182, 212, 0.1)', 
-                              border: '1px solid rgba(6, 182, 212, 0.2)', 
-                              color: 'var(--primary-cyan)', 
-                              padding: '2px 8px', 
-                              borderRadius: '12px', 
-                              fontSize: '0.7rem',
-                              fontWeight: 600,
-                              whiteSpace: 'nowrap'
-                            }}>
-                              🏷️ {tx.budgetItemName}
+                                  transition: 'all 0.2s'
+                                }}
+                                title={isInc ? 'Ver / Imprimir Recibo Oficial de Caja' : 'Ver / Imprimir Comprobante de Egreso'}
+                              >
+                                <FileText size={12} /> {isInc ? 'Recibo' : 'Egreso'}
+                              </button>
+                            )}
+                            {tx.receiptBase64 && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewReceipt(tx)}
+                                style={{
+                                  background: 'rgba(255, 255, 255, 0.05)',
+                                  border: '1px solid var(--border-glass)',
+                                  color: 'var(--primary-cyan)',
+                                  padding: '4px 6px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.75rem',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  cursor: 'pointer'
+                                }}
+                                title="Ver Comprobante / Foto Adjunta"
+                              >
+                                <Paperclip size={12} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditTxData({
+                                id: tx.id,
+                                projectId: tx.projectId,
+                                type: tx.type,
+                                category: tx.category,
+                                milestoneId: tx.milestoneId || '',
+                                method: tx.method || 'Transferencia',
+                                description: tx.description,
+                                amount: tx.amount,
+                                date: tx.date,
+                                personnelId: tx.personnelId || ''
+                              });
+                              setSelectedTx(tx);
+                              setIsEditing(false);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--primary-cyan)',
+                              cursor: 'pointer',
+                              padding: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'color 0.2s'
+                            }}
+                            title="Ver detalle / Editar"
+                          >
+                            <Eye size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {canViewFilteredTotals && filteredTxs.length > 0 && (
+                  <tfoot>
+                    <tr style={{ 
+                      borderTop: '2px solid var(--border-glass-active)',
+                      background: 'rgba(255, 255, 255, 0.03)'
+                    }}>
+                      <td colSpan={4} style={{ padding: '14px 12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <strong style={{ color: 'var(--text-primary)' }}>TOTAL SEGÚN FILTROS:</strong>
+                          <span>({activeFilteredTxs.length} transacciones activas)</span>
+                          {hasActiveFilters && (
+                            <span className="badge" style={{ background: 'rgba(6, 182, 212, 0.15)', color: 'var(--primary-cyan)', fontSize: '0.7rem' }}>
+                              Filtro Activo
                             </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px 12px', fontSize: '0.85rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {filteredIncome > 0 && (
+                            <span style={{ color: 'var(--primary-teal)', fontWeight: 600 }}>Cobros: +{formatCurrency(filteredIncome)}</span>
+                          )}
+                          {filteredExpenses > 0 && (
+                            <span style={{ color: 'var(--primary-red)', fontWeight: 600 }}>Gastos: -{formatCurrency(filteredExpenses)}</span>
                           )}
                         </div>
                       </td>
                       <td style={{ 
                         padding: '14px 12px', 
                         textAlign: 'right', 
-                        fontWeight: 700, 
-                        color: isCanceled ? 'var(--text-muted)' : isInc ? 'var(--primary-teal)' : 'var(--primary-red)',
-                        textDecoration: isCanceled ? 'line-through' : 'none'
+                        fontSize: '1rem', 
+                        fontWeight: 800, 
+                        color: filterType === 'income' 
+                          ? 'var(--primary-teal)' 
+                          : filterType === 'expense' 
+                            ? 'var(--primary-red)' 
+                            : (filteredNet >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)')
                       }}>
-                        {isCanceled ? '' : isInc ? '+' : '-'} {formatCurrency(tx.amount)}
-                      </td>
-                      <td style={{ padding: '14px 12px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                          {!isCanceled && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenReceiptForTx(tx)}
-                              style={{
-                                background: isInc ? 'rgba(20, 184, 166, 0.1)' : 'rgba(244, 63, 94, 0.1)',
-                                border: isInc ? '1px solid rgba(20, 184, 166, 0.3)' : '1px solid rgba(244, 63, 94, 0.3)',
-                                color: isInc ? 'var(--primary-teal)' : '#fda4af',
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                cursor: 'pointer',
-                                fontWeight: 600,
-                                transition: 'all 0.2s'
-                              }}
-                              title={isInc ? 'Ver / Imprimir Recibo Oficial de Caja' : 'Ver / Imprimir Comprobante de Egreso'}
-                            >
-                              <FileText size={12} /> {isInc ? 'Recibo' : 'Egreso'}
-                            </button>
-                          )}
-                          {tx.receiptBase64 && (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewReceipt(tx)}
-                              style={{
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid var(--border-glass)',
-                                color: 'var(--primary-cyan)',
-                                padding: '4px 6px',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '2px',
-                                cursor: 'pointer'
-                              }}
-                              title="Ver Comprobante / Foto Adjunta"
-                            >
-                              <Paperclip size={12} />
-                            </button>
-                          )}
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 400, textTransform: 'uppercase' }}>
+                          {filterType === 'income' ? 'Total Ingresos' : filterType === 'expense' ? 'Total Egresos' : 'Balance Neto'}
                         </div>
+                        {filterType === 'income' 
+                          ? `+ ${formatCurrency(filteredIncome)}` 
+                          : filterType === 'expense' 
+                            ? `- ${formatCurrency(filteredExpenses)}` 
+                            : `${filteredNet >= 0 ? '+' : ''}${formatCurrency(filteredNet)}`}
                       </td>
-                      <td style={{ padding: '14px 12px', textAlign: 'center' }}>
+                      <td colSpan={2}></td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+
+            {/* 2. MOBILE VIEW: Touch-Friendly Responsive Cards */}
+            <div className="table-mobile-cards">
+              {canViewFilteredTotals && filteredTxs.length > 0 && (
+                <div className="ledger-mobile-total-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                      Total según Filtros ({activeFilteredTxs.length} activos)
+                    </span>
+                    {hasActiveFilters && (
+                      <span className="badge" style={{ background: 'rgba(6, 182, 212, 0.15)', color: 'var(--primary-cyan)', fontSize: '0.68rem' }}>
+                        Filtro Activo
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                    <div>
+                      {filteredIncome > 0 && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--primary-teal)', fontWeight: 600 }}>Cobros: +{formatCurrency(filteredIncome)}</div>
+                      )}
+                      {filteredExpenses > 0 && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--primary-red)', fontWeight: 600 }}>Gastos: -{formatCurrency(filteredExpenses)}</div>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                        {filterType === 'income' ? 'Total Ingresos' : filterType === 'expense' ? 'Total Egresos' : 'Balance Neto'}
+                      </div>
+                      <div style={{ fontSize: '1.15rem', fontWeight: 800, color: filterType === 'income' ? 'var(--primary-teal)' : filterType === 'expense' ? 'var(--primary-red)' : (filteredNet >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)') }}>
+                        {filterType === 'income' ? `+ ${formatCurrency(filteredIncome)}` : filterType === 'expense' ? `- ${formatCurrency(filteredExpenses)}` : `${filteredNet >= 0 ? '+' : ''}${formatCurrency(filteredNet)}`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {filteredTxs.map((tx) => {
+                const isInc = tx.type === 'income';
+                const isCanceled = tx.description.startsWith('[CANCELADO]') || tx.description.startsWith('[ANULADO]');
+                const pName = tx.personnelName || (tx.personnelId && personnel ? personnel.find(p => p.id === tx.personnelId)?.name : null);
+                
+                return (
+                  <div key={`m_tx_${tx.id}`} className={`ledger-transaction-card ${isCanceled ? 'is-canceled' : ''}`}>
+                    {/* Header: Date + Flow Badge + Project Name */}
+                    <div className="ledger-card-header">
+                      <div className="ledger-card-header-left">
+                        {isCanceled ? (
+                          <span className="badge" style={{ fontSize: '0.7rem', background: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                            🚫 Anulado
+                          </span>
+                        ) : isInc ? (
+                          <span className="badge badge-completed" style={{ fontSize: '0.7rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <ArrowUpRight size={12} /> Entrada
+                          </span>
+                        ) : (
+                          <span className="badge badge-danger" style={{ fontSize: '0.7rem', background: 'rgba(244,63,94,0.15)', color: '#fda4af', border: '1px solid rgba(244,63,94,0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <ArrowDownRight size={12} /> Salida
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <Calendar size={13} style={{ color: 'var(--text-muted)' }} />
+                          {tx.date}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--primary-cyan)' }}>
+                        <Building size={14} style={{ flexShrink: 0 }} />
+                        <span style={{ maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {tx.projectName}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Concept Box */}
+                    <div className="ledger-card-concept-box">
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.4px' }}>
+                        Concepto / Detalle
+                      </div>
+                      <div className="ledger-card-concept-text" style={{ textDecoration: isCanceled ? 'line-through' : 'none', color: isCanceled ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                        {tx.description}
+                      </div>
+
+                      {/* Tags row */}
+                      <div className="ledger-card-tags">
+                        <span style={{ 
+                          fontSize: '0.72rem', 
+                          padding: '2px 8px', 
+                          borderRadius: '12px', 
+                          background: 'rgba(255, 255, 255, 0.05)', 
+                          color: 'var(--text-secondary)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)'
+                        }}>
+                          🏷️ {getCategoryLabel(tx.category)}
+                        </span>
+
+                        {pName && (
+                          <span style={{ 
+                            fontSize: '0.72rem', 
+                            padding: '2px 8px', 
+                            borderRadius: '12px', 
+                            background: 'rgba(168, 85, 247, 0.12)', 
+                            border: '1px solid rgba(168, 85, 247, 0.25)', 
+                            color: '#d8b4fe',
+                            fontWeight: 600 
+                          }}>
+                            👤 {pName}
+                          </span>
+                        )}
+
+                        {tx.budgetItemName && (
+                          <span style={{ 
+                            fontSize: '0.72rem', 
+                            padding: '2px 8px', 
+                            borderRadius: '12px', 
+                            background: 'rgba(6, 182, 212, 0.12)', 
+                            border: '1px solid rgba(6, 182, 212, 0.25)', 
+                            color: 'var(--primary-cyan)',
+                            fontWeight: 600 
+                          }}>
+                            📦 {tx.budgetItemName}
+                          </span>
+                        )}
+
+                        {tx.method && (
+                          <span style={{ 
+                            fontSize: '0.72rem', 
+                            padding: '2px 8px', 
+                            borderRadius: '12px', 
+                            background: 'rgba(255, 255, 255, 0.04)', 
+                            color: 'var(--text-muted)'
+                          }}>
+                            💳 {tx.method}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Footer: Amount & Actions */}
+                    <div className="ledger-card-footer">
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                          {isInc ? 'Monto Cobrado' : 'Monto Pagado'}
+                        </div>
+                        <div className="ledger-card-amount" style={{ 
+                          color: isCanceled ? 'var(--text-muted)' : isInc ? 'var(--primary-teal)' : 'var(--primary-red)',
+                          textDecoration: isCanceled ? 'line-through' : 'none'
+                        }}>
+                          {isCanceled ? '' : isInc ? '+' : '-'} {formatCurrency(tx.amount)}
+                        </div>
+                      </div>
+
+                      <div className="ledger-card-actions">
+                        {!isCanceled && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => handleOpenReceiptForTx(tx)}
+                            style={{
+                              fontSize: '0.78rem',
+                              padding: '6px 10px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              color: isInc ? 'var(--primary-teal)' : '#fda4af',
+                              borderColor: isInc ? 'rgba(20, 184, 166, 0.3)' : 'rgba(244, 63, 94, 0.3)'
+                            }}
+                            title={isInc ? 'Ver / Imprimir Recibo Oficial de Caja' : 'Ver / Imprimir Comprobante de Egreso'}
+                          >
+                            <FileText size={13} /> {isInc ? 'Recibo' : 'Egreso'}
+                          </button>
+                        )}
+
+                        {tx.receiptBase64 && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setPreviewReceipt(tx)}
+                            style={{
+                              fontSize: '0.78rem',
+                              padding: '6px 10px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              color: 'var(--primary-cyan)'
+                            }}
+                            title="Ver Comprobante / Foto Adjunta"
+                          >
+                            <Paperclip size={13} /> Soporte
+                          </button>
+                        )}
+
                         <button
                           type="button"
+                          className="btn btn-secondary"
                           onClick={() => {
                             setEditTxData({
                               id: tx.id,
@@ -1350,78 +1588,23 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                             setIsEditing(false);
                           }}
                           style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--primary-cyan)',
-                            cursor: 'pointer',
-                            padding: '4px',
+                            fontSize: '0.78rem',
+                            padding: '6px 10px',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'color 0.2s'
+                            gap: '4px'
                           }}
                           title="Ver detalle / Editar"
                         >
-                          <Eye size={18} />
+                          <Eye size={13} /> Detalle
                         </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              {canViewFilteredTotals && filteredTxs.length > 0 && (
-                <tfoot>
-                  <tr style={{ 
-                    borderTop: '2px solid var(--border-glass-active)',
-                    background: 'rgba(255, 255, 255, 0.03)'
-                  }}>
-                    <td colSpan={4} style={{ padding: '14px 12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <strong style={{ color: 'var(--text-primary)' }}>TOTAL SEGÚN FILTROS:</strong>
-                        <span>({activeFilteredTxs.length} transacciones activas)</span>
-                        {hasActiveFilters && (
-                          <span className="badge" style={{ background: 'rgba(6, 182, 212, 0.15)', color: 'var(--primary-cyan)', fontSize: '0.7rem' }}>
-                            Filtro Activo
-                          </span>
-                        )}
                       </div>
-                    </td>
-                    <td style={{ padding: '14px 12px', fontSize: '0.85rem' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        {filteredIncome > 0 && (
-                          <span style={{ color: 'var(--primary-teal)', fontWeight: 600 }}>Cobros: +{formatCurrency(filteredIncome)}</span>
-                        )}
-                        {filteredExpenses > 0 && (
-                          <span style={{ color: 'var(--primary-red)', fontWeight: 600 }}>Gastos: -{formatCurrency(filteredExpenses)}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ 
-                      padding: '14px 12px', 
-                      textAlign: 'right', 
-                      fontSize: '1rem', 
-                      fontWeight: 800, 
-                      color: filterType === 'income' 
-                        ? 'var(--primary-teal)' 
-                        : filterType === 'expense' 
-                          ? 'var(--primary-red)' 
-                          : (filteredNet >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)')
-                    }}>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 400, textTransform: 'uppercase' }}>
-                        {filterType === 'income' ? 'Total Ingresos' : filterType === 'expense' ? 'Total Egresos' : 'Balance Neto'}
-                      </div>
-                      {filterType === 'income' 
-                        ? `+ ${formatCurrency(filteredIncome)}` 
-                        : filterType === 'expense' 
-                          ? `- ${formatCurrency(filteredExpenses)}` 
-                          : `${filteredNet >= 0 ? '+' : ''}${formatCurrency(filteredNet)}`}
-                    </td>
-                    <td colSpan={2}></td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
