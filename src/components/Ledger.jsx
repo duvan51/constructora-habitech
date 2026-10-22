@@ -37,6 +37,10 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
   // Sync edit form with selected transaction
   useEffect(() => {
     if (selectedTx) {
+      const resolvedReceipt = selectedTx.receiptBase64 
+        || selectedTx.receipt_base64 
+        || (selectedTx.files && selectedTx.files[0] ? (selectedTx.files[0].fileBase64 || selectedTx.files[0].base64 || selectedTx.files[0].url) : '') 
+        || '';
       setEditTxData({
         id: selectedTx.id,
         projectId: selectedTx.projectId || 'general',
@@ -49,12 +53,12 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         description: selectedTx.description,
         amount: selectedTx.amount,
         date: selectedTx.date,
-        receiptBase64: selectedTx.receiptBase64 || '',
+        receiptBase64: resolvedReceipt,
         personnelId: selectedTx.personnelId || ''
       });
       setUploadMode('file');
-      setFileBase64(selectedTx.receiptBase64 || '');
-      setFileName(selectedTx.receiptBase64 ? 'Comprobante cargado' : '');
+      setFileBase64(resolvedReceipt);
+      setFileName(resolvedReceipt ? 'Comprobante cargado' : '');
       setCapturedImage('');
     } else {
       setEditTxData(null);
@@ -2161,6 +2165,15 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                         {fileName && (
                           <div style={{ marginTop: '10px', fontSize: '0.85rem', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                             <Check size={12} /> {fileName}
+                          </div>
+                        )}
+                        {fileBase64 && (
+                          <div style={{ marginTop: '12px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-glass)', background: '#000', padding: '6px' }}>
+                            {fileBase64.startsWith('data:application/pdf') ? (
+                              <iframe src={fileBase64} title="Comprobante cargado" style={{ width: '100%', height: '220px', border: 'none' }} />
+                            ) : (
+                              <img src={fileBase64} alt="Comprobante cargado" style={{ maxWidth: '100%', maxHeight: '220px', objectFit: 'contain', display: 'block', margin: '0 auto' }} />
+                            )}
                           </div>
                         )}
                       </div>

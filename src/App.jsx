@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import ProjectCard from './components/ProjectCard';
@@ -42,6 +42,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [projectSearch, setProjectSearch] = useState('');
   const [isGlobalLoading, setIsGlobalLoading] = useState(false);
+  const loadingCountRef = useRef(0);
 
   // Override window.alert and window.confirm with premium custom UI elements
   useEffect(() => {
@@ -76,8 +77,21 @@ export default function App() {
       });
     };
 
-    window.setGlobalLoading = (state) => {
-      setIsGlobalLoading(state);
+    window.setGlobalLoading = (state, force = false) => {
+      if (force) {
+        loadingCountRef.current = 0;
+        setIsGlobalLoading(false);
+        return;
+      }
+      if (state) {
+        loadingCountRef.current += 1;
+        setIsGlobalLoading(true);
+      } else {
+        loadingCountRef.current = Math.max(0, loadingCountRef.current - 1);
+        if (loadingCountRef.current === 0) {
+          setIsGlobalLoading(false);
+        }
+      }
     };
   }, []);
 
@@ -845,7 +859,7 @@ export default function App() {
         position: 'fixed',
         top: '20px',
         right: '20px',
-        zIndex: 100000,
+        zIndex: 10000000,
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',

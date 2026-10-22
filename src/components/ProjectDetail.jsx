@@ -3,7 +3,7 @@ import {
   ArrowLeft, Edit3, MapPin, Calendar, User, Phone, Mail, 
   DollarSign, CheckSquare, FileText, Image as ImageIcon, Camera, 
   TrendingUp, Plus, Trash2, Eye, Download, CheckCircle, Clock, X, Printer,
-  Receipt, Search, ChevronDown, ChevronUp, CreditCard, Calculator, FolderOpen, Info
+  Receipt, Search, ChevronDown, ChevronUp, CreditCard, Calculator, FolderOpen, Info, Loader2, ExternalLink, Upload
 } from 'lucide-react';
 import { 
   getDocumentsForProject, 
@@ -146,7 +146,9 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   
   // Expense Logging Form State
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [isSavingExpense, setIsSavingExpense] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState(null);
+  const [viewingExpense, setViewingExpense] = useState(null); // { expense, budgetItemIdx }
   const [expenseData, setExpenseData] = useState({
     description: '',
     categoryIndex: 0,
@@ -552,19 +554,33 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
     }
   };
 
-  // 2. Add Expense to a Budget Category
   // 2. Add / Edit Expense to a Budget Category
   const handleAddExpenseSubmit = async (e) => {
     e.preventDefault();
+    if (isSavingExpense) return; // Prevent double submission
+
     const amt = parseFloat(expenseData.amount);
-    if (!expenseData.description.trim() || amt <= 0) {
-      alert('Por favor ingresa detalles y valor de gasto válidos.');
+    if (!expenseData.description.trim() || isNaN(amt) || amt <= 0) {
+      if (window.showToast) {
+        window.showToast('Por favor ingresa detalles y valor de gasto válidos.', 'error');
+      } else {
+        alert('Por favor ingresa detalles y valor de gasto válidos.');
+      }
       return;
     }
 
     const catIdx = expenseData.categoryIndex;
     const updatedBudgetItems = [...project.budgetItems];
     const category = updatedBudgetItems[catIdx];
+
+    if (!category) {
+      if (window.showToast) {
+        window.showToast('Renglón presupuestario no encontrado.', 'error');
+      } else {
+        alert('Renglón presupuestario no encontrado.');
+      }
+      return;
+    }
 
     // Ensure category has an id for strong linkage
     if (!category.id) {
@@ -596,6 +612,9 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       date: expenseData.date,
       receiptBase64: expenseData.receiptBase64 || null
     };
+
+    setIsSavingExpense(true);
+    if (window.setGlobalLoading) window.setGlobalLoading(true);
 
     try {
       if (editingExpenseId !== null) {
@@ -645,7 +664,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
       await onUpdate(updatedProject);
 
-      // Reset Form
+      // Reset Form & close modal ONLY after completing save
       setExpenseData({
         description: '',
         categoryIndex: 0,
@@ -656,9 +675,22 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       });
       setEditingExpenseId(null);
       setShowAddExpense(false);
+
+      if (window.showToast) {
+        window.showToast('Registro guardado correctamente', 'success');
+      } else {
+        alert('Registro guardado correctamente');
+      }
     } catch (err) {
       console.error(err);
-      alert('Error al guardar la transacción.');
+      if (window.showToast) {
+        window.showToast('Error al guardar la transacción.', 'error');
+      } else {
+        alert('Error al guardar la transacción.');
+      }
+    } finally {
+      setIsSavingExpense(false);
+      if (window.setGlobalLoading) window.setGlobalLoading(false);
     }
   };
 
@@ -697,12 +729,31 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       if (foundIdx !== -1) resolvedIdx = foundIdx;
     }
 
+    // Thoroughly resolve receipt image from exp or fallback to transactions
+    let foundReceipt = exp.receiptBase64 
+      || exp.receipt_base64 
+      || exp.fileBase64 
+      || exp.receipt 
+      || (exp.files && exp.files[0] && (exp.files[0].fileBase64 || exp.files[0].base64 || exp.files[0].url));
+
+    if (!foundReceipt && exp.id && transactions && transactions.length > 0) {
+      const matchTx = transactions.find(t => String(t.id) === String(exp.id));
+      if (matchTx) {
+        foundReceipt = matchTx.receiptBase64 
+          || matchTx.receipt_base64 
+          || matchTx.fileBase64 
+          || matchTx.receipt 
+          || (matchTx.files && matchTx.files[0] && (matchTx.files[0].fileBase64 || matchTx.files[0].base64 || matchTx.files[0].url));
+      }
+    }
+
     setExpenseData({
       description: cleanedDesc,
       categoryIndex: resolvedIdx,
       amount: exp.amount.toString(),
       date: exp.date,
-      personnelId: foundPersonnelId
+      personnelId: foundPersonnelId,
+      receiptBase64: foundReceipt || ''
     });
     setEditingExpenseId(exp.id);
     if (project.totalCost > 0) {
@@ -715,6 +766,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
   const handleDeleteExpense = async (exp, budgetItemIdx) => {
     if (await window.confirmDialog(`¿Seguro que deseas eliminar el gasto "${exp.description.split(' || ')[1] || exp.description}" por valor de ${formatCurrency(exp.amount)}?`)) {
+      if (window.setGlobalLoading) window.setGlobalLoading(true);
       try {
         const updatedBudgetItems = [...project.budgetItems];
         
@@ -749,9 +801,20 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         
         // Save project changes
         await onUpdate(updatedProject);
+        if (window.showToast) {
+          window.showToast('Gasto eliminado correctamente', 'success');
+        } else {
+          alert('Gasto eliminado correctamente');
+        }
       } catch (err) {
         console.error(err);
-        alert('Error al eliminar el gasto.');
+        if (window.showToast) {
+          window.showToast('Error al eliminar el gasto.', 'error');
+        } else {
+          alert('Error al eliminar el gasto.');
+        }
+      } finally {
+        if (window.setGlobalLoading) window.setGlobalLoading(false);
       }
     }
   };
@@ -1799,25 +1862,15 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                                     >
                                       <Printer size={13} />
                                     </button>
-                                    {exp.receiptBase64 && (
-                                      <button 
-                                        type="button" 
-                                        className="budget-action-btn"
-                                        style={{ color: 'var(--primary-cyan)' }}
-                                        onClick={() => {
-                                          const w = window.open();
-                                          if (exp.receiptBase64.startsWith('data:application/pdf')) {
-                                            w.document.write(`<embed width="100%" height="100%" src="${exp.receiptBase64}" type="application/pdf" />`);
-                                          } else {
-                                            w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${exp.receiptBase64}" style="max-width:100%; max-height:100vh;" /></div>`);
-                                          }
-                                          w.document.body.style.margin = '0';
-                                        }}
-                                        title="Ver archivo adjunto"
-                                      >
-                                        <Eye size={13} />
-                                      </button>
-                                    )}
+                                    <button 
+                                      type="button" 
+                                      className="budget-action-btn"
+                                      style={{ color: exp.receiptBase64 ? 'var(--primary-cyan)' : 'var(--text-secondary)' }}
+                                      onClick={() => setViewingExpense({ expense: exp, budgetItemIdx: idx })}
+                                      title="Ver detalle del gasto y comprobante"
+                                    >
+                                      <Eye size={13} />
+                                    </button>
                                     {userRole !== 'viewer' && (
                                       <>
                                         <button 
@@ -2079,27 +2132,15 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                                     {formatCurrency(exp.amount)}
                                   </td>
                                   <td style={{ textAlign: 'center' }}>
-                                    {exp.receiptBase64 ? (
-                                      <button 
-                                        type="button" 
-                                        className="budget-action-btn"
-                                        style={{ color: 'var(--primary-cyan)' }}
-                                        onClick={() => {
-                                          const w = window.open();
-                                          if (exp.receiptBase64.startsWith('data:application/pdf')) {
-                                            w.document.write(`<embed width="100%" height="100%" src="${exp.receiptBase64}" type="application/pdf" />`);
-                                          } else {
-                                            w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${exp.receiptBase64}" style="max-width:100%; max-height:100vh;" /></div>`);
-                                          }
-                                          w.document.body.style.margin = '0';
-                                        }}
-                                        title="Ver comprobante adjunto"
-                                      >
-                                        <Eye size={13} />
-                                      </button>
-                                    ) : (
-                                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>—</span>
-                                    )}
+                                    <button 
+                                      type="button" 
+                                      className="budget-action-btn"
+                                      style={{ color: exp.receiptBase64 ? 'var(--primary-cyan)' : 'var(--text-muted)' }}
+                                      onClick={() => setViewingExpense({ expense: exp, budgetItemIdx: matchedIdx })}
+                                      title={exp.receiptBase64 ? "Ver detalle y comprobante adjunto" : "Ver detalle del gasto"}
+                                    >
+                                      <Eye size={14} />
+                                    </button>
                                   </td>
                                   <td style={{ textAlign: 'right' }}>
                                     <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -2111,6 +2152,15 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                                         title="Imprimir comprobante de egreso"
                                       >
                                         <Printer size={13} />
+                                      </button>
+                                      <button 
+                                        type="button" 
+                                        className="budget-action-btn"
+                                        style={{ color: 'var(--primary-cyan)' }}
+                                        onClick={() => setViewingExpense({ expense: exp, budgetItemIdx: matchedIdx })}
+                                        title="Ver detalle del gasto"
+                                      >
+                                        <Eye size={13} />
                                       </button>
                                       {userRole !== 'viewer' && (
                                         <>
@@ -2191,25 +2241,15 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
                                   >
                                     <Printer size={14} />
                                   </button>
-                                  {exp.receiptBase64 && (
-                                    <button 
-                                      type="button" 
-                                      className="budget-action-btn"
-                                      style={{ color: 'var(--primary-cyan)' }}
-                                      onClick={() => {
-                                        const w = window.open();
-                                        if (exp.receiptBase64.startsWith('data:application/pdf')) {
-                                          w.document.write(`<embed width="100%" height="100%" src="${exp.receiptBase64}" type="application/pdf" />`);
-                                        } else {
-                                          w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${exp.receiptBase64}" style="max-width:100%; max-height:100vh;" /></div>`);
-                                        }
-                                        w.document.body.style.margin = '0';
-                                      }}
-                                      title="Ver comprobante adjunto"
-                                    >
-                                      <Eye size={14} />
-                                    </button>
-                                  )}
+                                  <button 
+                                    type="button" 
+                                    className="budget-action-btn"
+                                    style={{ color: exp.receiptBase64 ? 'var(--primary-cyan)' : 'var(--text-secondary)' }}
+                                    onClick={() => setViewingExpense({ expense: exp, budgetItemIdx: matchedIdx })}
+                                    title="Ver detalle de la compra y comprobante"
+                                  >
+                                    <Eye size={14} />
+                                  </button>
                                   {userRole !== 'viewer' && (
                                     <>
                                       <button 
@@ -2566,244 +2606,723 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       {/* EXPENSE LOGGING MODAL FORM */}
       {showAddExpense && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '500px' }}>
+          <div className="modal-content expense-form-modal">
             <div className="modal-header">
               <h3>{editingExpenseId !== null ? 'Editar Gasto / Compra' : 'Registrar Compra / Gasto en Obra'}</h3>
-              <button className="btn-icon" onClick={() => { setShowAddExpense(false); setEditingExpenseId(null); }}><X size={18} /></button>
+              <button 
+                type="button" 
+                className="btn-icon" 
+                disabled={isSavingExpense}
+                onClick={() => { 
+                  if (isSavingExpense) return;
+                  setShowAddExpense(false); 
+                  setEditingExpenseId(null); 
+                }}
+              >
+                <X size={18} />
+              </button>
             </div>
-            <form onSubmit={handleAddExpenseSubmit}>
-              <div className="modal-body">
-                {/* Financial balance verification panel */}
-                {(() => {
-                  const remainingCash = totalPaid - totalBudgetAct;
-                  const newExpenseAmt = parseFloat(expenseData.amount) || 0;
-                  const projectedBalance = remainingCash - newExpenseAmt;
-                  return (
-                    <div style={{ 
-                      background: 'rgba(255, 255, 255, 0.02)', 
-                      border: '1px solid var(--border-glass)', 
-                      borderRadius: '10px', 
-                      padding: '12px 15px', 
-                      marginBottom: '20px', 
-                      fontSize: '0.85rem'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Ingresos Cobrados (Cliente):</span>
-                        <span style={{ fontWeight: 700, color: 'var(--primary-teal)' }}>{formatCurrency(totalPaid)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Egresos Acumulados:</span>
-                        <span style={{ fontWeight: 700, color: 'var(--primary-red)' }}>{formatCurrency(totalBudgetAct)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-glass)', paddingTop: '6px', fontWeight: 600 }}>
-                        <span style={{ color: 'var(--text-primary)' }}>Caja Disponible de la Obra:</span>
-                        <span style={{ color: remainingCash >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)' }}>{formatCurrency(remainingCash)}</span>
-                      </div>
-
-                      {newExpenseAmt > 0 && (
+            <form onSubmit={handleAddExpenseSubmit} className="expense-form-element">
+              <fieldset disabled={isSavingExpense} className="expense-form-fieldset">
+                {/* Responsive 2-column layout on tablet/desktop, stacked on mobile */}
+                <div className="expense-form-layout">
+                  {/* COLUMNA IZQUIERDA: Campos del formulario */}
+                  <div className="expense-form-fields-col">
+                    {/* Financial balance verification panel */}
+                    {(() => {
+                      const remainingCash = totalPaid - totalBudgetAct;
+                      const newExpenseAmt = parseFloat(expenseData.amount) || 0;
+                      const projectedBalance = remainingCash - newExpenseAmt;
+                      return (
                         <div style={{ 
-                          marginTop: '10px', 
-                          paddingTop: '8px', 
-                          borderTop: '1px dashed var(--border-glass)', 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          fontWeight: 700 
+                          background: 'rgba(255, 255, 255, 0.02)', 
+                          border: '1px solid var(--border-glass)', 
+                          borderRadius: '10px', 
+                          padding: '12px 15px', 
+                          marginBottom: '6px', 
+                          fontSize: '0.85rem'
                         }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Saldo Proyectado:</span>
-                          <span style={{ color: projectedBalance >= 0 ? 'var(--primary-cyan)' : 'var(--primary-red)' }}>
-                            {formatCurrency(projectedBalance)}
-                          </span>
-                        </div>
-                      )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Ingresos Cobrados (Cliente):</span>
+                            <span style={{ fontWeight: 700, color: 'var(--primary-teal)' }}>{formatCurrency(totalPaid)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Egresos Acumulados:</span>
+                            <span style={{ fontWeight: 700, color: 'var(--primary-red)' }}>{formatCurrency(totalBudgetAct)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-glass)', paddingTop: '6px', fontWeight: 600 }}>
+                            <span style={{ color: 'var(--text-primary)' }}>Caja Disponible de la Obra:</span>
+                            <span style={{ color: remainingCash >= 0 ? 'var(--primary-teal)' : 'var(--primary-red)' }}>{formatCurrency(remainingCash)}</span>
+                          </div>
 
-                      {projectedBalance < 0 && (
-                        <div style={{ 
-                          marginTop: '12px', 
-                          background: 'rgba(244, 63, 94, 0.08)', 
-                          border: '1px solid rgba(244, 63, 94, 0.25)', 
-                          borderRadius: '8px', 
-                          padding: '8px 10px', 
-                          color: '#fca5a5', 
-                          display: 'flex', 
-                          gap: '6px', 
-                          alignItems: 'center', 
-                          fontSize: '0.8rem',
-                          fontWeight: 500
-                        }}>
-                          <span style={{ fontSize: '1.1rem' }}>⚠️</span>
-                          <span>
-                            ¡Advertencia! Este gasto supera el dinero cobrado al cliente. Quedarás con saldo negativo por <strong>{formatCurrency(Math.abs(projectedBalance))}</strong>.
-                          </span>
+                          {newExpenseAmt > 0 && (
+                            <div style={{ 
+                              marginTop: '10px', 
+                              paddingTop: '8px', 
+                              borderTop: '1px dashed var(--border-glass)', 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              fontWeight: 700 
+                            }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>Saldo Proyectado:</span>
+                              <span style={{ color: projectedBalance >= 0 ? 'var(--primary-cyan)' : 'var(--primary-red)' }}>
+                                {formatCurrency(projectedBalance)}
+                              </span>
+                            </div>
+                          )}
+
+                          {projectedBalance < 0 && (
+                            <div style={{ 
+                              marginTop: '10px', 
+                              background: 'rgba(244, 63, 94, 0.08)', 
+                              border: '1px solid rgba(244, 63, 94, 0.25)', 
+                              borderRadius: '8px', 
+                              padding: '8px 10px', 
+                              color: '#fca5a5', 
+                              display: 'flex', 
+                              gap: '6px', 
+                              alignItems: 'center', 
+                              fontSize: '0.8rem',
+                              fontWeight: 500
+                            }}>
+                              <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+                              <span>
+                                ¡Advertencia! Este gasto supera el dinero cobrado al cliente. Quedarás con saldo negativo por <strong>{formatCurrency(Math.abs(projectedBalance))}</strong>.
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      );
+                    })()}
+
+                    <div className="form-group">
+                      <label>Renglón Presupuestario Asociado</label>
+                      <select
+                        className="form-control"
+                        value={expenseData.categoryIndex}
+                        onChange={(e) => {
+                          const idx = parseInt(e.target.value);
+                          const associatedPersonId = project.budgetItems[idx]?.personnelId || '';
+                          setExpenseData(prev => ({ 
+                            ...prev, 
+                            categoryIndex: idx,
+                            personnelId: associatedPersonId
+                          }));
+                        }}
+                      >
+                        {project.budgetItems.map((item, idx) => (
+                          <option key={idx} value={idx}>
+                            {item.name} ({item.category === 'materials' ? 'Materiales' : item.category === 'labor' ? 'Mano de Obra' : 'Licencia'})
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  );
-                })()}
 
-                <div className="form-group">
-                  <label>Renglón Presupuestario Asociado</label>
-                  <select
-                    className="form-control"
-                    value={expenseData.categoryIndex}
-                    onChange={(e) => {
-                      const idx = parseInt(e.target.value);
-                      const associatedPersonId = project.budgetItems[idx]?.personnelId || '';
-                      setExpenseData(prev => ({ 
-                        ...prev, 
-                        categoryIndex: idx,
-                        personnelId: associatedPersonId
-                      }));
-                    }}
-                  >
-                    {project.budgetItems.map((item, idx) => (
-                      <option key={idx} value={idx}>
-                        {item.name} ({item.category === 'materials' ? 'Materiales' : item.category === 'labor' ? 'Mano de Obra' : 'Licencia'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    <div className="form-group">
+                      <label>Asociar a Personal / Empleado (Opcional)</label>
+                      <select
+                        className="form-control"
+                        value={expenseData.personnelId || ''}
+                        onChange={(e) => setExpenseData(prev => ({ ...prev, personnelId: e.target.value }))}
+                      >
+                        <option value="">-- No asociar (Gasto general) --</option>
+                        {personnel.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} - {p.jobTitle || 'Sin Cargo'} (Cédula: {p.documentId})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div className="form-group">
-                  <label>Asociar a Personal / Empleado (Opcional)</label>
-                  <select
-                    className="form-control"
-                    value={expenseData.personnelId || ''}
-                    onChange={(e) => setExpenseData(prev => ({ ...prev, personnelId: e.target.value }))}
-                  >
-                    <option value="">-- No asociar (Gasto general) --</option>
-                    {personnel.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} - {p.jobTitle || 'Sin Cargo'} (Cédula: {p.documentId})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    <div className="form-group">
+                      <label>Detalle / Descripción de Compra</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Ej. Compra de cemento Portland x 50 sacos"
+                        value={expenseData.description}
+                        onChange={(e) => setExpenseData(prev => ({ ...prev, description: e.target.value }))}
+                        required
+                      />
+                    </div>
 
-                <div className="form-group">
-                  <label>Detalle / Descripción de Compra</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Ej. Compra de cemento Portland x 50 sacos"
-                    value={expenseData.description}
-                    onChange={(e) => setExpenseData(prev => ({ ...prev, description: e.target.value }))}
-                    required
-                  />
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Valor Factura ($)</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      placeholder="Ej. 1850000"
-                      value={expenseData.amount}
-                      onChange={handleExpenseAmountChange}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Fecha Factura</label>
-                    <input
-                      type="date"
-                      className="form-control"
-                      value={expenseData.date}
-                      onChange={(e) => setExpenseData(prev => ({ ...prev, date: e.target.value }))}
-                    />
-                  </div>
-
-                  {/* Reactive Expense Percentage Calculator Widget */}
-                  <div className="form-group" style={{ gridColumn: 'span 2', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-glass)', marginTop: '5px' }}>
-                    <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '5px', display: 'block' }}>
-                      Calculadora de Gasto por % de la Obra
-                    </label>
-                    <div className="budget-calc-container">
-                      <div className="budget-calc-input-wrap">
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Valor Factura ($)</label>
                         <input
                           type="number"
                           className="form-control"
-                          style={{ padding: '6px 10px', fontSize: '0.85rem' }}
-                          placeholder="Porcentaje (ej: 1.5)"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          value={expensePercentage}
-                          onChange={handleExpensePercentageChange}
+                          placeholder="Ej. 1850000"
+                          value={expenseData.amount}
+                          onChange={handleExpenseAmountChange}
+                          required
                         />
-                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>%</span>
                       </div>
-                      <div className="budget-calc-info">
-                        De un total contratado de: <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(project.totalCost)}</strong>
+                      <div className="form-group">
+                        <label>Fecha Factura</label>
+                        <input
+                          type="date"
+                          className="form-control"
+                          value={expenseData.date}
+                          onChange={(e) => setExpenseData(prev => ({ ...prev, date: e.target.value }))}
+                        />
                       </div>
+
+                      {/* Reactive Expense Percentage Calculator Widget */}
+                      <div className="form-group" style={{ gridColumn: 'span 2', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-glass)', marginTop: '5px' }}>
+                        <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '5px', display: 'block' }}>
+                          Calculadora de Gasto por % de la Obra
+                        </label>
+                        <div className="budget-calc-container">
+                          <div className="budget-calc-input-wrap">
+                            <input
+                              type="number"
+                              className="form-control"
+                              style={{ padding: '6px 10px', fontSize: '0.85rem' }}
+                              placeholder="Porcentaje (ej: 1.5)"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              value={expensePercentage}
+                              onChange={handleExpensePercentageChange}
+                            />
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>%</span>
+                          </div>
+                          <div className="budget-calc-info">
+                            De un total contratado de: <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(project.totalCost)}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* COLUMNA DERECHA: Adjuntar Soporte con Preview Visual */}
+                  <div className="expense-form-upload-col">
+                    <div className="expense-upload-box">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <ImageIcon size={16} style={{ color: 'var(--primary-cyan)' }} /> Comprobante / Factura Adjunta
+                        </label>
+                        {expenseData.receiptBase64 ? (
+                          <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600, background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                            <CheckCircle size={12} /> Soporte adjunto
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Opcional</span>
+                        )}
+                      </div>
+
+                      {/* Input para Archivo / Galería (sin capture para permitir seleccionar de disco o fotos) */}
+                      <input
+                        type="file"
+                        id="project-expense-receipt-upload"
+                        style={{ display: 'none' }}
+                        accept="image/*,application/pdf"
+                        onChange={async (e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = async () => {
+                              let base64 = reader.result;
+                              if (file.type.startsWith('image/')) {
+                                base64 = await compressImage(base64, 1200, 1200, 0.7);
+                              }
+                              setExpenseData(prev => ({ ...prev, receiptBase64: base64 }));
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                          e.target.value = '';
+                        }}
+                      />
+
+                      {/* Input secundario para Cámara directa */}
+                      <input
+                        type="file"
+                        id="project-expense-camera-upload"
+                        style={{ display: 'none' }}
+                        accept="image/*"
+                        capture="environment"
+                        onChange={async (e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = async () => {
+                              let base64 = reader.result;
+                              base64 = await compressImage(base64, 1200, 1200, 0.7);
+                              setExpenseData(prev => ({ ...prev, receiptBase64: base64 }));
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                          e.target.value = '';
+                        }}
+                      />
+
+                      {/* Preview or Upload Zone */}
+                      {expenseData.receiptBase64 ? (
+                        <div className="expense-preview-wrapper">
+                          {expenseData.receiptBase64.startsWith('data:application/pdf') || expenseData.receiptBase64.endsWith('.pdf') ? (
+                            <div className="expense-detail-pdf-preview" style={{ height: '240px', marginTop: '4px' }}>
+                              <embed src={expenseData.receiptBase64} type="application/pdf" width="100%" height="100%" />
+                            </div>
+                          ) : (
+                            <div 
+                              className="expense-preview-container"
+                              title="Haz clic para ver comprobante en tamaño completo"
+                              onClick={() => {
+                                const w = window.open('');
+                                if (w) {
+                                  w.document.write(`<div style="background:#0b1120; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; margin:0;"><img src="${expenseData.receiptBase64}" style="max-width:98%; max-height:98vh; object-fit:contain; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.6);" /></div>`);
+                                }
+                              }}
+                            >
+                              <img 
+                                src={expenseData.receiptBase64} 
+                                alt="Vista previa del comprobante cargado" 
+                              />
+                              <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.65)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.72rem', color: '#fff', pointerEvents: 'none', backdropFilter: 'blur(4px)' }}>
+                                🔍 Clic para ampliar
+                              </div>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <label 
+                              htmlFor="project-expense-receipt-upload" 
+                              className="btn btn-secondary" 
+                              style={{ 
+                                cursor: 'pointer', 
+                                padding: '8px 14px', 
+                                fontSize: '0.8rem', 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '6px',
+                                margin: 0
+                              }}
+                            >
+                              <Upload size={14} /> Cambiar archivo
+                            </label>
+                            <label 
+                              htmlFor="project-expense-camera-upload" 
+                              className="btn btn-secondary" 
+                              style={{ 
+                                cursor: 'pointer', 
+                                padding: '8px 14px', 
+                                fontSize: '0.8rem', 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '6px',
+                                margin: 0
+                              }}
+                            >
+                              <Camera size={14} /> Tomar foto
+                            </label>
+                            <button 
+                              type="button" 
+                              className="btn btn-danger" 
+                              style={{ 
+                                padding: '8px 14px', 
+                                fontSize: '0.8rem', 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '6px' 
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setExpenseData(prev => ({ ...prev, receiptBase64: '' }));
+                              }}
+                            >
+                              <Trash2 size={14} /> Quitar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="expense-empty-upload-zone">
+                          <label 
+                            htmlFor="project-expense-receipt-upload" 
+                            style={{ 
+                              cursor: 'pointer', 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              padding: '28px 16px', 
+                              border: '1px dashed var(--border-glass)', 
+                              borderRadius: '10px', 
+                              background: 'rgba(255,255,255,0.01)', 
+                              textAlign: 'center',
+                              margin: 0,
+                              transition: 'var(--transition-smooth)'
+                            }}
+                          >
+                            <Upload size={34} style={{ color: 'var(--primary-cyan)', marginBottom: '10px', opacity: 0.9 }} />
+                            <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--primary-cyan)', margin: '0 0 4px 0' }}>
+                              Elegir imagen o PDF desde el dispositivo
+                            </p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+                              Formatos JPG, PNG, WEBP o PDF
+                            </p>
+                          </label>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ flex: 1, height: '1px', background: 'var(--border-glass)' }} />
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>O también</span>
+                            <div style={{ flex: 1, height: '1px', background: 'var(--border-glass)' }} />
+                          </div>
+
+                          <label 
+                            htmlFor="project-expense-camera-upload" 
+                            className="btn btn-secondary"
+                            style={{ 
+                              cursor: 'pointer', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              gap: '8px',
+                              padding: '10px 16px',
+                              fontSize: '0.85rem',
+                              margin: 0
+                            }}
+                          >
+                            <Camera size={16} /> Tomar foto con la cámara
+                          </label>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Receipt Upload */}
-                <div className="form-group" style={{ marginTop: '15px', borderTop: '1px dashed var(--border-glass)', paddingTop: '15px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    Adjuntar Soporte / Recibo (Opcional)
-                  </label>
-                  <div style={{ border: '1px dashed var(--border-glass)', borderRadius: '8px', padding: '15px 10px', textAlign: 'center', background: 'rgba(255,255,255,0.01)' }}>
-                    <input
-                      type="file"
-                      id="project-expense-receipt-upload"
-                      style={{ display: 'none' }}
-                      accept="image/*,application/pdf"
-                      capture="environment"
-                      onChange={async (e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = async () => {
-                            let base64 = reader.result;
-                            if (file.type.startsWith('image/')) {
-                              base64 = await compressImage(base64, 1200, 1200, 0.7);
-                            }
-                            setExpenseData(prev => ({ ...prev, receiptBase64: base64 }));
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                    <label htmlFor="project-expense-receipt-upload" style={{ cursor: 'pointer', display: 'block', margin: 0 }}>
-                      <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-cyan)', marginBottom: '4px' }}>
-                        Seleccionar archivo o Tomar foto
-                      </p>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Imágenes o PDF soportados</p>
-                    </label>
-                    {expenseData.receiptBase64 && (
-                      <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                        <CheckCircle size={12} /> Comprobante cargado correctamente
-                        <button 
-                          type="button" 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setExpenseData(prev => ({ ...prev, receiptBase64: '' }));
-                          }}
-                          style={{ background: 'none', border: 'none', color: 'var(--primary-red)', cursor: 'pointer', marginLeft: '10px' }}
-                        >
-                          Eliminar
-                        </button>
-                      </div>
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    disabled={isSavingExpense}
+                    onClick={() => { 
+                      if (isSavingExpense) return;
+                      setShowAddExpense(false); 
+                      setEditingExpenseId(null); 
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    disabled={isSavingExpense}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    {isSavingExpense ? (
+                      <>
+                        <Loader2 size={16} className="spin-animation" />
+                        <span>{editingExpenseId !== null ? 'Guardando cambios...' : 'Guardando compra...'}</span>
+                      </>
+                    ) : (
+                      <span>{editingExpenseId !== null ? 'Guardar Cambios' : 'Registrar Transacción'}</span>
                     )}
-                  </div>
+                  </button>
                 </div>
-
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => { setShowAddExpense(false); setEditingExpenseId(null); }}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingExpenseId !== null ? 'Guardar Cambios' : 'Registrar Transacción'}
-                </button>
-              </div>
+              </fieldset>
             </form>
           </div>
         </div>
       )}
+
+      {/* EXPENSE DETAIL MODAL (VIEW ON EYE CLICK) */}
+      {viewingExpense && (() => {
+        const exp = viewingExpense.expense;
+        const descParts = exp.description ? exp.description.split(' || ') : [];
+        const rawDisplay = descParts[1] 
+          ? descParts[1].replace('Compra: ', '').replace(` (Obra: ${project.name})`, '')
+          : (exp.description || 'Sin descripción');
+        const displayDesc = rawDisplay.replace(/ \[Pagado a: .*?\]/, '');
+        
+        // Beneficiary details
+        let benName = exp.personnelName || null;
+        let benDoc = null;
+        if (!benName && exp.description) {
+          const match = exp.description.match(/\[Pagado a: (.*?) - Cédula: (.*?)\]/);
+          if (match && match[1]) {
+            benName = match[1].trim();
+            benDoc = match[2]?.trim();
+          }
+        }
+        if (!benDoc && exp.personnelId && personnel) {
+          const p = personnel.find(per => per.id === exp.personnelId);
+          if (p) {
+            benDoc = p.documentId;
+            if (!benName) benName = p.name;
+          }
+        }
+
+        // Matched budget item
+        const matchedItem = project.budgetItems?.find(item => transactionBelongsToBudgetItem(exp, item));
+
+        return (
+          <div className="modal-overlay" onClick={() => setViewingExpense(null)}>
+            <div 
+              className="modal-content expense-detail-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Receipt size={20} style={{ color: 'var(--primary-cyan)' }} />
+                  <h3 style={{ margin: 0, fontSize: '1.15rem' }}>Detalle de Compra / Gasto</h3>
+                </div>
+                <button 
+                  type="button" 
+                  className="btn-icon" 
+                  onClick={() => setViewingExpense(null)}
+                  title="Cerrar"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Responsive Body: on mobile 1-column stacked, on tablet/desktop 2-columns (left: info, right: image) */}
+              <div className="expense-detail-layout">
+                {/* COLUMNA IZQUIERDA: Información, Monto, Descripción y Metadatos */}
+                <div className="expense-detail-info-col">
+                  {/* Highlighted Amount & Category banner */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, rgba(255, 109, 0, 0.08) 0%, rgba(16, 185, 129, 0.05) 100%)',
+                    border: '1px solid var(--border-glass)',
+                    borderRadius: '12px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '10px'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>
+                        Valor Registrado
+                      </span>
+                      <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--primary-teal)', lineHeight: '1.2' }}>
+                        {formatCurrency(exp.amount)}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                        Renglón Presupuestal
+                      </span>
+                      {matchedItem ? (
+                        <span className="badge" style={{
+                          fontSize: '0.8rem',
+                          padding: '5px 10px',
+                          background: matchedItem.category === 'materials' ? 'rgba(6,182,212,0.15)' : matchedItem.category === 'labor' ? 'rgba(16,185,129,0.15)' : 'rgba(168,85,247,0.15)',
+                          color: matchedItem.category === 'materials' ? 'var(--primary-cyan)' : matchedItem.category === 'labor' ? '#34d399' : '#c084fc',
+                          borderColor: 'transparent',
+                          fontWeight: 600
+                        }}>
+                          {matchedItem.name} ({matchedItem.category === 'materials' ? 'Materiales' : matchedItem.category === 'labor' ? 'Mano de Obra' : 'Licencias'})
+                        </span>
+                      ) : (
+                        <span className="badge" style={{ fontSize: '0.8rem', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' }}>
+                          ⚠️ Sin Renglón Asignado
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description Box */}
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid var(--border-glass)',
+                    borderRadius: '10px',
+                    padding: '14px 16px'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700, marginBottom: '6px' }}>
+                      Concepto / Detalle de la Compra
+                    </div>
+                    <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                      {displayDesc}
+                    </div>
+                  </div>
+
+                  {/* Metadata Grid */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: '12px'
+                  }}>
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid var(--border-glass)',
+                      borderRadius: '8px',
+                      padding: '10px 14px'
+                    }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>
+                        📅 Fecha de Factura / Gasto
+                      </span>
+                      <strong style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                        {exp.date || 'Sin fecha'}
+                      </strong>
+                    </div>
+
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid var(--border-glass)',
+                      borderRadius: '8px',
+                      padding: '10px 14px'
+                    }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>
+                        👤 Personal / Beneficiario
+                      </span>
+                      <strong style={{ color: benName ? 'var(--primary-teal)' : 'var(--text-muted)', fontSize: '0.9rem' }}>
+                        {benName ? `${benName}${benDoc ? ` (CC: ${benDoc})` : ''}` : 'Gasto General de Obra'}
+                      </strong>
+                    </div>
+
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid var(--border-glass)',
+                      borderRadius: '8px',
+                      padding: '10px 14px'
+                    }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>
+                        🏗️ Obra Asociada
+                      </span>
+                      <strong style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                        {project.name}
+                      </strong>
+                    </div>
+
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid var(--border-glass)',
+                      borderRadius: '8px',
+                      padding: '10px 14px'
+                    }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>
+                        🧾 ID de Registro
+                      </span>
+                      <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        {exp.id}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* COLUMNA DERECHA: Imagen / Documento / Soporte Adjunto */}
+                <div className="expense-detail-media-col">
+                  <div className="expense-detail-media-box">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                        Comprobante / Soporte Adjunto
+                      </span>
+                      {exp.receiptBase64 && (
+                        <button
+                          type="button"
+                          style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--primary-cyan)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          onClick={() => {
+                            const w = window.open();
+                            if (exp.receiptBase64.startsWith('data:application/pdf')) {
+                              w.document.write(`<embed width="100%" height="100%" src="${exp.receiptBase64}" type="application/pdf" />`);
+                            } else {
+                              w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${exp.receiptBase64}" style="max-width:100%; max-height:100vh;" /></div>`);
+                            }
+                            w.document.body.style.margin = '0';
+                          }}
+                          title="Abrir en pestaña nueva"
+                        >
+                          <ExternalLink size={14} /> Abrir completo
+                        </button>
+                      )}
+                    </div>
+
+                    {exp.receiptBase64 ? (
+                      exp.receiptBase64.startsWith('data:application/pdf') || exp.receiptBase64.endsWith('.pdf') ? (
+                        <div className="expense-detail-pdf-preview">
+                          <embed src={exp.receiptBase64} type="application/pdf" width="100%" height="100%" />
+                        </div>
+                      ) : (
+                        <div className="expense-detail-img-preview">
+                          <img 
+                            src={exp.receiptBase64} 
+                            alt="Comprobante de compra" 
+                          />
+                        </div>
+                      )
+                    ) : (
+                      <div className="expense-detail-empty-media">
+                        <ImageIcon size={36} style={{ opacity: 0.35, marginBottom: '8px' }} />
+                        <span>Esta compra o gasto no cuenta con soporte fotográfico adjunto.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* FOOTER: ELIMINAR (LEFT) & EDITAR (RIGHT) */}
+              <div 
+                className="modal-footer" 
+                style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  padding: '14px 20px',
+                  borderTop: '1px solid var(--border-glass)' 
+                }}
+              >
+                {userRole !== 'viewer' ? (
+                  <button 
+                    type="button" 
+                    className="btn btn-danger"
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '8px', 
+                      padding: '8px 18px', 
+                      fontSize: '0.88rem',
+                      fontWeight: 600
+                    }}
+                    onClick={async () => {
+                      const success = await handleDeleteExpense(viewingExpense.expense, viewingExpense.budgetItemIdx);
+                      if (success) {
+                        setViewingExpense(null);
+                      }
+                    }}
+                  >
+                    <Trash2 size={16} /> Eliminar
+                  </button>
+                ) : <div />}
+
+                {userRole !== 'viewer' ? (
+                  <button 
+                    type="button" 
+                    className="btn btn-primary"
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '8px', 
+                      padding: '8px 20px', 
+                      fontSize: '0.88rem',
+                      fontWeight: 600
+                    }}
+                    onClick={() => {
+                      const targetExp = viewingExpense.expense;
+                      const targetIdx = viewingExpense.budgetItemIdx;
+                      setViewingExpense(null);
+                      handleOpenEditExpense(targetExp, targetIdx);
+                    }}
+                  >
+                    <Edit3 size={16} /> Editar
+                  </button>
+                ) : (
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={() => setViewingExpense(null)}
+                  >
+                    Cerrar
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* TIMELINE ADD/EDIT MODAL */}
       {showAddTimeline && (
