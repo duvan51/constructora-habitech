@@ -1,4 +1,4 @@
-import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, CheckSquare, Calculator, UserCheck, Scale } from 'lucide-react';
+import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, CheckSquare, Calculator, UserCheck, Scale, Percent } from 'lucide-react';
 
 export default function Sidebar({ currentTab, setTab, projectCount, currentUser, onLogout, isOpen, onClose }) {
   const isClient = currentUser?.role === 'client';
@@ -17,7 +17,8 @@ export default function Sidebar({ currentTab, setTab, projectCount, currentUser,
       { id: 'adjustments', name: 'Ajustes Totales', icon: <Scale size={18} /> },
       { id: 'portfolio', name: 'Portafolio Proyectos', icon: <Briefcase size={18} /> },
       { id: 'ledger', name: 'Libro de Caja', icon: <DollarSign size={18} /> },
-      { id: 'quote', name: 'Cotizador Habitech', icon: <Calculator size={18} /> }
+      { id: 'quote', name: 'Cotizador Habitech', icon: <Calculator size={18} /> },
+      { id: 'retefuente', name: 'Calculadora Retefuente', icon: <Percent size={18} /> }
     ];
 
     if (currentUser && currentUser.role === 'admin') {

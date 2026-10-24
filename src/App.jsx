@@ -11,6 +11,7 @@ import UserManagement from './components/UserManagement';
 import ApiSettings from './components/ApiSettings';
 import ProjectManagement from './components/ProjectManagement';
 import QuoteCalculator from './components/QuoteCalculator';
+import RetefuenteCalculator from './components/RetefuenteCalculator';
 import PersonnelManagement from './components/PersonnelManagement';
 import TotalAdjustments from './components/TotalAdjustments';
 import { 
@@ -793,6 +794,11 @@ export default function App() {
             {/* Quote Calculator View */}
             {currentTab === 'quote' && (
               <QuoteCalculator />
+            )}
+
+            {/* Retefuente Calculator View */}
+            {currentTab === 'retefuente' && (
+              <RetefuenteCalculator />
             )}
 
             {/* Personnel Management View */}
