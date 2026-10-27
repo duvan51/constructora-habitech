@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { printElement } from '../utils/printHelper';
 import { 
   Scale, 
   Search, 
@@ -1501,7 +1502,7 @@ export default function TotalAdjustments({
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button 
                   className="btn btn-primary"
-                  onClick={() => window.print()}
+                  onClick={() => printElement(document.getElementById('paz-y-salvo-print-area'), { title: `Paz_y_Salvo_${(pazYSalvoPerson?.name || 'Personal').replace(/\s+/g, '_')}` })}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '6px 14px' }}
                 >
                   <Printer size={15} />
@@ -1514,7 +1515,7 @@ export default function TotalAdjustments({
             </div>
 
             {/* PRINTABLE BODY */}
-            <div className="printable-area receipt-container" style={{ padding: '35px 40px', background: '#ffffff', color: '#111827', fontFamily: 'Arial, sans-serif' }}>
+            <div id="paz-y-salvo-print-area" className="printable-area receipt-container" style={{ padding: '35px 40px', background: '#ffffff', color: '#111827', fontFamily: 'Arial, sans-serif' }}>
               
               {/* Official Habitech Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #FF6D00', paddingBottom: '16px', marginBottom: '20px' }}>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { printElement } from '../utils/printHelper';
 import { 
   Percent, 
   Calculator, 
@@ -1414,7 +1415,7 @@ _Generado por Constructora Habitech SAS_`;
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={() => window.print()}
+                  onClick={() => printElement(document.getElementById('retefuente-print-area'), { title: 'Comprobante_Retenciones' })}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
                 >
                   <Printer size={16} /> Imprimir / PDF
@@ -1431,7 +1432,7 @@ _Generado por Constructora Habitech SAS_`;
 
             {/* Modal Body - Printable Paper */}
             <div style={{ padding: '25px', overflowY: 'auto' }}>
-              <div className="printable-area receipt-container" style={{
+              <div id="retefuente-print-area" className="printable-area receipt-container" style={{
                 background: '#ffffff',
                 color: '#111827',
                 padding: '35px',

@@ -3,7 +3,8 @@ import {
   ArrowLeft, Edit3, MapPin, Calendar, User, Phone, Mail, 
   DollarSign, CheckSquare, FileText, Image as ImageIcon, Camera, 
   TrendingUp, Plus, Trash2, Eye, Download, CheckCircle, Clock, X, Printer,
-  Receipt, Search, ChevronDown, ChevronUp, CreditCard, Calculator, FolderOpen, Info, Loader2, ExternalLink, Upload
+  Receipt, Search, ChevronDown, ChevronUp, CreditCard, Calculator, FolderOpen, Info, Loader2, ExternalLink, Upload,
+  Link2, Check
 } from 'lucide-react';
 import { 
   getDocumentsForProject, 
@@ -110,18 +111,71 @@ const getDocTypeBadge = (type) => {
   }
 };
 
-export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTransaction, userRole, transactions = [], personnel = [] }) {
-  const [activeTab, setActiveTab] = useState('general');
+export default function ProjectDetail({ 
+  project, 
+  onBack, 
+  onUpdate, 
+  logGlobalTransaction, 
+  userRole, 
+  transactions = [], 
+  personnel = [],
+  currentSubTab = 'general',
+  onSubTabChange,
+  isEditing = false,
+  onEditChange
+}) {
+  const [activeTab, setActiveTab] = useState(currentSubTab || 'general');
+  const [copiedLink, setCopiedLink] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [progressLogs, setProgressLogs] = useState([]);
   const [activeViewDocument, setActiveViewDocument] = useState(null);
   const [isEditingDoc, setIsEditingDoc] = useState(false);
   const [editingDocData, setEditingDocData] = useState({ name: '', type: '' });
 
+  // Sync external subTab changes (e.g. from browser back/forward or direct URL)
+  useEffect(() => {
+    if (currentSubTab && currentSubTab !== activeTab) {
+      setActiveTab(currentSubTab);
+    }
+  }, [currentSubTab]);
+
+  // Sync external isEditing state (e.g. from URL ?modo=editar)
+  useEffect(() => {
+    if (typeof isEditing === 'boolean' && isEditing !== showEditProject) {
+      setShowEditProject(isEditing);
+    }
+  }, [isEditing]);
+
+  const handleSelectTab = (tab) => {
+    setActiveTab(tab);
+    if (onSubTabChange) {
+      onSubTabChange(tab);
+    }
+  };
+
+  const handleToggleEditProject = (show) => {
+    setShowEditProject(show);
+    if (onEditChange) {
+      onEditChange(show);
+    }
+  };
+
+  const handleCopyProjectLink = () => {
+    const url = window.location.href;
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(url);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+      if (window.showToast) {
+        window.showToast(`Enlace directo a "${project.name}" copiado al portapapeles`, 'success');
+      }
+    }
+  };
+
   // Guard against client accessing financial tabs
   useEffect(() => {
     if (userRole === 'client' && (activeTab === 'payments' || activeTab === 'budget')) {
-      setActiveTab('general');
+      handleSelectTab('general');
     }
   }, [userRole, activeTab]);
 
@@ -135,7 +189,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
   const [showReceipt, setShowReceipt] = useState(null); // holds payment object
   const [showExpenseReceipt, setShowExpenseReceipt] = useState(null); // holds expense transaction object
   const [showHitoPayments, setShowHitoPayments] = useState(null); // holds the active payment plan hito object
-  const [showEditProject, setShowEditProject] = useState(false); // toggle project edit modal
+  const [showEditProject, setShowEditProject] = useState(isEditing || false); // toggle project edit modal
   const [newPayment, setNewPayment] = useState({
     id: null,
     amount: '',
@@ -1102,10 +1156,34 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
             <h2 style={{ margin: 0, fontSize: '1.6rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px', wordBreak: 'break-word', overflowWrap: 'anywhere', flexWrap: 'wrap' }}>
               {project.name}
               {userRole !== 'viewer' && userRole !== 'client' && (
-                <button className="btn-icon" onClick={() => setShowEditProject(true)} title="Editar Ficha Técnica" style={{ padding: '6px', color: 'var(--primary-cyan)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <button 
+                  type="button"
+                  className="btn-icon" 
+                  onClick={() => handleToggleEditProject(true)} 
+                  title="Editar Ficha Técnica" 
+                  style={{ padding: '6px', color: 'var(--primary-cyan)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                >
                   <Edit3 size={16} />
                 </button>
               )}
+              <button 
+                type="button"
+                className="btn-icon" 
+                onClick={handleCopyProjectLink} 
+                title="Copiar enlace directo de esta obra" 
+                style={{ 
+                  padding: '6px', 
+                  color: copiedLink ? '#10b981' : 'var(--text-secondary)', 
+                  background: 'transparent', 
+                  border: 'none', 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center',
+                  transition: 'color 0.2s ease'
+                }}
+              >
+                {copiedLink ? <Check size={16} /> : <Link2 size={16} />}
+              </button>
             </h2>
           </div>
         </div>
@@ -1126,7 +1204,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       <div className="tabs-header project-tabs-header">
         <button 
           className={`tab-btn project-tab-btn ${activeTab === 'general' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('general')}
+          onClick={() => handleSelectTab('general')}
           title="Resumen General"
         >
           <Info size={18} className="tab-btn-icon" />
@@ -1136,7 +1214,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         {userRole !== 'client' && (
           <button 
             className={`tab-btn project-tab-btn ${activeTab === 'payments' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('payments')}
+            onClick={() => handleSelectTab('payments')}
             title={`Plan de Pagos (${project.paymentPlan.length})`}
           >
             <CreditCard size={18} className="tab-btn-icon" />
@@ -1150,7 +1228,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
         {userRole !== 'client' && (
           <button 
             className={`tab-btn project-tab-btn ${activeTab === 'budget' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('budget')}
+            onClick={() => handleSelectTab('budget')}
             title="Presupuesto y Gastos"
           >
             <Calculator size={18} className="tab-btn-icon" />
@@ -1160,7 +1238,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
         <button 
           className={`tab-btn project-tab-btn ${activeTab === 'docs' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('docs')}
+          onClick={() => handleSelectTab('docs')}
           title={`Expediente Documentos (${documents.length})`}
         >
           <FolderOpen size={18} className="tab-btn-icon" />
@@ -1172,7 +1250,7 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
 
         <button 
           className={`tab-btn project-tab-btn ${activeTab === 'gallery' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('gallery')}
+          onClick={() => handleSelectTab('gallery')}
           title={`Bitácora y Avances (${progressLogs.length})`}
         >
           <Camera size={18} className="tab-btn-icon" />
@@ -3979,10 +4057,10 @@ export default function ProjectDetail({ project, onBack, onUpdate, logGlobalTran
       {showEditProject && (
         <ProjectForm
           project={project}
-          onClose={() => setShowEditProject(false)}
+          onClose={() => handleToggleEditProject(false)}
           onSave={async (updatedProj) => {
             await onUpdate(updatedProj);
-            setShowEditProject(false);
+            handleToggleEditProject(false);
           }}
         />
       )}

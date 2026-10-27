@@ -1,8 +1,19 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { X, Printer, CheckCircle } from 'lucide-react';
+import { printElement } from '../utils/printHelper';
 
 export default function ExpenseReceiptModal({ project, transaction, onClose }) {
   if (!project || !transaction) return null;
+
+  const receiptRef = useRef(null);
+
+  // Mark body while modal is open to ensure clean CSS print scoping
+  useEffect(() => {
+    document.body.classList.add('is-printing-receipt-modal');
+    return () => {
+      document.body.classList.remove('is-printing-receipt-modal');
+    };
+  }, []);
 
   // Formatting helpers
   const formatCurrency = (value) => {
@@ -13,12 +24,19 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
     }).format(value);
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  // Generate nice Receipt Number safely
+  const txIdStr = String(transaction.id || 'EGR').toUpperCase();
+  const receiptNumber = `EGR-${project.id || 'GEN'}-${txIdStr.split('_')[1]?.substring(0, 6) || txIdStr.substring(0, 6)}`;
 
-  // Generate nice Receipt Number
-  const receiptNumber = `EGR-${project.id}-${transaction.id.toUpperCase().split('_')[1]?.substring(0, 6) || transaction.id.toUpperCase().substring(0, 6)}`;
+  const handlePrint = () => {
+    if (receiptRef.current) {
+      printElement(receiptRef.current, {
+        title: `Comprobante_Egreso_${receiptNumber}`
+      });
+    } else {
+      window.print();
+    }
+  };
 
   // Parse transaction category label
   const getCategoryLabel = (cat) => {
@@ -80,7 +98,7 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
 
         <div className="modal-body" style={{ padding: '25px' }}>
           {/* Printable wrapper */}
-          <div className="printable-area receipt-container">
+          <div className="printable-area receipt-container" ref={receiptRef}>
             {/* Header */}
             <div className="receipt-header">
               <div>

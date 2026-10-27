@@ -26,11 +26,18 @@ import {
 import { HardHat, Plus, Search, Calendar, Landmark, Menu } from 'lucide-react';
 import Portfolio from './components/Portfolio';
 import { getCachedData, setCachedData } from './db/storage';
+import { 
+  parseUrlState, 
+  findProjectFromUrl, 
+  syncUrlAndTitle,
+  slugify 
+} from './utils/urlRouter';
 
 export default function App() {
+  const initialUrlState = useRef(parseUrlState());
   const [currentUser, setCurrentUser] = useState(null);
   const [isLocked, setIsLocked] = useState(false);
-  const [currentTab, setTab] = useState('dashboard');
+  const [currentTab, setTab] = useState(() => initialUrlState.current.tab || 'dashboard');
   const [toasts, setToasts] = useState([]);
   const [confirmData, setConfirmData] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -38,12 +45,15 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [portfolio, setPortfolio] = useState([]);
   const [personnel, setPersonnel] = useState([]);
-  const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [selectedProjectId, setSelectedProjectId] = useState(() => initialUrlState.current.projectId || null);
+  const [projectSubTab, setProjectSubTab] = useState(() => initialUrlState.current.subTab || 'general');
+  const [isEditingProject, setIsEditingProject] = useState(() => initialUrlState.current.isEditing || false);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [projectSearch, setProjectSearch] = useState('');
   const [isGlobalLoading, setIsGlobalLoading] = useState(false);
   const loadingCountRef = useRef(0);
+  const isNavigatingHistoryRef = useRef(false);
 
   // Override window.alert and window.confirm with premium custom UI elements
   useEffect(() => {
@@ -215,6 +225,9 @@ export default function App() {
     localStorage.removeItem('habitech_user_session');
     setTab('dashboard');
     setSelectedProjectId(null);
+    setProjectSubTab('general');
+    setIsEditingProject(false);
+    syncUrlAndTitle({ tab: 'dashboard', replace: true });
   };
 
   // Add a new project or update an existing one
@@ -237,6 +250,8 @@ export default function App() {
         await deleteItem('projects', projId);
         await loadData();
         setSelectedProjectId(null);
+        setProjectSubTab('general');
+        setIsEditingProject(false);
       } catch (err) {
         console.error('Error deleting project:', err);
       }
@@ -544,6 +559,90 @@ export default function App() {
 
   const activeProject = (isClient ? clientProjects : projects).find(p => p.id === selectedProjectId);
 
+  // Helper functions for clean URL and state navigation
+  const handleOpenProject = (id, subTab = 'general', isEditing = false) => {
+    setSelectedProjectId(id);
+    setTab('projects');
+    setProjectSubTab(subTab);
+    setIsEditingProject(isEditing);
+  };
+
+  const handleBackToProjectList = () => {
+    setSelectedProjectId(null);
+    setProjectSubTab('general');
+    setIsEditingProject(false);
+  };
+
+  // Match initial project from URL once projects are loaded
+  useEffect(() => {
+    if (projects.length === 0) return;
+    const available = isClient ? clientProjects : projects;
+
+    if (selectedProjectId && available.some(p => p.id === selectedProjectId)) {
+      return;
+    }
+
+    const { projectId, obraSlug, subTab, isEditing } = initialUrlState.current;
+    if (projectId || obraSlug) {
+      const match = findProjectFromUrl(available, { projectId, obraSlug });
+      if (match) {
+        setSelectedProjectId(match.id);
+        setTab('projects');
+        if (subTab) setProjectSubTab(subTab);
+        if (isEditing && currentUser?.role !== 'viewer' && currentUser?.role !== 'client') {
+          setIsEditingProject(true);
+        }
+      }
+    }
+  }, [projects, clientProjects, isClient, selectedProjectId, currentUser]);
+
+  // Handle browser Back / Forward navigation (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      isNavigatingHistoryRef.current = true;
+      const urlState = parseUrlState();
+      setTab(urlState.tab || 'dashboard');
+
+      const available = isClient ? clientProjects : projects;
+      const match = findProjectFromUrl(available, {
+        projectId: urlState.projectId,
+        obraSlug: urlState.obraSlug
+      });
+
+      setSelectedProjectId(match ? match.id : (urlState.projectId || null));
+      setProjectSubTab(urlState.subTab || 'general');
+      setIsEditingProject(urlState.isEditing || false);
+
+      syncUrlAndTitle({
+        tab: urlState.tab || 'dashboard',
+        project: match || null,
+        subTab: urlState.subTab || 'general',
+        isEditing: urlState.isEditing || false,
+        replace: true
+      });
+
+      setTimeout(() => {
+        isNavigatingHistoryRef.current = false;
+      }, 60);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [projects, clientProjects, isClient]);
+
+  // Synchronize URL and title whenever tab, project, section, or edit state changes
+  useEffect(() => {
+    if (loading || isNavigatingHistoryRef.current || !currentUser) return;
+
+    syncUrlAndTitle({
+      tab: currentTab,
+      project: activeProject || null,
+      subTab: projectSubTab,
+      isEditing: isEditingProject,
+      replace: false
+    });
+  }, [currentTab, activeProject, projectSubTab, isEditingProject, loading, currentUser]);
+
   // Inactivity tracking (5 minutes lock for staff, auto-logout for clients)
   useEffect(() => {
     if (!currentUser || isLocked) {
@@ -652,6 +751,8 @@ export default function App() {
         setTab={(tab) => { 
           setTab(tab); 
           setSelectedProjectId(null); 
+          setProjectSubTab('general');
+          setIsEditingProject(false);
           setIsSidebarOpen(false); 
         }} 
         projectCount={isClient ? clientProjects.length : projects.length}
@@ -667,12 +768,16 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
             <ProjectDetail 
               project={activeProject} 
-              onBack={() => setSelectedProjectId(null)}
+              onBack={handleBackToProjectList}
               onUpdate={handleSaveProject}
               logGlobalTransaction={logGlobalTransaction}
               userRole={currentUser.role}
               transactions={transactions}
               personnel={personnel}
+              currentSubTab={projectSubTab}
+              onSubTabChange={(subTab) => setProjectSubTab(subTab)}
+              isEditing={isEditingProject}
+              onEditChange={(editing) => setIsEditingProject(editing)}
             />
             
             {currentUser.role !== 'viewer' && currentUser.role !== 'client' && (
@@ -695,7 +800,7 @@ export default function App() {
               <Dashboard 
                 projects={projects} 
                 transactions={transactions} 
-                onViewProject={(id) => setSelectedProjectId(id)}
+                onViewProject={(id) => handleOpenProject(id, 'general')}
               />
             )}
 
@@ -743,7 +848,7 @@ export default function App() {
                       <ProjectCard 
                         key={proj.id} 
                         project={proj} 
-                        onSelect={(id) => setSelectedProjectId(id)}
+                        onSelect={(id) => handleOpenProject(id, 'general')}
                       />
                     ))}
                   </div>
@@ -783,10 +888,7 @@ export default function App() {
               <ProjectManagement 
                 projects={projects}
                 onUpdateProject={handleSaveProject}
-                onViewProject={(id) => {
-                  setSelectedProjectId(id);
-                  setTab('projects');
-                }}
+                onViewProject={(id) => handleOpenProject(id, 'general')}
                 userRole={currentUser.role}
               />
             )}
@@ -827,10 +929,7 @@ export default function App() {
                 transactions={transactions}
                 userRole={currentUser.role}
                 onAddTransaction={handleAddManualTransaction}
-                onNavigateToProject={(id) => {
-                  setSelectedProjectId(id);
-                  setTab('projects');
-                }}
+                onNavigateToProject={(id) => handleOpenProject(id, 'budget')}
                 onNavigateToLedger={() => setTab('ledger')}
               />
             )}

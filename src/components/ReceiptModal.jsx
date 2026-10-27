@@ -1,8 +1,19 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { X, Printer, CheckCircle } from 'lucide-react';
+import { printElement } from '../utils/printHelper';
 
 export default function ReceiptModal({ project, payment, onClose }) {
   if (!project || !payment) return null;
+
+  const receiptRef = useRef(null);
+
+  // Mark body while modal is open to ensure clean CSS print scoping
+  useEffect(() => {
+    document.body.classList.add('is-printing-receipt-modal');
+    return () => {
+      document.body.classList.remove('is-printing-receipt-modal');
+    };
+  }, []);
 
   // Formatting helpers
   const formatCurrency = (value) => {
@@ -14,7 +25,13 @@ export default function ReceiptModal({ project, payment, onClose }) {
   };
 
   const handlePrint = () => {
-    window.print();
+    if (receiptRef.current) {
+      printElement(receiptRef.current, {
+        title: `Recibo_Caja_${receiptNumber}`
+      });
+    } else {
+      window.print();
+    }
   };
 
   // Calculate project financials up to this point
@@ -54,7 +71,7 @@ export default function ReceiptModal({ project, payment, onClose }) {
 
         <div className="modal-body" style={{ padding: '25px' }}>
           {/* Printable wrapper */}
-          <div className="printable-area receipt-container">
+          <div className="printable-area receipt-container" ref={receiptRef}>
             {/* Header */}
             <div className="receipt-header">
               <div>

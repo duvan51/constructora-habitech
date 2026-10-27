@@ -1200,6 +1200,31 @@ p {
     overflow: hidden !important;
   }
 
+  /* When printing from a modal or receipt, completely hide background views to avoid bleed */
+  body:has(.modal-overlay .printable-area) .app-container > *:not(.main-content),
+  body:has(.modal-overlay .printable-area) .main-content > *:not(:has(.printable-area)),
+  body:has(.modal-overlay .printable-area) .project-detail > *:not(:has(.printable-area)):not(.modal-overlay),
+  body:has(.modal-overlay .printable-area) .ledger-container > *:not(:has(.printable-area)):not(.modal-overlay),
+  body:has(.modal-overlay .printable-area) .dashboard-container,
+  body:has(.modal-overlay .printable-area) .portfolio-container,
+  body:has(.modal-overlay .printable-area) .user-management-container,
+  body:has(.modal-overlay .printable-area) .project-management-container,
+  body.is-printing-receipt-modal .app-container > *:not(.main-content),
+  body.is-printing-receipt-modal .main-content > *:not(:has(.printable-area)),
+  body.is-printing-receipt-modal .project-detail > *:not(:has(.printable-area)):not(.modal-overlay),
+  body.is-printing-receipt-modal .ledger-container > *:not(:has(.printable-area)):not(.modal-overlay),
+  body.is-printing-receipt-modal .dashboard-container,
+  body.is-printing-receipt-modal .portfolio-container,
+  body.is-printing-receipt-modal .user-management-container,
+  body.is-printing-receipt-modal .project-management-container {
+    display: none !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   /* Reset all modal containers so they don't clip, scroll, or translate */
   .modal-overlay {
     position: static !important;
@@ -1296,14 +1321,19 @@ p {
   }
 
   .receipt-container {
-    width: 215.9mm !important;
-    min-height: 279.4mm !important;
+    width: 100% !important;
+    max-width: 195mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 255mm !important;
     margin: 0 auto !important;
-    padding: 14mm 16mm !important;
+    padding: 8mm 10mm !important;
     box-sizing: border-box !important;
-    border: none !important;
-    border-radius: 0 !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
     box-shadow: none !important;
+    background: #ffffff !important;
+    color: #111827 !important;
     page-break-after: avoid !important;
     break-after: avoid !important;
     page-break-inside: avoid !important;
