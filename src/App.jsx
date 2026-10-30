@@ -14,6 +14,7 @@ import QuoteCalculator from './components/QuoteCalculator';
 import RetefuenteCalculator from './components/RetefuenteCalculator';
 import PersonnelManagement from './components/PersonnelManagement';
 import TotalAdjustments from './components/TotalAdjustments';
+import FloatingProjectSwitcher from './components/FloatingProjectSwitcher';
 import { 
   seedMockData, 
   getAll, 
@@ -52,8 +53,17 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [projectSearch, setProjectSearch] = useState('');
   const [isGlobalLoading, setIsGlobalLoading] = useState(false);
+  const [quickSwitcherEnabled, setQuickSwitcherEnabled] = useState(() => {
+    return localStorage.getItem('habitech_quick_switcher_enabled') !== 'false';
+  });
   const loadingCountRef = useRef(0);
   const isNavigatingHistoryRef = useRef(false);
+
+  const handleToggleQuickSwitcher = (val) => {
+    const nextVal = typeof val === 'boolean' ? val : !quickSwitcherEnabled;
+    setQuickSwitcherEnabled(nextVal);
+    localStorage.setItem('habitech_quick_switcher_enabled', String(nextVal));
+  };
 
   // Override window.alert and window.confirm with premium custom UI elements
   useEffect(() => {
@@ -941,11 +951,24 @@ export default function App() {
 
             {/* API & System Settings View */}
             {currentTab === 'settings' && currentUser.role === 'admin' && (
-              <ApiSettings />
+              <ApiSettings 
+                quickSwitcherEnabled={quickSwitcherEnabled}
+                onToggleQuickSwitcher={handleToggleQuickSwitcher}
+              />
             )}
           </>
         )}
       </main>
+
+      {/* FLOATING PROJECT QUICK SWITCHER */}
+      {currentUser && (
+        <FloatingProjectSwitcher 
+          projects={isClient ? clientProjects : projects}
+          onSelectProject={(id) => handleOpenProject(id, 'general')}
+          currentProjectId={selectedProjectId}
+          enabled={quickSwitcherEnabled}
+        />
+      )}
 
       {/* NEW PROJECT CREATION FORM MODAL */}
       {showProjectForm && (

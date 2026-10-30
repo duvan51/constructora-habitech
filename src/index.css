@@ -3081,9 +3081,401 @@ p {
     height: auto;
   }
 
-  .expense-form-upload-col {
-    height: auto;
-    min-height: 280px;
+/* ==========================================================================
+   FLOATING PROJECT SWITCHER & COMMAND PALETTE (CAMBIADOR RÁPIDO DE OBRAS)
+   ========================================================================== */
+
+/* Floating Action Button */
+.floating-switcher-fab {
+  position: fixed;
+  bottom: 26px;
+  right: 26px;
+  z-index: 998;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 50px;
+  background: linear-gradient(135deg, #FF6D00 0%, #e05300 100%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  box-shadow: 0 8px 25px rgba(255, 109, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.5);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(8px);
+}
+
+.floating-switcher-fab:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 12px 30px rgba(255, 109, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.floating-switcher-fab:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.floating-switcher-fab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pulse 2.5s infinite;
+}
+
+.floating-switcher-fab-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.3px;
+}
+
+.floating-switcher-fab-kbd {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Modal Overlay & Command Palette */
+.floating-switcher-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(4, 7, 14, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8vh;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.floating-switcher-modal {
+  background: rgba(17, 24, 39, 0.88);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 660px;
+  box-shadow: 0 30px 70px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 109, 0, 0.2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.floating-switcher-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(11, 15, 25, 0.65);
+}
+
+.floating-switcher-search-icon {
+  color: #FF6D00;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.floating-switcher-input {
+  flex: 1;
+  height: 42px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.floating-switcher-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.95rem;
+}
+
+.floating-switcher-clear-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.floating-switcher-clear-btn:hover {
+  background: rgba(244, 63, 94, 0.2);
+  border-color: rgba(244, 63, 94, 0.4);
+  color: #fda4af;
+}
+
+.floating-switcher-count-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(255, 109, 0, 0.14);
+  border: 1px solid rgba(255, 109, 0, 0.3);
+  color: #FF6D00;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.floating-switcher-list {
+  max-height: 430px;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.floating-switcher-empty {
+  text-align: center;
+  padding: 45px 20px;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.floating-switcher-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.floating-switcher-item:hover,
+.floating-switcher-item.is-selected {
+  background: rgba(255, 109, 0, 0.12);
+  border-color: rgba(255, 109, 0, 0.35);
+  transform: translateX(4px);
+}
+
+.floating-switcher-item.is-current {
+  border-left: 3px solid #34d399;
+}
+
+.floating-switcher-item.is-selected.is-current {
+  border-left: 3px solid #FF6D00;
+}
+
+.floating-switcher-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.floating-switcher-item-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(255, 109, 0, 0.15);
+  border: 1px solid rgba(255, 109, 0, 0.25);
+  color: #FF6D00;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.floating-switcher-item.is-selected .floating-switcher-item-icon {
+  background: #FF6D00;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(255, 109, 0, 0.35);
+}
+
+.floating-switcher-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.floating-switcher-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.floating-switcher-item-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.floating-switcher-current-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.floating-switcher-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.floating-switcher-meta-client,
+.floating-switcher-meta-address {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.floating-switcher-item-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.floating-switcher-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.floating-switcher-progress-bar {
+  width: 55px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.floating-switcher-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #FF6D00, #34d399);
+  border-radius: 10px;
+}
+
+.floating-switcher-progress-val {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  width: 32px;
+  text-align: right;
+}
+
+.floating-switcher-enter-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(255, 109, 0, 0.2);
+  border: 1px solid rgba(255, 109, 0, 0.35);
+  color: #FF6D00;
+}
+
+.floating-switcher-chevron {
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.floating-switcher-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(11, 15, 25, 0.75);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.floating-switcher-shortcuts {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.floating-switcher-shortcut-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.switcher-kbd {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: monospace;
+}
+
+@media (max-width: 600px) {
+  .floating-switcher-fab {
+    bottom: 20px;
+    right: 16px;
+    padding: 10px 16px;
+    font-size: 0.85rem;
+  }
+
+  .floating-switcher-overlay {
+    padding-top: 4vh;
+  }
+
+  .floating-switcher-modal {
+    max-height: 88vh;
+  }
+
+  .floating-switcher-progress-wrap {
+    display: none;
+  }
+
+  .floating-switcher-meta-address {
+    display: none;
   }
 }
 

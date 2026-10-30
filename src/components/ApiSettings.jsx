@@ -8,14 +8,35 @@ import {
   Globe, 
   EyeOff, 
   Server,
-  BookOpen
+  BookOpen,
+  Layers
 } from 'lucide-react';
 
-export default function ApiSettings() {
+export default function ApiSettings({ 
+  quickSwitcherEnabled: propEnabled, 
+  onToggleQuickSwitcher: propToggle 
+}) {
   const [activeSubTab, setActiveSubTab] = useState('api');
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedJs, setCopiedJs] = useState(false);
   const [copiedCli, setCopiedCli] = useState(false);
+
+  // Fallback to localStorage if props are not explicitly provided
+  const [localEnabled, setLocalEnabled] = useState(() => {
+    return localStorage.getItem('habitech_quick_switcher_enabled') !== 'false';
+  });
+
+  const isSwitcherActive = propEnabled !== undefined ? propEnabled : localEnabled;
+
+  const handleToggleSwitcher = () => {
+    const nextVal = !isSwitcherActive;
+    if (propToggle) {
+      propToggle(nextVal);
+    } else {
+      setLocalEnabled(nextVal);
+      localStorage.setItem('habitech_quick_switcher_enabled', String(nextVal));
+    }
+  };
 
   const apiUrl = 'https://flknwsgtcswiusahfjar.supabase.co/functions/v1/proyectos-activos';
   
@@ -401,6 +422,87 @@ npx supabase functions deploy proyectos-activos --project-ref flknwsgtcswiusahfj
               <p style={{ marginBottom: '20px' }}>Detalles técnicos y estado de la plataforma Habitech Constructor.</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {/* Floating Quick Project Switcher Option */}
+                <div style={{
+                  background: isSwitcherActive ? 'rgba(255, 109, 0, 0.05)' : 'rgba(255, 255, 255, 0.02)',
+                  border: isSwitcherActive ? '1px solid rgba(255, 109, 0, 0.35)' : '1px solid var(--border-glass)',
+                  borderRadius: '12px',
+                  padding: '18px 22px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '20px',
+                  transition: 'all 0.25s ease'
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        background: isSwitcherActive ? 'rgba(255, 109, 0, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: isSwitcherActive ? 'var(--primary-cyan)' : 'var(--text-muted)'
+                      }}>
+                        <Layers size={18} />
+                      </div>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.98rem' }}>
+                        Cambiador Flotante de Obras (Navegación Rápida)
+                      </span>
+                      <span style={{
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '5px',
+                        background: isSwitcherActive ? 'rgba(255, 109, 0, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                        color: isSwitcherActive ? 'var(--primary-cyan)' : 'var(--text-muted)',
+                        fontFamily: 'monospace'
+                      }}>
+                        Ctrl + K
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: '1.45', paddingLeft: '42px' }}>
+                      Muestra un botón flotante en la esquina inferior derecha y una ventana emergente para buscar, recorrer con las flechas del teclado (<kbd style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '3px' }}>↑</kbd> <kbd style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '3px' }}>↓</kbd>) y abrir obras con <kbd style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '3px' }}>Enter</kbd>.
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleSwitcher}
+                    style={{
+                      background: isSwitcherActive 
+                        ? 'linear-gradient(135deg, #FF6D00 0%, #FF8A00 100%)' 
+                        : 'rgba(255, 255, 255, 0.08)',
+                      border: isSwitcherActive 
+                        ? '1px solid rgba(255, 109, 0, 0.6)' 
+                        : '1px solid rgba(255, 255, 255, 0.15)',
+                      color: isSwitcherActive ? '#ffffff' : 'var(--text-secondary)',
+                      borderRadius: '24px',
+                      padding: '8px 18px',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: isSwitcherActive ? '0 4px 14px rgba(255, 109, 0, 0.35)' : 'none',
+                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                      flexShrink: 0
+                    }}
+                  >
+                    <span style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background: isSwitcherActive ? '#ffffff' : 'var(--text-muted)',
+                      boxShadow: isSwitcherActive ? '0 0 8px #ffffff' : 'none'
+                    }} />
+                    {isSwitcherActive ? 'Activado' : 'Desactivado'}
+                  </button>
+                </div>
+
                 <div style={{
                   background: 'rgba(255, 255, 255, 0.02)',
                   border: '1px solid var(--border-glass)',
