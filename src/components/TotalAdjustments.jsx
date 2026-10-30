@@ -25,7 +25,9 @@ import {
   X,
   ExternalLink,
   Eye,
-  Info
+  Info,
+  RotateCcw,
+  ArrowUpDown
 } from 'lucide-react';
 
 export default function TotalAdjustments({ 
@@ -219,12 +221,16 @@ export default function TotalAdjustments({
   // Filter and Sort Personnel
   const filteredPersonnel = useMemo(() => {
     let list = consolidatedPersonnel.filter(cp => {
-      // Search term
-      const search = searchTerm.toLowerCase();
-      const nameMatch = cp.person.name.toLowerCase().includes(search);
-      const docMatch = (cp.person.documentId || '').toLowerCase().includes(search);
-      const jobMatch = (cp.person.jobTitle || '').toLowerCase().includes(search);
-      if (searchTerm && !nameMatch && !docMatch && !jobMatch) return false;
+      // Search term (searches name, cédula, cargo, involved projects and assigned budget items)
+      const search = searchTerm.toLowerCase().trim();
+      if (search) {
+        const nameMatch = cp.person.name.toLowerCase().includes(search);
+        const docMatch = (cp.person.documentId || '').toLowerCase().includes(search);
+        const jobMatch = (cp.person.jobTitle || '').toLowerCase().includes(search);
+        const projectMatch = cp.participatingProjects.some(p => (p.name || '').toLowerCase().includes(search));
+        const budgetMatch = cp.assignedBudgetItems.some(b => (b.name || '').toLowerCase().includes(search));
+        if (!nameMatch && !docMatch && !jobMatch && !projectMatch && !budgetMatch) return false;
+      }
 
       // Status filter
       if (statusFilter !== 'all' && cp.status !== statusFilter) return false;
@@ -257,6 +263,21 @@ export default function TotalAdjustments({
 
     return list;
   }, [consolidatedPersonnel, searchTerm, statusFilter, projectFilter, sortBy]);
+
+  // Filter helper flags
+  const hasActiveFilters = Boolean(
+    searchTerm.trim() !== '' || 
+    statusFilter !== 'all' || 
+    projectFilter !== 'all' || 
+    sortBy !== 'pendingDesc'
+  );
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setProjectFilter('all');
+    setSortBy('pendingDesc');
+  };
 
   // -------------------------------------------------------------
   // ABONO RÁPIDO HANDLERS
@@ -490,118 +511,143 @@ export default function TotalAdjustments({
       </div>
 
       {/* TOOLBAR & FILTERS */}
-      <div className="glass-panel" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="adjustments-toolbar-panel">
+        <div className="adjustments-toolbar-top">
           
-          {/* Search Bar */}
-          <div style={{ position: 'relative', flex: '1 1 280px', minWidth: '240px' }}>
-            <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          {/* Main Search Bar */}
+          <div className="adjustments-search-box">
+            <div className="adjustments-search-icon">
+              <Search size={18} />
+            </div>
             <input 
               type="text"
-              className="input-field"
-              placeholder="Buscar personal por nombre, cédula o cargo..."
+              className="adjustments-search-input"
+              placeholder="Buscar personal por nombre, cédula, cargo, obra o concepto..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ paddingLeft: '40px', width: '100%' }}
             />
-            {searchTerm && (
-              <button 
-                onClick={() => setSearchTerm('')}
-                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            )}
+            <div className="adjustments-search-actions">
+              {searchTerm && (
+                <>
+                  <span className="adjustments-search-match-badge">
+                    {filteredPersonnel.length} {filteredPersonnel.length === 1 ? 'coincidencia' : 'coincidencias'}
+                  </span>
+                  <button 
+                    type="button"
+                    className="adjustments-search-clear"
+                    onClick={() => setSearchTerm('')}
+                    title="Borrar búsqueda"
+                  >
+                    <X size={14} />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Obra Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '200px' }}>
-            <Building size={16} style={{ color: 'var(--text-muted)' }} />
+          <div className="adjustments-select-box">
+            <div className="adjustments-select-icon">
+              <Building size={16} />
+            </div>
             <select
-              className="input-field"
+              className="adjustments-select"
               value={projectFilter}
               onChange={(e) => setProjectFilter(e.target.value)}
-              style={{ fontSize: '0.85rem' }}
             >
-              <option value="all">Todas las Obras</option>
+              <option value="all">Todas las Obras ({projects.length})</option>
               {projects.map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
+            <div className="adjustments-select-chevron">
+              <ChevronDown size={14} />
+            </div>
           </div>
 
           {/* Sort By */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Ordenar:</span>
+          <div className="adjustments-select-box">
+            <div className="adjustments-select-icon">
+              <ArrowUpDown size={16} />
+            </div>
             <select
-              className="input-field"
+              className="adjustments-select"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              style={{ fontSize: '0.85rem' }}
             >
               <option value="pendingDesc">Mayor Saldo Pendiente</option>
               <option value="budgetDesc">Mayor Presupuesto Total</option>
               <option value="paidDesc">Mayor Monto Pagado</option>
               <option value="nameAsc">Nombre (A - Z)</option>
             </select>
+            <div className="adjustments-select-chevron">
+              <ChevronDown size={14} />
+            </div>
           </div>
 
         </div>
 
-        {/* Status Filter Tabs */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '12px' }}>
-          <button
-            className={`btn ${statusFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setStatusFilter('all')}
-            style={{ fontSize: '0.8rem', padding: '6px 14px', borderRadius: '20px' }}
-          >
-            Todos ({consolidatedPersonnel.length})
-          </button>
-          
-          <button
-            className={`btn ${statusFilter === 'pending' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setStatusFilter('pending')}
-            style={{ 
-              fontSize: '0.8rem', 
-              padding: '6px 14px', 
-              borderRadius: '20px',
-              backgroundColor: statusFilter === 'pending' ? '#FF6D00' : 'rgba(255, 109, 0, 0.1)',
-              borderColor: 'rgba(255, 109, 0, 0.3)',
-              color: statusFilter === 'pending' ? '#ffffff' : '#FF6D00'
-            }}
-          >
-            ⚠️ Con Saldo Pendiente ({globalKPIs.countPending})
-          </button>
+        {/* Status Filter Tabs & Summary Row */}
+        <div className="adjustments-filters-row">
+          <div className="adjustments-filter-pills">
+            <button
+              type="button"
+              className={`adjustments-pill-btn ${statusFilter === 'all' ? 'active-all' : ''}`}
+              onClick={() => setStatusFilter('all')}
+            >
+              <Layers size={14} />
+              <span>Todos</span>
+              <span className="adjustments-pill-badge">{consolidatedPersonnel.length}</span>
+            </button>
+            
+            <button
+              type="button"
+              className={`adjustments-pill-btn ${statusFilter === 'pending' ? 'active-pending' : ''}`}
+              onClick={() => setStatusFilter('pending')}
+            >
+              <AlertTriangle size={14} />
+              <span>Con Saldo Pendiente</span>
+              <span className="adjustments-pill-badge">{globalKPIs.countPending}</span>
+            </button>
 
-          <button
-            className={`btn ${statusFilter === 'settled' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setStatusFilter('settled')}
-            style={{ 
-              fontSize: '0.8rem', 
-              padding: '6px 14px', 
-              borderRadius: '20px',
-              backgroundColor: statusFilter === 'settled' ? '#10b981' : 'rgba(16, 185, 129, 0.1)',
-              borderColor: 'rgba(16, 185, 129, 0.3)',
-              color: statusFilter === 'settled' ? '#ffffff' : '#34d399'
-            }}
-          >
-            ✅ Paz y Salvo ({globalKPIs.countSettled})
-          </button>
+            <button
+              type="button"
+              className={`adjustments-pill-btn ${statusFilter === 'settled' ? 'active-settled' : ''}`}
+              onClick={() => setStatusFilter('settled')}
+            >
+              <CheckCircle2 size={14} />
+              <span>Paz y Salvo</span>
+              <span className="adjustments-pill-badge">{globalKPIs.countSettled}</span>
+            </button>
 
-          <button
-            className={`btn ${statusFilter === 'overpaid' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setStatusFilter('overpaid')}
-            style={{ 
-              fontSize: '0.8rem', 
-              padding: '6px 14px', 
-              borderRadius: '20px',
-              backgroundColor: statusFilter === 'overpaid' ? '#0284c7' : 'rgba(56, 189, 248, 0.1)',
-              borderColor: 'rgba(56, 189, 248, 0.3)',
-              color: statusFilter === 'overpaid' ? '#ffffff' : '#38bdf8'
-            }}
-          >
-            🔵 Saldo a Favor / Anticipo Excedido ({globalKPIs.countOverpaid})
-          </button>
+            <button
+              type="button"
+              className={`adjustments-pill-btn ${statusFilter === 'overpaid' ? 'active-overpaid' : ''}`}
+              onClick={() => setStatusFilter('overpaid')}
+            >
+              <ArrowUpRight size={14} />
+              <span>Saldo a Favor Constructora</span>
+              <span className="adjustments-pill-badge">{globalKPIs.countOverpaid}</span>
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div className="adjustments-results-summary">
+              Mostrando <strong style={{ color: 'var(--text-primary)' }}>{filteredPersonnel.length}</strong> de {consolidatedPersonnel.length} personas
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                className="adjustments-reset-filters-btn"
+                onClick={handleResetFilters}
+                title="Restablecer todos los filtros"
+              >
+                <RotateCcw size={13} />
+                Limpiar filtros
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -612,6 +658,19 @@ export default function TotalAdjustments({
             <Scale size={48} style={{ color: 'var(--text-muted)', marginBottom: '15px', opacity: 0.5 }} />
             <h3 style={{ color: 'var(--text-primary)', marginBottom: '6px' }}>No se encontraron registros</h3>
             <p style={{ fontSize: '0.85rem' }}>No hay personal que coincida con los filtros seleccionados.</p>
+            {hasActiveFilters && (
+              <div style={{ marginTop: '18px' }}>
+                <button 
+                  type="button"
+                  className="btn btn-secondary" 
+                  onClick={handleResetFilters}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', padding: '8px 18px', borderRadius: '20px' }}
+                >
+                  <RotateCcw size={15} />
+                  Limpiar búsqueda y filtros
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           filteredPersonnel.map(cp => {

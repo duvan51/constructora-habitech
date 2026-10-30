@@ -2,11 +2,16 @@ import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, Check
 
 export default function Sidebar({ currentTab, setTab, projectCount, currentUser, onLogout, isOpen, onClose }) {
   const isClient = currentUser?.role === 'client';
+  const isDesign = currentUser?.role === 'disign' || currentUser?.role === 'design';
 
   let menuItems = [];
   if (isClient) {
     menuItems = [
       { id: 'projects', name: 'Mis Obras y Avances', icon: <HardHat size={18} />, count: projectCount }
+    ];
+  } else if (isDesign) {
+    menuItems = [
+      { id: 'projects', name: 'Obras y Expedientes', icon: <HardHat size={18} />, count: projectCount }
     ];
   } else {
     menuItems = [
@@ -36,6 +41,8 @@ export default function Sidebar({ currentTab, setTab, projectCount, currentUser,
     switch (role) {
       case 'admin': return 'Administrador';
       case 'editor': return 'Editor';
+      case 'disign':
+      case 'design': return 'Diseño (Disign)';
       case 'viewer': return 'Solo Ver';
       case 'client': return 'Cliente Propietario';
       default: return 'Usuario';

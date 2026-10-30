@@ -209,7 +209,7 @@ export default function App() {
     setCurrentUser(user);
     setIsLocked(false);
     localStorage.setItem('habitech_user_session', JSON.stringify(user));
-    if (user.role === 'client') {
+    if (user.role === 'client' || user.role === 'disign' || user.role === 'design') {
       setTab('projects');
       if (user.projectIds && user.projectIds.length === 1) {
         setSelectedProjectId(user.projectIds[0]);
@@ -536,6 +536,7 @@ export default function App() {
   };
 
   const isClient = currentUser?.role === 'client';
+  const isDesign = currentUser?.role === 'disign' || currentUser?.role === 'design';
   const clientProjects = isClient
     ? projects.filter(p => {
         const pDoc = String(p.clientDocumentId || '').trim();
@@ -545,17 +546,17 @@ export default function App() {
       })
     : projects;
 
-  // Auto-redirect client to projects tab and their single project if applicable
+  // Auto-redirect client or design to projects tab and single project if applicable
   useEffect(() => {
-    if (isClient) {
+    if (isClient || isDesign) {
       if (currentTab !== 'projects') {
         setTab('projects');
       }
-      if (clientProjects.length === 1 && !selectedProjectId) {
-        setSelectedProjectId(clientProjects[0].id);
-      }
     }
-  }, [isClient, currentTab, clientProjects.length, selectedProjectId]);
+    if (isClient && clientProjects.length === 1 && !selectedProjectId) {
+      setSelectedProjectId(clientProjects[0].id);
+    }
+  }, [isClient, isDesign, currentTab, clientProjects.length, selectedProjectId]);
 
   const activeProject = (isClient ? clientProjects : projects).find(p => p.id === selectedProjectId);
 
@@ -780,7 +781,7 @@ export default function App() {
               onEditChange={(editing) => setIsEditingProject(editing)}
             />
             
-            {currentUser.role !== 'viewer' && currentUser.role !== 'client' && (
+            {currentUser.role !== 'viewer' && currentUser.role !== 'client' && !isDesign && (
               <div style={{ alignSelf: 'flex-start', marginTop: '20px' }}>
                 <button 
                   type="button" 
@@ -809,12 +810,16 @@ export default function App() {
               <div className="projects-directory animate-fade-in">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                   <div>
-                    <h1>{isClient ? 'Mis Obras y Proyectos' : 'Obras y Proyectos'}</h1>
+                    <h1>{isClient ? 'Mis Obras y Proyectos' : isDesign ? 'Obras y Expedientes' : 'Obras y Proyectos'}</h1>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                      {isClient ? `Bienvenido ${currentUser.name}. Consulta el avance y documentación de tu obra.` : 'Directorio activo de frentes de obra y contrataciones.'}
+                      {isClient 
+                        ? `Bienvenido ${currentUser.name}. Consulta el avance y documentación de tu obra.` 
+                        : isDesign
+                        ? `Bienvenido ${currentUser.name}. Consulta obras, sube planos y gestiona expedientes técnicos.`
+                        : 'Directorio activo de frentes de obra y contrataciones.'}
                     </p>
                   </div>
-                  {currentUser.role !== 'viewer' && currentUser.role !== 'client' && (
+                  {currentUser.role !== 'viewer' && currentUser.role !== 'client' && !isDesign && (
                     <button className="btn btn-primary" onClick={() => setShowProjectForm(true)}>
                       <Plus size={16} /> Registrar Nueva Obra
                     </button>

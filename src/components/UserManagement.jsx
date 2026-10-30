@@ -120,6 +120,9 @@ export default function UserManagement({ currentUser }) {
         return <span className="badge badge-active" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#a5b4fc', borderColor: 'rgba(99, 102, 241, 0.3)' }}>Administrador</span>;
       case 'editor':
         return <span className="badge badge-completed">Editor</span>;
+      case 'disign':
+      case 'design':
+        return <span className="badge" style={{ background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.4)' }}>Diseño (Disign)</span>;
       case 'viewer':
       default:
         return <span className="badge badge-planning" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#fde047', borderColor: 'rgba(245, 158, 11, 0.3)' }}>Solo Ver</span>;
@@ -237,8 +240,14 @@ export default function UserManagement({ currentUser }) {
                 >
                   <option value="viewer">Solo Ver (Viewer)</option>
                   <option value="editor">Editar (Editor)</option>
+                  <option value="disign">Diseño / Planos (Disign)</option>
                   <option value="admin">Administrador (Admin)</option>
                 </select>
+                {role === 'disign' && (
+                  <p style={{ fontSize: '0.75rem', color: '#c084fc', marginTop: '6px' }}>
+                    Permite subir y editar planos/documentos y ver la bitácora de avances. En el resumen solo ve el nombre del cliente, sin números telefónicos ni información contable.
+                  </p>
+                )}
               </div>
             </div>
 

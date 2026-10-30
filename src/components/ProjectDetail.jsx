@@ -130,7 +130,9 @@ export default function ProjectDetail({
   const [progressLogs, setProgressLogs] = useState([]);
   const [activeViewDocument, setActiveViewDocument] = useState(null);
   const [isEditingDoc, setIsEditingDoc] = useState(false);
-  const [editingDocData, setEditingDocData] = useState({ name: '', type: '' });
+  const [editingDocData, setEditingDocData] = useState({ name: '', type: '', fileBase64: '' });
+
+  const isDesign = userRole === 'disign' || userRole === 'design';
 
   // Sync external subTab changes (e.g. from browser back/forward or direct URL)
   useEffect(() => {
@@ -172,12 +174,12 @@ export default function ProjectDetail({
     }
   };
 
-  // Guard against client accessing financial tabs
+  // Guard against client or disign accessing financial tabs
   useEffect(() => {
-    if (userRole === 'client' && (activeTab === 'payments' || activeTab === 'budget')) {
+    if ((userRole === 'client' || isDesign) && (activeTab === 'payments' || activeTab === 'budget')) {
       handleSelectTab('general');
     }
-  }, [userRole, activeTab]);
+  }, [userRole, isDesign, activeTab]);
 
   console.log("ProjectDetail transactions count:", transactions.length);
   console.log("ProjectDetail current project ID:", project.id);
@@ -1102,7 +1104,8 @@ export default function ProjectDetail({
       const updatedDoc = {
         ...activeViewDocument,
         name: editingDocData.name.trim(),
-        type: editingDocData.type
+        type: editingDocData.type,
+        ...(editingDocData.fileBase64 ? { fileBase64: editingDocData.fileBase64 } : {})
       };
       await saveItem('documents', updatedDoc);
       setIsEditingDoc(false);
@@ -1151,11 +1154,11 @@ export default function ProjectDetail({
           </button>
           <div style={{ minWidth: 0 }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
-              {userRole === 'client' ? 'Portal del Cliente / Seguimiento de Obra' : 'Obra / Detalles'}
+              {userRole === 'client' ? 'Portal del Cliente / Seguimiento de Obra' : isDesign ? 'Expediente Técnico y Planos' : 'Obra / Detalles'}
             </span>
             <h2 style={{ margin: 0, fontSize: '1.6rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px', wordBreak: 'break-word', overflowWrap: 'anywhere', flexWrap: 'wrap' }}>
               {project.name}
-              {userRole !== 'viewer' && userRole !== 'client' && (
+              {userRole !== 'viewer' && userRole !== 'client' && !isDesign && (
                 <button 
                   type="button"
                   className="btn-icon" 
@@ -1211,7 +1214,7 @@ export default function ProjectDetail({
           <span className="tab-btn-text">Resumen General</span>
         </button>
 
-        {userRole !== 'client' && (
+        {userRole !== 'client' && !isDesign && (
           <button 
             className={`tab-btn project-tab-btn ${activeTab === 'payments' ? 'active' : ''}`} 
             onClick={() => handleSelectTab('payments')}
@@ -1225,7 +1228,7 @@ export default function ProjectDetail({
           </button>
         )}
 
-        {userRole !== 'client' && (
+        {userRole !== 'client' && !isDesign && (
           <button 
             className={`tab-btn project-tab-btn ${activeTab === 'budget' ? 'active' : ''}`} 
             onClick={() => handleSelectTab('budget')}
@@ -1275,20 +1278,24 @@ export default function ProjectDetail({
                   <span style={{ color: 'var(--text-secondary)' }}>Cliente:</span>
                   <span style={{ fontWeight: 600 }}>{project.clientName}</span>
                 </div>
-                {project.clientDocumentId && (
+                {!isDesign && project.clientDocumentId && (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Cédula / Documento:</span>
                     <span style={{ fontWeight: 600, color: 'var(--primary-cyan)' }}>{project.clientDocumentId}</span>
                   </div>
                 )}
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Teléfono:</span>
-                  <span>{project.clientPhone || 'No registrado'}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Email:</span>
-                  <span>{project.clientEmail || 'No registrado'}</span>
-                </div>
+                {!isDesign && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Teléfono:</span>
+                    <span>{project.clientPhone || 'No registrado'}</span>
+                  </div>
+                )}
+                {!isDesign && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Email:</span>
+                    <span>{project.clientEmail || 'No registrado'}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Fecha Inicio Obra:</span>
                   <span>{project.startDate}</span>
@@ -1300,10 +1307,10 @@ export default function ProjectDetail({
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Project Manager:</span>
                   <span style={{ color: 'var(--primary-cyan)', fontWeight: 600 }}>
-                    {project.managerName || 'No asignado'} {project.managerPhone ? `(${project.managerPhone})` : ''}
+                    {project.managerName || 'No asignado'} {!isDesign && project.managerPhone ? `(${project.managerPhone})` : ''}
                   </span>
                 </div>
-                {userRole !== 'client' && (
+                {userRole !== 'client' && !isDesign && (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-glass)', paddingTop: '10px', marginTop: '5px' }}>
                       <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Presupuesto Contratado:</span>
@@ -1360,7 +1367,7 @@ export default function ProjectDetail({
               <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary-cyan)' }}>{project.progress}%</div>
             </div>
             <div style={{ borderLeft: '1px solid var(--border-glass)' }}></div>
-            {userRole === 'client' ? (
+            {userRole === 'client' || isDesign ? (
               <>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '5px' }}>Bitácora de Avances</div>
@@ -1370,7 +1377,7 @@ export default function ProjectDetail({
                 </div>
                 <div style={{ borderLeft: '1px solid var(--border-glass)' }}></div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '5px' }}>Documentos Registrados</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '5px' }}>Documentos y Planos</div>
                   <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary-cyan)' }}>
                     {documents.length}
                   </div>
@@ -1513,13 +1520,14 @@ export default function ProjectDetail({
             )}
           </div>
 
-          <div className="grid-2">
-            {/* Contacts Panel */}
-            <div className="glass-panel" style={{ padding: '22px' }}>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
-                <Phone size={18} style={{ color: 'var(--primary-cyan)' }} />
-                Contactos de la Obra
-              </h3>
+          <div className={isDesign ? "" : "grid-2"}>
+            {/* Contacts Panel (Hidden for Design to ensure zero telephone numbers are exposed) */}
+            {!isDesign && (
+              <div className="glass-panel" style={{ padding: '22px' }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
+                  <Phone size={18} style={{ color: 'var(--primary-cyan)' }} />
+                  Contactos de la Obra
+                </h3>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '15px' }}>
                 {(project.contacts || []).map((contact, idx) => (
@@ -1560,6 +1568,7 @@ export default function ProjectDetail({
                 )
               )}
             </div>
+          )}
 
             {/* Notes Panel */}
             <div className="glass-panel" style={{ padding: '22px' }}>
@@ -2397,8 +2406,8 @@ export default function ProjectDetail({
         <div className="glass-panel animate-fade-in" style={{ padding: '22px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div>
-              <h3>Expediente de Documentación y Contratos</h3>
-              <p style={{ fontSize: '0.85rem' }}>Archivo seguro digitalizado del cliente (contratos, comprobantes de pago).</p>
+              <h3>Expediente de Documentación y Planos</h3>
+              <p style={{ fontSize: '0.85rem' }}>Archivo digitalizado de planos arquitectónicos, técnicos, licencias y contratos.</p>
             </div>
             {userRole !== 'viewer' && userRole !== 'client' && (
               <button className="btn btn-primary" onClick={() => setShowScanner(true)}>
@@ -2474,7 +2483,7 @@ export default function ProjectDetail({
           <div className="glass-panel" style={{ padding: '22px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <h3 style={{ margin: 0, color: 'var(--primary-cyan)' }}>Cronograma de Fases (Plan vs Real)</h3>
-              {userRole !== 'viewer' && userRole !== 'client' && (
+              {userRole !== 'viewer' && userRole !== 'client' && !isDesign && (
                 <button 
                   className="btn btn-secondary" 
                   onClick={() => {
@@ -2565,7 +2574,7 @@ export default function ProjectDetail({
                 <h3>Bitácora Fotográfica de Obra</h3>
                 <p style={{ fontSize: '0.85rem' }}>Línea de tiempo del avance físico y registro multimedia.</p>
               </div>
-            {userRole !== 'viewer' && userRole !== 'client' && (
+            {userRole !== 'viewer' && userRole !== 'client' && !isDesign && (
               <button 
                 className="btn btn-primary" 
                 onClick={() => {
@@ -2605,7 +2614,7 @@ export default function ProjectDetail({
                           </span>
                         )}
                       </div>
-                      {userRole !== 'viewer' && userRole !== 'client' && (
+                      {userRole !== 'viewer' && userRole !== 'client' && !isDesign && (
                         <div style={{ display: 'flex', gap: '10px' }}>
                           <button 
                             type="button"
@@ -4114,6 +4123,26 @@ export default function ProjectDetail({
                       <option value="permit">Licencia o Permiso</option>
                       <option value="other">Otro Documento</option>
                     </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Reemplazar Archivo / Versión de Plano (Opcional)</label>
+                    <input 
+                      type="file" 
+                      className="form-control"
+                      accept="image/*,application/pdf"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const base64 = await fileToBase64(file);
+                          setEditingDocData(prev => ({ ...prev, fileBase64: base64 }));
+                        }
+                      }}
+                    />
+                    {editingDocData.fileBase64 && (
+                      <span style={{ fontSize: '0.75rem', color: '#34d399', marginTop: '4px', display: 'block' }}>
+                        ✓ Archivo nuevo seleccionado y listo para guardar
+                      </span>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                     <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
