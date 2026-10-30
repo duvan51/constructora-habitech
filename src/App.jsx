@@ -58,6 +58,7 @@ export default function App() {
   });
   const loadingCountRef = useRef(0);
   const isNavigatingHistoryRef = useRef(false);
+  const initialUrlHandledRef = useRef(false);
 
   const handleToggleQuickSwitcher = (val) => {
     const nextVal = typeof val === 'boolean' ? val : !quickSwitcherEnabled;
@@ -586,12 +587,11 @@ export default function App() {
 
   // Match initial project from URL once projects are loaded
   useEffect(() => {
+    if (initialUrlHandledRef.current) return;
     if (projects.length === 0) return;
-    const available = isClient ? clientProjects : projects;
 
-    if (selectedProjectId && available.some(p => p.id === selectedProjectId)) {
-      return;
-    }
+    initialUrlHandledRef.current = true;
+    const available = isClient ? clientProjects : projects;
 
     const { projectId, obraSlug, subTab, isEditing } = initialUrlState.current;
     if (projectId || obraSlug) {
@@ -605,7 +605,9 @@ export default function App() {
         }
       }
     }
-  }, [projects, clientProjects, isClient, selectedProjectId, currentUser]);
+    // Clear initialUrlState to avoid stale re-matching during navigation
+    initialUrlState.current = {};
+  }, [projects, clientProjects, isClient, currentUser]);
 
   // Handle browser Back / Forward navigation (popstate)
   useEffect(() => {
