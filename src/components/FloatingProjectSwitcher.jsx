@@ -152,10 +152,10 @@ export default function FloatingProjectSwitcher({
         aria-label="Abrir cambiador de obras"
       >
         <div className="floating-switcher-fab-icon">
-          <Layers size={20} />
+          <Layers size={19} />
         </div>
         <span className="floating-switcher-fab-label">
-          Obras <kbd className="floating-switcher-fab-kbd">Ctrl+K</kbd>
+          Cambiar Obra <kbd className="floating-switcher-fab-kbd">Ctrl+K</kbd>
         </span>
       </button>
 

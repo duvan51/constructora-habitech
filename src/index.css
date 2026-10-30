@@ -3080,37 +3080,56 @@ p {
     padding-right: 0;
     height: auto;
   }
+}
 
 /* ==========================================================================
    FLOATING PROJECT SWITCHER & COMMAND PALETTE (CAMBIADOR RÁPIDO DE OBRAS)
    ========================================================================== */
 
-/* Floating Action Button */
+/* Keyframe animations */
+@keyframes switcherFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes switcherScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Floating Action Button (FAB) */
 .floating-switcher-fab {
   position: fixed;
-  bottom: 26px;
-  right: 26px;
-  z-index: 998;
+  bottom: 28px;
+  right: 28px;
+  z-index: 9999;
   display: inline-flex;
   align-items: center;
   gap: 10px;
   padding: 12px 20px;
-  border-radius: 50px;
-  background: linear-gradient(135deg, #FF6D00 0%, #e05300 100%);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #FF6D00 0%, #FF8A00 100%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   color: #ffffff;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   cursor: pointer;
-  box-shadow: 0 8px 25px rgba(255, 109, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.5);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(255, 109, 0, 0.45), 0 2px 10px rgba(0, 0, 0, 0.5);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .floating-switcher-fab:hover {
-  transform: translateY(-3px) scale(1.03);
-  box-shadow: 0 12px 30px rgba(255, 109, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.6);
-  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 16px 40px rgba(255, 109, 0, 0.65), 0 4px 14px rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .floating-switcher-fab:active {
@@ -3121,7 +3140,7 @@ p {
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: pulse 2.5s infinite;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
 }
 
 .floating-switcher-fab-label {
@@ -3132,53 +3151,56 @@ p {
 }
 
 .floating-switcher-fab-kbd {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 6px;
-  padding: 2px 6px;
+  padding: 2px 7px;
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 700;
   font-family: inherit;
-  color: rgba(255, 255, 255, 0.9);
+  color: #ffffff;
+  letter-spacing: 0.5px;
 }
 
 /* Modal Overlay & Command Palette */
 .floating-switcher-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
-  background: rgba(4, 7, 14, 0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  z-index: 100000;
+  background: rgba(6, 9, 18, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 8vh;
-  padding-left: 16px;
-  padding-right: 16px;
+  padding-top: 10vh;
+  padding-left: 20px;
+  padding-right: 20px;
+  animation: switcherFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .floating-switcher-modal {
-  background: rgba(17, 24, 39, 0.88);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
   width: 100%;
-  max-width: 660px;
-  box-shadow: 0 30px 70px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 109, 0, 0.2);
+  max-width: 680px;
+  box-shadow: 0 35px 80px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 109, 0, 0.25), 0 0 50px rgba(255, 109, 0, 0.12);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  animation: switcherScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .floating-switcher-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
+  gap: 14px;
+  padding: 18px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(11, 15, 25, 0.65);
+  background: rgba(11, 15, 25, 0.75);
 }
 
 .floating-switcher-search-icon {
@@ -3186,11 +3208,12 @@ p {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  filter: drop-shadow(0 0 8px rgba(255, 109, 0, 0.45));
 }
 
 .floating-switcher-input {
   flex: 1;
-  height: 42px;
+  height: 44px;
   background: transparent;
   border: none;
   outline: none;
@@ -3210,8 +3233,8 @@ p {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 50%;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3225,32 +3248,47 @@ p {
   background: rgba(244, 63, 94, 0.2);
   border-color: rgba(244, 63, 94, 0.4);
   color: #fda4af;
+  transform: scale(1.08);
 }
 
 .floating-switcher-count-badge {
   font-size: 0.75rem;
   font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 12px;
-  background: rgba(255, 109, 0, 0.14);
-  border: 1px solid rgba(255, 109, 0, 0.3);
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: rgba(255, 109, 0, 0.15);
+  border: 1px solid rgba(255, 109, 0, 0.35);
   color: #FF6D00;
   white-space: nowrap;
   flex-shrink: 0;
+  letter-spacing: 0.3px;
 }
 
 .floating-switcher-list {
-  max-height: 430px;
+  max-height: 440px;
   overflow-y: auto;
-  padding: 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+}
+
+.floating-switcher-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.floating-switcher-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.floating-switcher-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
 }
 
 .floating-switcher-empty {
   text-align: center;
-  padding: 45px 20px;
+  padding: 48px 24px;
   color: var(--text-secondary);
   display: flex;
   flex-direction: column;
@@ -3261,24 +3299,25 @@ p {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 12px 16px;
+  gap: 16px;
+  padding: 14px 18px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .floating-switcher-item:hover,
 .floating-switcher-item.is-selected {
   background: rgba(255, 109, 0, 0.12);
-  border-color: rgba(255, 109, 0, 0.35);
+  border-color: rgba(255, 109, 0, 0.45);
   transform: translateX(4px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
 }
 
 .floating-switcher-item.is-current {
-  border-left: 3px solid #34d399;
+  border-left: 3px solid #10b981;
 }
 
 .floating-switcher-item.is-selected.is-current {
@@ -3288,34 +3327,36 @@ p {
 .floating-switcher-item-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   flex: 1;
   min-width: 0;
 }
 
 .floating-switcher-item-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: rgba(255, 109, 0, 0.15);
-  border: 1px solid rgba(255, 109, 0, 0.25);
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(255, 109, 0, 0.14);
+  border: 1px solid rgba(255, 109, 0, 0.28);
   color: #FF6D00;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: all 0.2s ease;
 }
 
 .floating-switcher-item.is-selected .floating-switcher-item-icon {
   background: #FF6D00;
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(255, 109, 0, 0.35);
+  box-shadow: 0 4px 14px rgba(255, 109, 0, 0.4);
+  transform: scale(1.05);
 }
 
 .floating-switcher-item-info {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
 }
@@ -3328,7 +3369,7 @@ p {
 }
 
 .floating-switcher-item-name {
-  font-size: 0.95rem;
+  font-size: 0.98rem;
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
@@ -3337,20 +3378,20 @@ p {
 }
 
 .floating-switcher-current-tag {
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 6px;
   background: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  border: 1px solid rgba(16, 185, 129, 0.35);
   color: #34d399;
 }
 
 .floating-switcher-item-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 0.78rem;
+  gap: 14px;
+  font-size: 0.8rem;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -3361,7 +3402,7 @@ p {
 .floating-switcher-meta-address {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 
 .floating-switcher-item-right {
@@ -3378,7 +3419,7 @@ p {
 }
 
 .floating-switcher-progress-bar {
-  width: 55px;
+  width: 65px;
   height: 6px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 10px;
@@ -3392,10 +3433,10 @@ p {
 }
 
 .floating-switcher-progress-val {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-secondary);
-  width: 32px;
+  width: 34px;
   text-align: right;
 }
 
@@ -3403,12 +3444,12 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  padding: 4px 8px;
+  padding: 5px 10px;
   border-radius: 8px;
-  background: rgba(255, 109, 0, 0.2);
-  border: 1px solid rgba(255, 109, 0, 0.35);
+  background: rgba(255, 109, 0, 0.22);
+  border: 1px solid rgba(255, 109, 0, 0.4);
   color: #FF6D00;
 }
 
@@ -3421,17 +3462,17 @@ p {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 20px;
+  padding: 14px 24px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(11, 15, 25, 0.75);
+  background: rgba(11, 15, 25, 0.8);
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
 }
 
 .floating-switcher-shortcuts {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
   flex-wrap: wrap;
 }
 
@@ -3439,16 +3480,16 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: var(--text-secondary);
 }
 
 .switcher-kbd {
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--text-primary);
   font-family: monospace;
