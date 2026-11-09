@@ -241,14 +241,7 @@ CREATE TABLE IF NOT EXISTS agenda (
 
 -- Enable RLS and configure policies for the agenda table
 ALTER TABLE agenda ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public SELECT agenda" ON agenda;
-DROP POLICY IF EXISTS "Public INSERT agenda" ON agenda;
-DROP POLICY IF EXISTS "Public UPDATE agenda" ON agenda;
-DROP POLICY IF EXISTS "Public DELETE agenda" ON agenda;
-CREATE POLICY "Public SELECT agenda" ON agenda FOR SELECT USING (true);
-CREATE POLICY "Public INSERT agenda" ON agenda FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public UPDATE agenda" ON agenda FOR UPDATE USING (true) WITH CHECK (true);
-CREATE POLICY "Public DELETE agenda" ON agenda FOR DELETE USING (true);
+CREATE POLICY "agenda_public_access" ON agenda FOR ALL USING (true) WITH CHECK (true);
 
 -- 10. Create Contacts Directory Table (Directorio Telefónico y de Proveedores)
 CREATE TABLE IF NOT EXISTS contacts (
@@ -272,13 +265,7 @@ CREATE TABLE IF NOT EXISTS contacts (
 
 -- Enable RLS and configure policies for the contacts table
 ALTER TABLE contacts ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public SELECT contacts" ON contacts;
-DROP POLICY IF EXISTS "Public INSERT contacts" ON contacts;
-DROP POLICY IF EXISTS "Public UPDATE contacts" ON contacts;
-DROP POLICY IF EXISTS "Public DELETE contacts" ON contacts;
-CREATE POLICY "Public SELECT contacts" ON contacts FOR SELECT USING (true);
-CREATE POLICY "Public INSERT contacts" ON contacts FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public UPDATE contacts" ON contacts FOR UPDATE USING (true) WITH CHECK (true);
-CREATE POLICY "Public DELETE contacts" ON contacts FOR DELETE USING (true);
+CREATE POLICY "contacts_public_access" ON contacts FOR ALL USING (true) WITH CHECK (true);
+
 
 
