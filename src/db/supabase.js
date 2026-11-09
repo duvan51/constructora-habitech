@@ -806,6 +806,172 @@ export const deleteAgendaEvent = async (id) => {
   return true;
 };
 
+// --- Contacts Directory Services (Directorio de Contactos y Proveedores) ---
+
+const CONTACTS_STORAGE_KEY = 'habitech_directory_contacts';
+
+const DEFAULT_SAMPLE_CONTACTS = [
+  {
+    id: 'sample-contact-1',
+    name: 'Ferretería Central del Constructor',
+    category: 'ferreteria',
+    specialty: 'Hierro figurado, cemento gris/blanco, perfiles y tubería',
+    phone: '3001234567',
+    phone_2: '6044445566',
+    email: 'ventas@ferreteriacentral.com',
+    address: 'Calle 50 # 45-20',
+    city: 'Medellín',
+    contactPerson: 'Don Jairo (Asesor comercial)',
+    nitOrId: '900.123.456-7',
+    notes: 'Despacho a obra en 24h. Crédito a 15 días con orden de compra.',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'sample-contact-2',
+    name: 'Maestro Carlos Muriel',
+    category: 'maestro',
+    specialty: 'Mampostería, pañete, enchape de baños y pisos',
+    phone: '3109876543',
+    phone_2: '',
+    email: '',
+    address: 'Robledo',
+    city: 'Medellín',
+    contactPerson: 'Carlos Muriel (Contratista Oficial)',
+    nitOrId: '71.234.567',
+    notes: 'Cuadrilla de 4 oficiales y 2 ayudantes. Cobra por m² o por hito.',
+    createdAt: new Date().toISOString()
+  }
+];
+
+export const getDirectoryContacts = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+    if (data && data.length > 0) {
+      const mapped = data.map(c => ({
+        id: c.id,
+        name: c.name,
+        category: c.category || 'ferreteria',
+        specialty: c.specialty || '',
+        phone: c.phone || '',
+        phone_2: c.phone_2 || '',
+        email: c.email || '',
+        address: c.address || '',
+        city: c.city || '',
+        projectId: c.project_id || null,
+        projectName: c.project_name || '',
+        contactPerson: c.contact_person || '',
+        nitOrId: c.nit_or_id || '',
+        notes: c.notes || '',
+        createdAt: c.created_at,
+        updatedAt: c.updated_at
+      }));
+      try {
+        localStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(mapped));
+      } catch (e) {}
+      return mapped;
+    }
+  } catch (err) {
+    console.warn('Supabase contacts fetch fallback to local cache:', err?.message || err);
+  }
+
+  // Fallback to local storage
+  try {
+    const cached = localStorage.getItem(CONTACTS_STORAGE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.error('Error reading contacts local cache:', e);
+  }
+
+  // Initial seed in local storage if completely empty
+  try {
+    localStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(DEFAULT_SAMPLE_CONTACTS));
+  } catch (e) {}
+  return DEFAULT_SAMPLE_CONTACTS;
+};
+
+export const saveDirectoryContact = async (contact) => {
+  const itemToSave = {
+    name: contact.name,
+    category: contact.category || 'ferreteria',
+    specialty: contact.specialty || '',
+    phone: contact.phone || '',
+    phone_2: contact.phone_2 || '',
+    email: contact.email || '',
+    address: contact.address || '',
+    city: contact.city || '',
+    project_id: contact.projectId || null,
+    project_name: contact.projectName || '',
+    contact_person: contact.contactPerson || '',
+    nit_or_id: contact.nitOrId || '',
+    notes: contact.notes || ''
+  };
+
+  if (contact.id && !contact.id.startsWith('sample-')) {
+    itemToSave.id = contact.id;
+  }
+
+  // Always update local cache
+  const contactId = contact.id || `contact_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+  try {
+    const cached = JSON.parse(localStorage.getItem(CONTACTS_STORAGE_KEY) || '[]');
+    const existingIndex = cached.findIndex(c => c.id === contact.id);
+    const updatedObj = { ...contact, ...itemToSave, id: contactId };
+    if (existingIndex >= 0) {
+      cached[existingIndex] = updatedObj;
+    } else {
+      cached.unshift(updatedObj);
+    }
+    localStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(cached));
+  } catch (e) {}
+
+  try {
+    const { data, error } = await supabase
+      .from('contacts')
+      .upsert(itemToSave)
+      .select();
+
+    if (error) {
+      console.warn('Could not save contact to Supabase, saved locally:', error.message);
+      return [{ ...contact, id: contactId }];
+    }
+    return data;
+  } catch (err) {
+    console.warn('Supabase saveDirectoryContact error, saved locally:', err);
+    return [{ ...contact, id: contactId }];
+  }
+};
+
+export const deleteDirectoryContact = async (id) => {
+  try {
+    const cached = JSON.parse(localStorage.getItem(CONTACTS_STORAGE_KEY) || '[]');
+    const filtered = cached.filter(c => c.id !== id);
+    localStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(filtered));
+  } catch (e) {}
+
+  try {
+    const { error } = await supabase
+      .from('contacts')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.warn('Could not delete contact from Supabase, deleted locally:', error.message);
+    }
+  } catch (err) {
+    console.warn('Supabase deleteDirectoryContact error, deleted locally:', err);
+  }
+  return true;
+};
+
+
 
 
 

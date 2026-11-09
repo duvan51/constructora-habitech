@@ -250,3 +250,35 @@ CREATE POLICY "Public INSERT agenda" ON agenda FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public UPDATE agenda" ON agenda FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Public DELETE agenda" ON agenda FOR DELETE USING (true);
 
+-- 10. Create Contacts Directory Table (Directorio Telefónico y de Proveedores)
+CREATE TABLE IF NOT EXISTS contacts (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'ferreteria',
+  specialty TEXT,
+  phone TEXT,
+  phone_2 TEXT,
+  email TEXT,
+  address TEXT,
+  city TEXT,
+  project_id TEXT,
+  project_name TEXT,
+  contact_person TEXT,
+  nit_or_id TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Enable RLS and configure policies for the contacts table
+ALTER TABLE contacts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public SELECT contacts" ON contacts;
+DROP POLICY IF EXISTS "Public INSERT contacts" ON contacts;
+DROP POLICY IF EXISTS "Public UPDATE contacts" ON contacts;
+DROP POLICY IF EXISTS "Public DELETE contacts" ON contacts;
+CREATE POLICY "Public SELECT contacts" ON contacts FOR SELECT USING (true);
+CREATE POLICY "Public INSERT contacts" ON contacts FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public UPDATE contacts" ON contacts FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Public DELETE contacts" ON contacts FOR DELETE USING (true);
+
+

@@ -26,7 +26,10 @@ import {
   deletePortfolioItem,
   getAgendaEvents,
   saveAgendaEvent,
-  deleteAgendaEvent
+  deleteAgendaEvent,
+  getDirectoryContacts,
+  saveDirectoryContact,
+  deleteDirectoryContact
 } from './db/supabase';
 import { HardHat, Plus, Search, Calendar, Landmark, Menu } from 'lucide-react';
 import Portfolio from './components/Portfolio';
@@ -51,6 +54,7 @@ export default function App() {
   const [portfolio, setPortfolio] = useState([]);
   const [personnel, setPersonnel] = useState([]);
   const [agendaEvents, setAgendaEvents] = useState([]);
+  const [directoryContacts, setDirectoryContacts] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(() => initialUrlState.current.projectId || null);
   const [projectSubTab, setProjectSubTab] = useState(() => initialUrlState.current.subTab || 'general');
   const [isEditingProject, setIsEditingProject] = useState(() => initialUrlState.current.isEditing || false);
@@ -144,12 +148,13 @@ export default function App() {
   const loadData = async () => {
     // 1. Try loading cached data first for instant load
     try {
-      const [cachedProjects, cachedTransactions, cachedPortfolio, cachedPersonnel, cachedAgenda] = await Promise.all([
+      const [cachedProjects, cachedTransactions, cachedPortfolio, cachedPersonnel, cachedAgenda, cachedContacts] = await Promise.all([
         getCachedData('supabase_projects'),
         getCachedData('supabase_transactions'),
         getCachedData('supabase_portfolio'),
         getCachedData('supabase_personnel'),
-        getCachedData('supabase_agenda')
+        getCachedData('supabase_agenda'),
+        getCachedData('supabase_contacts')
       ]);
 
       if (cachedProjects) setProjects(cachedProjects);
@@ -157,6 +162,7 @@ export default function App() {
       if (cachedPortfolio) setPortfolio(cachedPortfolio);
       if (cachedPersonnel) setPersonnel(cachedPersonnel);
       if (cachedAgenda) setAgendaEvents(cachedAgenda);
+      if (cachedContacts) setDirectoryContacts(cachedContacts);
     } catch (cacheErr) {
       console.warn('Failed to load cached projects/transactions:', cacheErr);
     }
@@ -192,6 +198,14 @@ export default function App() {
         console.warn('Agenda fetch issue:', agendaErr);
       }
 
+      let allContacts = [];
+      try {
+        allContacts = await getDirectoryContacts();
+        setDirectoryContacts(allContacts);
+      } catch (contactErr) {
+        console.warn('Directory contacts fetch issue:', contactErr);
+      }
+
       // Save fresh data to cache for next load
       try {
         await Promise.all([
@@ -199,7 +213,8 @@ export default function App() {
           setCachedData('supabase_transactions', allTx),
           allPort.length > 0 ? setCachedData('supabase_portfolio', allPort) : Promise.resolve(),
           allPersonnel.length > 0 ? setCachedData('supabase_personnel', allPersonnel) : Promise.resolve(),
-          allAgenda.length > 0 ? setCachedData('supabase_agenda', allAgenda) : Promise.resolve()
+          allAgenda.length > 0 ? setCachedData('supabase_agenda', allAgenda) : Promise.resolve(),
+          allContacts.length > 0 ? setCachedData('supabase_contacts', allContacts) : Promise.resolve()
         ]);
       } catch (cacheErr) {
         console.warn('Failed to save to cache:', cacheErr);
@@ -235,6 +250,38 @@ export default function App() {
       } catch (err) {
         console.error('Error deleting agenda event:', err);
         window.showToast?.('Error al eliminar evento', 'error');
+      } finally {
+        window.setGlobalLoading(false);
+      }
+    }
+  };
+
+  const handleSaveDirectoryContact = async (contactData) => {
+    try {
+      window.setGlobalLoading(true);
+      await saveDirectoryContact(contactData);
+      const updated = await getDirectoryContacts();
+      setDirectoryContacts(updated);
+      window.showToast?.('Contacto guardado exitosamente', 'success');
+    } catch (err) {
+      console.error('Error saving contact:', err);
+      window.showToast?.('Error al guardar el contacto', 'error');
+    } finally {
+      window.setGlobalLoading(false);
+    }
+  };
+
+  const handleDeleteDirectoryContact = async (id) => {
+    if (await window.confirmDialog('¿Estás seguro de eliminar este contacto de la agenda?')) {
+      try {
+        window.setGlobalLoading(true);
+        await deleteDirectoryContact(id);
+        const updated = await getDirectoryContacts();
+        setDirectoryContacts(updated);
+        window.showToast?.('Contacto eliminado de la agenda', 'success');
+      } catch (err) {
+        console.error('Error deleting contact:', err);
+        window.showToast?.('Error al eliminar el contacto', 'error');
       } finally {
         window.setGlobalLoading(false);
       }
@@ -948,14 +995,17 @@ export default function App() {
               />
             )}
 
-            {/* Agenda de Obra y Citas View */}
+            {/* Agenda de Obra, Citas y Directorio de Contactos View */}
             {currentTab === 'agenda' && (
               <Agenda 
                 projects={projects}
                 personnel={personnel}
                 events={agendaEvents}
+                contacts={directoryContacts}
                 onSaveEvent={handleSaveAgendaEvent}
                 onDeleteEvent={handleDeleteAgendaEvent}
+                onSaveContact={handleSaveDirectoryContact}
+                onDeleteContact={handleDeleteDirectoryContact}
                 onViewProject={(id) => handleOpenProject(id, 'general')}
                 userRole={currentUser.role}
               />

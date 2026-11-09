@@ -23,10 +23,18 @@ import {
   AlertTriangle, 
   Building, 
   List, 
-  Grid,
-  CalendarCheck,
-  Flag,
-  Share2
+  Grid, 
+  CalendarCheck, 
+  Flag, 
+  BookUser, 
+  Contact, 
+  Truck, 
+  Briefcase, 
+  Store, 
+  Hammer, 
+  Mail, 
+  PhoneCall, 
+  Sparkles 
 } from 'lucide-react';
 
 // Predefined Event Categories for Construction & Real Estate
@@ -40,37 +48,75 @@ export const EVENT_TYPES = [
   { id: 'otro', name: 'Otro / General', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.3)', icon: CalendarIcon }
 ];
 
-const PRIORITIES = [
+export const PRIORITIES = [
   { id: 'baja', label: 'Baja', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)' },
   { id: 'normal', label: 'Normal', color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.15)' },
   { id: 'alta', label: 'Alta', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
   { id: 'urgente', label: 'Urgente', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)' }
 ];
 
+// Predefined Categories for Construction Directory
+export const CONTACT_CATEGORIES = [
+  { id: 'all', name: 'Todos los Contactos', icon: Users, color: '#38bdf8' },
+  { id: 'ferreteria', name: 'Ferreterías y Depósitos', icon: Store, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.3)' },
+  { id: 'maestro', name: 'Maestros y Cuadrillas', icon: HardHat, color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.3)' },
+  { id: 'proveedor', name: 'Proveedores de Materiales', icon: Hammer, color: '#a855f7', bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.3)' },
+  { id: 'transporte', name: 'Transporte y Maquinaria', icon: Truck, color: '#ec4899', bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.3)' },
+  { id: 'profesional', name: 'Ingenieros y Especialistas', icon: Briefcase, color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.3)' },
+  { id: 'entidad', name: 'Curadurías y Trámites', icon: Building, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)', border: 'rgba(99, 102, 241, 0.3)' },
+  { id: 'cliente', name: 'Clientes y Propietarios', icon: User, color: '#14b8a6', bg: 'rgba(20, 184, 166, 0.12)', border: 'rgba(20, 184, 166, 0.3)' },
+  { id: 'otro', name: 'Otros Contactos', icon: Contact, color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.3)' }
+];
+
 export default function Agenda({
   projects = [],
   personnel = [],
   events = [],
+  contacts = [],
   onSaveEvent,
   onDeleteEvent,
+  onSaveContact,
+  onDeleteContact,
   onViewProject,
   userRole
 }) {
+  // Main view navigation: 'contacts' (Directorio) | 'calendar' (Citas y Calendario)
+  const [mainTab, setMainTab] = useState('contacts');
+
+  // ---------- CONTACTS DIRECTORY STATE ----------
+  const [contactSearch, setContactSearch] = useState('');
+  const [contactCategoryFilter, setContactCategoryFilter] = useState('all');
+  const [contactProjectFilter, setContactProjectFilter] = useState('all');
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [editingContactId, setEditingContactId] = useState(null);
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    category: 'ferreteria',
+    specialty: '',
+    phone: '',
+    phone_2: '',
+    email: '',
+    address: '',
+    city: 'Medellín',
+    projectId: 'general',
+    contactPerson: '',
+    nitOrId: '',
+    notes: ''
+  });
+
+  // ---------- CALENDAR & APPOINTMENTS STATE ----------
   const [viewMode, setViewMode] = useState('calendar'); // 'calendar' | 'list'
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDayEvents, setSelectedDayEvents] = useState(null); // { dateStr, events }
-  
-  // Filters state
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDayEvents, setSelectedDayEvents] = useState(null);
+  const [eventSearchQuery, setEventSearchQuery] = useState('');
   const [filterProject, setFilterProject] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('pending'); // 'all' | 'pending' | 'completed' | 'cancelled'
   const [filterPriority, setFilterPriority] = useState('all');
 
-  // Modal create/edit state
-  const [showModal, setShowModal] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
   const [editingEventId, setEditingEventId] = useState(null);
-  const [formData, setFormData] = useState({
+  const [eventFormData, setEventFormData] = useState({
     title: '',
     projectId: 'general',
     eventType: 'visita',
@@ -87,16 +133,24 @@ export default function Agenda({
   });
 
   const isReadOnly = userRole === 'viewer';
-
-  // Format Helpers
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
+  // Phone clean helper
   const getCleanPhone = (phone) => {
     if (!phone) return '';
-    return phone.replace(/\D/g, '');
+    return String(phone).replace(/\D/g, '');
   };
 
-  const getWhatsAppLink = (phone, title, date) => {
+  // WhatsApp helpers
+  const getContactWhatsAppLink = (phone, name, specialty) => {
+    const clean = getCleanPhone(phone);
+    if (!clean) return null;
+    const phoneWithCode = clean.length === 10 ? `57${clean}` : clean;
+    const msg = encodeURIComponent(`Hola ${name ? name : ''}, te escribo de Constructora Habitech.`);
+    return `https://wa.me/${phoneWithCode}?text=${msg}`;
+  };
+
+  const getEventWhatsAppLink = (phone, title, date) => {
     const clean = getCleanPhone(phone);
     if (!clean) return null;
     const phoneWithCode = clean.length === 10 ? `57${clean}` : clean;
@@ -109,7 +163,133 @@ export default function Agenda({
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
   };
 
-  // Month navigation helpers
+  // ==========================================
+  // CONTACTS DIRECTORY LOGIC & FILTERING
+  // ==========================================
+  const filteredContacts = useMemo(() => {
+    return (contacts || []).filter(c => {
+      // Search query (name, specialty, phone, address, notes, contactPerson)
+      if (contactSearch.trim()) {
+        const q = contactSearch.toLowerCase();
+        const matchesName = (c.name || '').toLowerCase().includes(q);
+        const matchesSpecialty = (c.specialty || '').toLowerCase().includes(q);
+        const matchesPhone = (c.phone || '').includes(q) || (c.phone_2 || '').includes(q);
+        const matchesAddress = (c.address || '').toLowerCase().includes(q) || (c.city || '').toLowerCase().includes(q);
+        const matchesNotes = (c.notes || '').toLowerCase().includes(q);
+        const matchesPerson = (c.contactPerson || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesSpecialty && !matchesPhone && !matchesAddress && !matchesNotes && !matchesPerson) {
+          return false;
+        }
+      }
+
+      // Category filter
+      if (contactCategoryFilter !== 'all' && c.category !== contactCategoryFilter) {
+        return false;
+      }
+
+      // Project filter
+      if (contactProjectFilter !== 'all') {
+        if (contactProjectFilter === 'general' && c.projectId && c.projectId !== 'general') return false;
+        if (contactProjectFilter !== 'general' && c.projectId !== contactProjectFilter) return false;
+      }
+
+      return true;
+    }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [contacts, contactSearch, contactCategoryFilter, contactProjectFilter]);
+
+  // Directory KPI Metrics
+  const directoryMetrics = useMemo(() => {
+    const list = contacts || [];
+    const total = list.length;
+    const ferreterias = list.filter(c => c.category === 'ferreteria').length;
+    const maestros = list.filter(c => c.category === 'maestro').length;
+    const proveedores = list.filter(c => c.category === 'proveedor').length;
+    const profesionales = list.filter(c => c.category === 'profesional').length;
+    return { total, ferreterias, maestros, proveedores, profesionales };
+  }, [contacts]);
+
+  // Open Create Contact Modal
+  const handleOpenNewContact = (presetCategory = 'ferreteria') => {
+    setEditingContactId(null);
+    setContactForm({
+      name: '',
+      category: presetCategory || 'ferreteria',
+      specialty: '',
+      phone: '',
+      phone_2: '',
+      email: '',
+      address: '',
+      city: 'Medellín',
+      projectId: 'general',
+      contactPerson: '',
+      nitOrId: '',
+      notes: ''
+    });
+    setShowContactModal(true);
+  };
+
+  // Open Edit Contact Modal
+  const handleOpenEditContact = (c) => {
+    setEditingContactId(c.id);
+    setContactForm({
+      name: c.name || '',
+      category: c.category || 'ferreteria',
+      specialty: c.specialty || '',
+      phone: c.phone || '',
+      phone_2: c.phone_2 || '',
+      email: c.email || '',
+      address: c.address || '',
+      city: c.city || 'Medellín',
+      projectId: c.projectId || 'general',
+      contactPerson: c.contactPerson || '',
+      nitOrId: c.nitOrId || '',
+      notes: c.notes || ''
+    });
+    setShowContactModal(true);
+  };
+
+  // Submit Contact Form
+  const handleSubmitContact = (e) => {
+    e.preventDefault();
+    if (!contactForm.name.trim()) {
+      alert('Por favor ingresa el nombre o razón social del contacto.');
+      return;
+    }
+
+    const projObj = projects.find(p => p.id === contactForm.projectId);
+    const itemToSave = {
+      ...contactForm,
+      projectName: projObj ? projObj.name : (contactForm.projectId === 'general' ? 'General / Sin Obra' : '')
+    };
+
+    if (editingContactId) {
+      itemToSave.id = editingContactId;
+    }
+
+    if (onSaveContact) {
+      onSaveContact(itemToSave);
+    }
+    setShowContactModal(false);
+  };
+
+  // Quick Action: Agendar Cita con este Contacto
+  const handleScheduleFromContact = (contact) => {
+    setMainTab('calendar');
+    handleOpenNewEvent({
+      title: `Reunión / Cita con ${contact.name}`,
+      contactName: contact.name,
+      contactPhone: contact.phone || contact.phone_2 || '',
+      location: contact.address ? `${contact.address}${contact.city ? ', ' + contact.city : ''}` : '',
+      projectId: contact.projectId || 'general',
+      eventType: contact.category === 'ferreteria' || contact.category === 'proveedor' ? 'materiales' : 
+                 contact.category === 'maestro' ? 'comite' : 'cliente',
+      notes: `Contacto de agenda: ${contact.specialty ? contact.specialty + '. ' : ''}${contact.notes || ''}`
+    });
+  };
+
+  // ==========================================
+  // CALENDAR & APPOINTMENTS LOGIC
+  // ==========================================
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
@@ -118,130 +298,31 @@ export default function Agenda({
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
   ];
 
-  const handlePrevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
-  };
-
-  const handleToday = () => {
-    setCurrentDate(new Date());
-  };
-
-  // Open modal for new event
-  const handleOpenNewEvent = (initialDate = null) => {
-    setEditingEventId(null);
-    setFormData({
-      title: '',
-      projectId: projects.length > 0 ? projects[0].id : 'general',
-      eventType: 'visita',
-      date: initialDate || new Date().toISOString().split('T')[0],
-      startTime: '09:00',
-      endTime: '10:00',
-      allDay: false,
-      location: projects.length > 0 ? (projects[0].location?.address || '') : '',
-      contactName: '',
-      contactPhone: '',
-      priority: 'normal',
-      status: 'pending',
-      notes: ''
-    });
-    setShowModal(true);
-  };
-
-  // Open modal for editing
-  const handleOpenEditEvent = (evt) => {
-    setEditingEventId(evt.id);
-    setFormData({
-      title: evt.title || '',
-      projectId: evt.projectId || 'general',
-      eventType: evt.eventType || 'visita',
-      date: evt.date || new Date().toISOString().split('T')[0],
-      startTime: evt.startTime || '09:00',
-      endTime: evt.endTime || '10:00',
-      allDay: Boolean(evt.allDay),
-      location: evt.location || '',
-      contactName: evt.contactName || '',
-      contactPhone: evt.contactPhone || '',
-      priority: evt.priority || 'normal',
-      status: evt.status || 'pending',
-      notes: evt.notes || ''
-    });
-    setShowModal(true);
-  };
-
-  // When project changes in form, auto-fill address if available
-  const handleProjectChangeInForm = (projId) => {
-    const selectedProj = projects.find(p => p.id === projId);
-    setFormData(prev => ({
-      ...prev,
-      projectId: projId,
-      location: selectedProj ? (selectedProj.location?.customAddress || selectedProj.location?.address || prev.location) : prev.location,
-      contactName: prev.contactName || (selectedProj ? selectedProj.clientName : '')
-    }));
-  };
-
-  // Handle Save
-  const handleSubmitForm = async (e) => {
-    e.preventDefault();
-    if (!formData.title.trim()) return;
-
-    const selectedProj = projects.find(p => p.id === formData.projectId);
-    const evtPayload = {
-      ...formData,
-      id: editingEventId || `evt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      projectName: formData.projectId === 'general' ? 'Oficina / General' : (selectedProj ? selectedProj.name : 'Obra')
-    };
-
-    if (onSaveEvent) {
-      await onSaveEvent(evtPayload);
-    }
-    setShowModal(false);
-  };
-
-  // Quick Toggle Status
-  const handleToggleStatus = async (evt) => {
-    if (isReadOnly || !onSaveEvent) return;
-    const newStatus = evt.status === 'completed' ? 'pending' : 'completed';
-    await onSaveEvent({
-      ...evt,
-      status: newStatus
-    });
-  };
+  const handlePrevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const handleNextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+  const handleToday = () => setCurrentDate(new Date());
 
   // Filtered Events
   const filteredEvents = useMemo(() => {
-    return events.filter(evt => {
-      // Search
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchTitle = (evt.title || '').toLowerCase().includes(q);
-        const matchContact = (evt.contactName || '').toLowerCase().includes(q);
-        const matchLoc = (evt.location || '').toLowerCase().includes(q);
-        const matchNotes = (evt.notes || '').toLowerCase().includes(q);
-        const matchProj = (evt.projectName || '').toLowerCase().includes(q);
-        if (!matchTitle && !matchContact && !matchLoc && !matchNotes && !matchProj) return false;
+    return (events || []).filter(evt => {
+      if (eventSearchQuery.trim()) {
+        const q = eventSearchQuery.toLowerCase();
+        const matchesTitle = (evt.title || '').toLowerCase().includes(q);
+        const matchesLocation = (evt.location || '').toLowerCase().includes(q);
+        const matchesContact = (evt.contactName || '').toLowerCase().includes(q);
+        const matchesNotes = (evt.notes || '').toLowerCase().includes(q);
+        if (!matchesTitle && !matchesLocation && !matchesContact && !matchesNotes) return false;
       }
-
-      // Project filter
       if (filterProject !== 'all') {
         if (filterProject === 'general' && evt.projectId && evt.projectId !== 'general') return false;
         if (filterProject !== 'general' && evt.projectId !== filterProject) return false;
       }
-
-      // Type filter
       if (filterType !== 'all' && evt.eventType !== filterType) return false;
-
-      // Status filter
       if (filterStatus !== 'all') {
         if (filterStatus === 'pending' && evt.status === 'completed') return false;
         if (filterStatus === 'completed' && evt.status !== 'completed') return false;
         if (filterStatus === 'cancelled' && evt.status !== 'cancelled') return false;
       }
-
-      // Priority filter
       if (filterPriority !== 'all' && evt.priority !== filterPriority) return false;
 
       return true;
@@ -249,20 +330,17 @@ export default function Agenda({
       if (a.date !== b.date) return a.date.localeCompare(b.date);
       return (a.startTime || '').localeCompare(b.startTime || '');
     });
-  }, [events, searchQuery, filterProject, filterType, filterStatus, filterPriority]);
+  }, [events, eventSearchQuery, filterProject, filterType, filterStatus, filterPriority]);
 
   // Calendar Days calculation
   const calendarDays = useMemo(() => {
     const firstDayOfMonth = new Date(year, month, 1);
     const lastDayOfMonth = new Date(year, month + 1, 0);
 
-    // Days in week: Monday = 0, Sunday = 6 in European/Latin format
     let startDayOfWeek = firstDayOfMonth.getDay() - 1;
     if (startDayOfWeek === -1) startDayOfWeek = 6;
 
     const days = [];
-
-    // Prev month padding
     const prevMonthLastDay = new Date(year, month, 0).getDate();
     for (let i = startDayOfWeek - 1; i >= 0; i--) {
       const d = prevMonthLastDay - i;
@@ -275,7 +353,6 @@ export default function Agenda({
       });
     }
 
-    // Current month days
     for (let d = 1; d <= lastDayOfMonth.getDate(); d++) {
       const dateObj = new Date(year, month, d);
       days.push({
@@ -286,15 +363,14 @@ export default function Agenda({
       });
     }
 
-    // Next month padding to complete 35 or 42 grid
     const totalSlots = days.length <= 35 ? 35 : 42;
     const remainingSlots = totalSlots - days.length;
-    for (let d = 1; d <= remainingSlots; d++) {
-      const dateObj = new Date(year, month + 1, d);
+    for (let i = 1; i <= remainingSlots; i++) {
+      const dateObj = new Date(year, month + 1, i);
       days.push({
         dateObj,
         dateStr: dateObj.toISOString().split('T')[0],
-        dayNumber: d,
+        dayNumber: i,
         isCurrentMonth: false
       });
     }
@@ -302,871 +378,2079 @@ export default function Agenda({
     return days;
   }, [year, month]);
 
-  // KPI Metrics
-  const metrics = useMemo(() => {
-    const total = events.length;
-    const todayEvents = events.filter(e => e.date === todayStr && e.status !== 'cancelled');
-    const upcomingVisits = events.filter(e => e.eventType === 'visita' && e.status === 'pending');
-    const upcomingClients = events.filter(e => e.eventType === 'cliente' && e.status === 'pending');
-    const completedCount = events.filter(e => e.status === 'completed').length;
+  // Events map by dateStr for fast grid lookup
+  const eventsByDate = useMemo(() => {
+    const map = {};
+    filteredEvents.forEach(evt => {
+      if (!map[evt.date]) map[evt.date] = [];
+      map[evt.date].push(evt);
+    });
+    return map;
+  }, [filteredEvents]);
+
+  // Calendar Metrics
+  const calendarMetrics = useMemo(() => {
+    const all = events || [];
+    const todayEvents = all.filter(e => e.date === todayStr && e.status !== 'cancelled');
+    const upcomingEvents = all.filter(e => e.date >= todayStr && e.status !== 'completed' && e.status !== 'cancelled');
+    const completedEvents = all.filter(e => e.status === 'completed');
+    const highPriority = all.filter(e => (e.priority === 'alta' || e.priority === 'urgente') && e.status !== 'completed');
     return {
-      total,
       todayCount: todayEvents.length,
-      upcomingVisitsCount: upcomingVisits.length,
-      upcomingClientsCount: upcomingClients.length,
-      completedCount
+      upcomingCount: upcomingEvents.length,
+      completedCount: completedEvents.length,
+      highPriorityCount: highPriority.length
     };
   }, [events, todayStr]);
 
-  // Grouped events for List View
-  const groupedEvents = useMemo(() => {
-    const today = todayStr;
-    const tomorrowObj = new Date();
-    tomorrowObj.setDate(tomorrowObj.getDate() + 1);
-    const tomorrow = tomorrowObj.toISOString().split('T')[0];
+  // Open Event Modal
+  const handleOpenNewEvent = (initialVals = {}) => {
+    setEditingEventId(null);
+    setEventFormData({
+      title: initialVals.title || '',
+      projectId: initialVals.projectId || 'general',
+      eventType: initialVals.eventType || 'visita',
+      date: initialVals.date || new Date().toISOString().split('T')[0],
+      startTime: initialVals.startTime || '09:00',
+      endTime: initialVals.endTime || '10:00',
+      allDay: false,
+      location: initialVals.location || '',
+      contactName: initialVals.contactName || '',
+      contactPhone: initialVals.contactPhone || '',
+      priority: initialVals.priority || 'normal',
+      status: 'pending',
+      notes: initialVals.notes || ''
+    });
+    setShowEventModal(true);
+  };
 
-    const in7DaysObj = new Date();
-    in7DaysObj.setDate(in7DaysObj.getDate() + 7);
-    const in7Days = in7DaysObj.toISOString().split('T')[0];
+  const handleOpenEditEvent = (evt) => {
+    setEditingEventId(evt.id);
+    setEventFormData({
+      title: evt.title || '',
+      projectId: evt.projectId || 'general',
+      eventType: evt.eventType || 'visita',
+      date: evt.date || todayStr,
+      startTime: evt.startTime || '09:00',
+      endTime: evt.endTime || '10:00',
+      allDay: !!evt.allDay,
+      location: evt.location || '',
+      contactName: evt.contactName || '',
+      contactPhone: evt.contactPhone || '',
+      priority: evt.priority || 'normal',
+      status: evt.status || 'pending',
+      notes: evt.notes || ''
+    });
+    setShowEventModal(true);
+  };
 
-    const groups = {
-      today: [],
-      tomorrow: [],
-      thisWeek: [],
-      later: [],
-      completed: []
+  const handleSubmitEvent = (e) => {
+    e.preventDefault();
+    if (!eventFormData.title.trim()) {
+      alert('Por favor ingresa un título descriptivo para la cita.');
+      return;
+    }
+
+    const projObj = projects.find(p => p.id === eventFormData.projectId);
+    const itemToSave = {
+      ...eventFormData,
+      projectName: projObj ? projObj.name : (eventFormData.projectId === 'general' ? 'General / Sin Obra' : '')
     };
 
-    filteredEvents.forEach(evt => {
-      if (evt.status === 'completed') {
-        groups.completed.push(evt);
-      } else if (evt.date === today) {
-        groups.today.push(evt);
-      } else if (evt.date === tomorrow) {
-        groups.tomorrow.push(evt);
-      } else if (evt.date > tomorrow && evt.date <= in7Days) {
-        groups.thisWeek.push(evt);
-      } else if (evt.date > in7Days) {
-        groups.later.push(evt);
-      } else {
-        // Overdue pending events belong in today's attention
-        groups.today.push(evt);
-      }
-    });
+    if (editingEventId) itemToSave.id = editingEventId;
+    if (onSaveEvent) onSaveEvent(itemToSave);
 
-    return groups;
-  }, [filteredEvents, todayStr]);
+    setShowEventModal(false);
+    setSelectedDayEvents(null);
+  };
+
+  const handleToggleEventStatus = (evt, e) => {
+    if (e) e.stopPropagation();
+    if (isReadOnly || !onSaveEvent) return;
+    const newStatus = evt.status === 'completed' ? 'pending' : 'completed';
+    onSaveEvent({ ...evt, status: newStatus });
+  };
 
   return (
-    <div className="agenda-module animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%' }}>
+    <div className="agenda-module-container" style={{ padding: '10px 0 30px 0' }}>
       
-      {/* 1. Header & KPI Cards */}
-      <div className="glass-panel" style={{ padding: '24px 28px', borderRadius: '16px', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px', marginBottom: '20px' }}>
+      {/* ======================================================== */}
+      {/* TOP HERO & PRIMARY SUBTAB SWITCHER (CONTACTS vs CALENDAR) */}
+      {/* ======================================================== */}
+      <div className="glass-panel" style={{ padding: '24px', borderRadius: '16px', marginBottom: '25px', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+          
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ background: 'rgba(255, 109, 0, 0.15)', border: '1px solid rgba(255, 109, 0, 0.3)', padding: '8px', borderRadius: '10px', color: '#ff6d00' }}>
-                <CalendarIcon size={24} />
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(59, 130, 246, 0.25))',
+                padding: '10px',
+                borderRadius: '12px',
+                display: 'inline-flex',
+                color: 'var(--primary-cyan)',
+                border: '1px solid rgba(6, 182, 212, 0.3)'
+              }}>
+                {mainTab === 'contacts' ? <BookUser size={26} /> : <CalendarIcon size={26} />}
               </div>
-              <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800 }}>Agenda y Control de Citas</h1>
+              <div>
+                <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>
+                  Agenda de Obra
+                </h1>
+                <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                  {mainTab === 'contacts' 
+                    ? 'Directorio telefónico de ferreterías, maestros de obra, proveedores y profesionales'
+                    : 'Calendario de visitas de obra, reuniones con clientes, recepción de materiales y comités'}
+                </p>
+              </div>
             </div>
-            <p style={{ margin: '6px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
-              Planifica y haz seguimiento a visitas de obra, reuniones con clientes, recepción de insumos e hitos constructivos.
-            </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* View Mode Switcher */}
-            <div style={{ display: 'inline-flex', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+          {/* Primary View Switcher Pills */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ 
+              display: 'inline-flex', 
+              background: 'rgba(0, 0, 0, 0.35)', 
+              padding: '5px', 
+              borderRadius: '12px', 
+              border: '1px solid var(--border-glass)',
+              boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)'
+            }}>
               <button
                 type="button"
                 className="btn"
-                onClick={() => setViewMode('calendar')}
+                onClick={() => setMainTab('contacts')}
                 style={{
-                  padding: '6px 14px',
-                  fontSize: '0.82rem',
+                  padding: '8px 18px',
+                  fontSize: '0.88rem',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  background: viewMode === 'calendar' ? 'var(--primary-cyan)' : 'transparent',
-                  color: viewMode === 'calendar' ? '#0f172a' : 'var(--text-secondary)',
-                  fontWeight: viewMode === 'calendar' ? 700 : 500,
+                  gap: '8px',
+                  background: mainTab === 'contacts' ? 'linear-gradient(135deg, var(--primary-cyan), #0284c7)' : 'transparent',
+                  color: mainTab === 'contacts' ? '#0f172a' : 'var(--text-secondary)',
+                  fontWeight: mainTab === 'contacts' ? 700 : 500,
                   border: 'none',
-                  borderRadius: '6px'
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: mainTab === 'contacts' ? '0 4px 12px rgba(6, 182, 212, 0.3)' : 'none'
                 }}
               >
-                <Grid size={15} /> Calendario
+                <BookUser size={17} /> 
+                Directorio de Contactos
+                <span style={{
+                  background: mainTab === 'contacts' ? 'rgba(15, 23, 42, 0.25)' : 'rgba(255, 255, 255, 0.1)',
+                  padding: '2px 7px',
+                  borderRadius: '10px',
+                  fontSize: '0.75rem',
+                  fontWeight: 800
+                }}>
+                  {directoryMetrics.total}
+                </span>
               </button>
+
               <button
                 type="button"
                 className="btn"
-                onClick={() => setViewMode('list')}
+                onClick={() => setMainTab('calendar')}
                 style={{
-                  padding: '6px 14px',
-                  fontSize: '0.82rem',
+                  padding: '8px 18px',
+                  fontSize: '0.88rem',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  background: viewMode === 'list' ? 'var(--primary-cyan)' : 'transparent',
-                  color: viewMode === 'list' ? '#0f172a' : 'var(--text-secondary)',
-                  fontWeight: viewMode === 'list' ? 700 : 500,
+                  gap: '8px',
+                  background: mainTab === 'calendar' ? 'linear-gradient(135deg, var(--primary-cyan), #0284c7)' : 'transparent',
+                  color: mainTab === 'calendar' ? '#0f172a' : 'var(--text-secondary)',
+                  fontWeight: mainTab === 'calendar' ? 700 : 500,
                   border: 'none',
-                  borderRadius: '6px'
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: mainTab === 'calendar' ? '0 4px 12px rgba(6, 182, 212, 0.3)' : 'none'
                 }}
               >
-                <List size={15} /> Lista / Próximos
+                <CalendarIcon size={17} /> 
+                Citas y Calendario
+                {calendarMetrics.todayCount > 0 && (
+                  <span style={{
+                    background: mainTab === 'calendar' ? '#ef4444' : '#ef4444',
+                    color: '#fff',
+                    padding: '2px 7px',
+                    borderRadius: '10px',
+                    fontSize: '0.75rem',
+                    fontWeight: 800
+                  }}>
+                    {calendarMetrics.todayCount} hoy
+                  </span>
+                )}
               </button>
             </div>
 
-            {!isReadOnly && (
+            {/* Quick Action Button according to active subtab */}
+            {!isReadOnly && mainTab === 'contacts' && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => handleOpenNewContact()}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 700, borderRadius: '10px' }}
+              >
+                <Plus size={18} /> Nuevo Contacto
+              </button>
+            )}
+
+            {!isReadOnly && mainTab === 'calendar' && (
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={() => handleOpenNewEvent()}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 18px', fontWeight: 700 }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 700, borderRadius: '10px' }}
               >
-                <Plus size={18} /> Programar Cita / Visita
+                <Plus size={18} /> Programar Cita
               </button>
             )}
           </div>
         </div>
-
-        {/* KPI Counter Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', marginTop: '10px' }}>
-          <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-glass)', borderRadius: '12px', padding: '14px 16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700 }}>
-              <span>Citas para Hoy</span>
-              <CalendarIcon size={16} style={{ color: 'var(--primary-cyan)' }} />
-            </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: metrics.todayCount > 0 ? 'var(--primary-cyan)' : 'var(--text-primary)', marginTop: '4px' }}>
-              {metrics.todayCount}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              {metrics.todayCount === 1 ? '1 compromiso agendado' : `${metrics.todayCount} compromisos agendados`}
-            </div>
-          </div>
-
-          <div style={{ background: 'rgba(6, 182, 212, 0.05)', border: '1px solid rgba(6, 182, 212, 0.2)', borderRadius: '12px', padding: '14px 16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#67e8f9', fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700 }}>
-              <span>Visitas de Obra Pendientes</span>
-              <HardHat size={16} style={{ color: '#06b6d4' }} />
-            </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#06b6d4', marginTop: '4px' }}>
-              {metrics.upcomingVisitsCount}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Supervisión técnica e inspección
-            </div>
-          </div>
-
-          <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '12px', padding: '14px 16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#6ee7b7', fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700 }}>
-              <span>Reuniones con Clientes</span>
-              <Users size={16} style={{ color: '#10b981' }} />
-            </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>
-              {metrics.upcomingClientsCount}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Atención comercial y actas
-            </div>
-          </div>
-
-          <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-glass)', borderRadius: '12px', padding: '14px 16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700 }}>
-              <span>Eventos Completados</span>
-              <CheckCircle size={16} style={{ color: '#34d399' }} />
-            </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
-              {metrics.completedCount}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Historial de actividades concluidas
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* 2. Filters & Search Toolbar */}
-      <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '14px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', flex: 1 }}>
-          {/* Search Input */}
-          <div style={{ position: 'relative', minWidth: '220px', flex: '1 1 240px' }}>
-            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Buscar por título, contacto, notas..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: '36px', fontSize: '0.85rem', borderRadius: '20px' }}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          {/* Obra Filter */}
-          <select
-            className="form-control"
-            value={filterProject}
-            onChange={(e) => setFilterProject(e.target.value)}
-            style={{ width: 'auto', minWidth: '180px', fontSize: '0.82rem', borderRadius: '16px' }}
-          >
-            <option value="all">🏗️ Todas las Obras</option>
-            <option value="general">🏢 Oficina / Sin Obra</option>
-            {projects.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-
-          {/* Event Type Filter */}
-          <select
-            className="form-control"
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            style={{ width: 'auto', minWidth: '170px', fontSize: '0.82rem', borderRadius: '16px' }}
-          >
-            <option value="all">🏷️ Todos los Tipos</option>
-            {EVENT_TYPES.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-
-          {/* Status Filter */}
-          <select
-            className="form-control"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            style={{ width: 'auto', minWidth: '140px', fontSize: '0.82rem', borderRadius: '16px' }}
-          >
-            <option value="pending">⏳ Solo Pendientes</option>
-            <option value="completed">✅ Completadas</option>
-            <option value="cancelled">❌ Canceladas</option>
-            <option value="all">Todos los Estados</option>
-          </select>
-
-          {/* Priority Filter */}
-          <select
-            className="form-control"
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-            style={{ width: 'auto', minWidth: '130px', fontSize: '0.82rem', borderRadius: '16px' }}
-          >
-            <option value="all">🚩 Prioridad (Todas)</option>
-            {PRIORITIES.map(pr => (
-              <option key={pr.id} value={pr.id}>{pr.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Reset Filters Pill */}
-        {(searchQuery || filterProject !== 'all' || filterType !== 'all' || filterStatus !== 'pending' || filterPriority !== 'all') && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => {
-              setSearchQuery('');
-              setFilterProject('all');
-              setFilterType('all');
-              setFilterStatus('pending');
-              setFilterPriority('all');
-            }}
-            style={{ fontSize: '0.78rem', padding: '5px 12px', borderRadius: '16px' }}
-          >
-            <X size={13} /> Limpiar Filtros
-          </button>
-        )}
-      </div>
-
-      {/* 3. Main Views: Calendar Grid OR List View */}
-      {viewMode === 'calendar' ? (
-        <div className="glass-panel" style={{ padding: '20px', borderRadius: '16px' }}>
+      {/* ======================================================== */}
+      {/* SECTION 1: DIRECTORIO TELEFÓNICO Y DE CONTACTOS         */}
+      {/* ======================================================== */}
+      {mainTab === 'contacts' && (
+        <div className="contacts-directory-section">
           
-          {/* Calendar Month Header Controls */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                {monthNames[month]} {year}
-              </h2>
-              <span className="badge" style={{ background: 'rgba(6, 182, 212, 0.12)', color: 'var(--primary-cyan)', fontSize: '0.75rem', fontWeight: 700 }}>
-                {filteredEvents.filter(e => e.date?.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`)).length} eventos este mes
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handlePrevMonth}
-                style={{ padding: '6px 10px', borderRadius: '8px' }}
-                title="Mes anterior"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleToday}
-                style={{ padding: '6px 14px', fontSize: '0.82rem', fontWeight: 600, borderRadius: '8px' }}
-              >
-                Hoy
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleNextMonth}
-                style={{ padding: '6px 10px', borderRadius: '8px' }}
-                title="Mes siguiente"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-
-          {/* Days of Week Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px', textAlign: 'center', marginBottom: '8px' }}>
-            {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((dayName, idx) => (
-              <div key={idx} style={{ padding: '8px 4px', fontSize: '0.78rem', fontWeight: 700, color: idx >= 5 ? 'var(--text-muted)' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                {dayName}
+          {/* KPI Summary Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '22px' }}>
+            
+            <div 
+              onClick={() => setContactCategoryFilter('all')}
+              style={{
+                background: contactCategoryFilter === 'all' ? 'rgba(6, 182, 212, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                border: `1px solid ${contactCategoryFilter === 'all' ? 'var(--primary-cyan)' : 'var(--border-glass)'}`,
+                borderRadius: '14px',
+                padding: '16px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700 }}>
+                <span>Total Contactos</span>
+                <Users size={16} style={{ color: 'var(--primary-cyan)' }} />
               </div>
-            ))}
+              <div style={{ fontSize: '1.9rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
+                {directoryMetrics.total}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                En tu agenda telefónica
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setContactCategoryFilter('ferreteria')}
+              style={{
+                background: contactCategoryFilter === 'ferreteria' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.05)',
+                border: `1px solid ${contactCategoryFilter === 'ferreteria' ? '#f59e0b' : 'rgba(245, 158, 11, 0.25)'}`,
+                borderRadius: '14px',
+                padding: '16px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fbbf24', fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700 }}>
+                <span>Ferreterías & Depósitos</span>
+                <Store size={16} style={{ color: '#f59e0b' }} />
+              </div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#f59e0b', marginTop: '4px' }}>
+                {directoryMetrics.ferreterias}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Cemento, hierro, herramientas
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setContactCategoryFilter('maestro')}
+              style={{
+                background: contactCategoryFilter === 'maestro' ? 'rgba(6, 182, 212, 0.15)' : 'rgba(6, 182, 212, 0.05)',
+                border: `1px solid ${contactCategoryFilter === 'maestro' ? 'var(--primary-cyan)' : 'rgba(6, 182, 212, 0.25)'}`,
+                borderRadius: '14px',
+                padding: '16px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#67e8f9', fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700 }}>
+                <span>Maestros & Cuadrillas</span>
+                <HardHat size={16} style={{ color: 'var(--primary-cyan)' }} />
+              </div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 800, color: 'var(--primary-cyan)', marginTop: '4px' }}>
+                {directoryMetrics.maestros}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Oficiales, enchape, obra blanca
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setContactCategoryFilter('proveedor')}
+              style={{
+                background: contactCategoryFilter === 'proveedor' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(168, 85, 247, 0.05)',
+                border: `1px solid ${contactCategoryFilter === 'proveedor' ? '#a855f7' : 'rgba(168, 85, 247, 0.25)'}`,
+                borderRadius: '14px',
+                padding: '16px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#c084fc', fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700 }}>
+                <span>Proveedores de Insumos</span>
+                <Hammer size={16} style={{ color: '#a855f7' }} />
+              </div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#c084fc', marginTop: '4px' }}>
+                {directoryMetrics.proveedores}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Pinturas, cocinas, ventanería
+              </div>
+            </div>
+
           </div>
 
-          {/* Calendar Days 7x5 / 7x6 Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
-            {calendarDays.map((day, idx) => {
-              const dayEvents = filteredEvents.filter(e => e.date === day.dateStr);
-              const isToday = day.dateStr === todayStr;
-
-              return (
-                <div
-                  key={idx}
-                  onClick={() => {
-                    if (dayEvents.length > 0) {
-                      setSelectedDayEvents({ dateStr: day.dateStr, events: dayEvents });
-                    } else if (!isReadOnly) {
-                      handleOpenNewEvent(day.dateStr);
-                    }
-                  }}
+          {/* Search, Category Selector & Project Filters */}
+          <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '14px', marginBottom: '22px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center', justifyContent: 'space-between' }}>
+              
+              {/* Live search input */}
+              <div style={{ position: 'relative', flex: '1 1 320px', minWidth: '260px' }}>
+                <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre, especialidad (cemento, enchape, volquetas...), teléfono, dirección..."
+                  value={contactSearch}
+                  onChange={(e) => setContactSearch(e.target.value)}
                   style={{
-                    minHeight: '105px',
-                    maxHeight: '135px',
-                    background: isToday 
-                      ? 'rgba(255, 109, 0, 0.06)' 
-                      : day.isCurrentMonth 
-                        ? 'rgba(255, 255, 255, 0.02)' 
-                        : 'rgba(0, 0, 0, 0.15)',
-                    border: isToday 
-                      ? '1.5px solid #ff6d00' 
-                      : '1px solid var(--border-glass)',
+                    width: '100%',
+                    padding: '10px 14px 10px 40px',
                     borderRadius: '10px',
-                    padding: '6px 8px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    opacity: day.isCurrentMonth ? 1 : 0.45,
-                    overflow: 'hidden',
-                    position: 'relative'
+                    border: '1px solid var(--border-glass)',
+                    background: 'rgba(0, 0, 0, 0.25)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.88rem'
                   }}
-                  className="agenda-day-cell"
-                >
-                  {/* Day header number */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{
-                      fontSize: '0.82rem',
-                      fontWeight: isToday ? 800 : 600,
-                      color: isToday ? '#ff6d00' : 'var(--text-primary)',
-                      background: isToday ? 'rgba(255, 109, 0, 0.15)' : 'transparent',
-                      padding: isToday ? '1px 6px' : '0',
-                      borderRadius: '6px'
-                    }}>
-                      {day.dayNumber}
-                    </span>
-                    {dayEvents.length > 0 && (
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                        {dayEvents.length}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Day Event Pills */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', overflowY: 'auto' }}>
-                    {dayEvents.slice(0, 3).map((evt) => {
-                      const typeInfo = EVENT_TYPES.find(t => t.id === evt.eventType) || EVENT_TYPES[0];
-                      const isCompleted = evt.status === 'completed';
-
-                      return (
-                        <div
-                          key={evt.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenEditEvent(evt);
-                          }}
-                          style={{
-                            fontSize: '0.68rem',
-                            padding: '2px 5px',
-                            borderRadius: '4px',
-                            background: typeInfo.bg,
-                            borderLeft: `3px solid ${typeInfo.color}`,
-                            color: typeInfo.color,
-                            fontWeight: 600,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            textDecoration: isCompleted ? 'line-through' : 'none',
-                            opacity: isCompleted ? 0.6 : 1
-                          }}
-                          title={`${evt.startTime || ''} - ${evt.title} (${typeInfo.name})`}
-                        >
-                          {evt.startTime ? `${evt.startTime} ` : ''}{evt.title}
-                        </div>
-                      );
-                    })}
-                    {dayEvents.length > 3 && (
-                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, paddingLeft: '4px' }}>
-                        +{dayEvents.length - 3} más...
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Quick Legend at bottom */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', marginTop: '18px', paddingTop: '15px', borderTop: '1px solid var(--border-glass)', fontSize: '0.74rem' }}>
-            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Tipos de Cita:</span>
-            {EVENT_TYPES.map(t => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: t.color }}></span>
-                <span style={{ color: 'var(--text-secondary)' }}>{t.name}</span>
+                />
+                {contactSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setContactSearch('')}
+                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
-            ))}
+
+              {/* Filter by project */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Filter size={15} style={{ color: 'var(--text-muted)' }} />
+                <select
+                  value={contactProjectFilter}
+                  onChange={(e) => setContactProjectFilter(e.target.value)}
+                  style={{
+                    padding: '9px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-glass)',
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  <option value="all">Todas las Obras</option>
+                  <option value="general">Sin Asignar a Obra Específica</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+            </div>
+
+            {/* Category Filter Pills */}
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '14px 0 4px 0', scrollbarWidth: 'thin' }}>
+              {CONTACT_CATEGORIES.map(cat => {
+                const Icon = cat.icon;
+                const isSelected = contactCategoryFilter === cat.id;
+                const count = cat.id === 'all' 
+                  ? (contacts || []).length 
+                  : (contacts || []).filter(c => c.category === cat.id).length;
+
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setContactCategoryFilter(cat.id)}
+                    style={{
+                      padding: '7px 14px',
+                      borderRadius: '20px',
+                      border: `1px solid ${isSelected ? cat.color : 'rgba(255, 255, 255, 0.08)'}`,
+                      background: isSelected ? (cat.bg || 'rgba(6, 182, 212, 0.2)') : 'rgba(255, 255, 255, 0.03)',
+                      color: isSelected ? '#fff' : 'var(--text-secondary)',
+                      fontSize: '0.8rem',
+                      fontWeight: isSelected ? 700 : 500,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '7px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.18s'
+                    }}
+                  >
+                    <Icon size={14} style={{ color: cat.color }} />
+                    {cat.name}
+                    <span style={{
+                      background: isSelected ? cat.color : 'rgba(255, 255, 255, 0.1)',
+                      color: isSelected ? '#0f172a' : 'var(--text-muted)',
+                      padding: '1px 6px',
+                      borderRadius: '10px',
+                      fontSize: '0.72rem',
+                      fontWeight: 800
+                    }}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
           </div>
-        </div>
-      ) : (
-        /* 4. List View / Timeline */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          {filteredEvents.length === 0 ? (
-            <div className="glass-panel" style={{ padding: '45px 20px', textAlign: 'center', borderRadius: '14px', color: 'var(--text-muted)' }}>
-              <CalendarIcon size={42} style={{ marginBottom: '12px', opacity: 0.35 }} />
-              <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>No hay compromisos agendados</h3>
-              <p style={{ fontSize: '0.85rem', margin: '6px 0 16px 0' }}>
-                No se encontraron citas o eventos con los filtros actuales.
+
+          {/* Contacts Grid */}
+          {filteredContacts.length === 0 ? (
+            <div className="glass-panel" style={{ padding: '60px 20px', textAlign: 'center', borderRadius: '16px' }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'rgba(6, 182, 212, 0.1)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary-cyan)',
+                marginBottom: '16px'
+              }}>
+                <BookUser size={32} />
+              </div>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '1.2rem', color: 'var(--text-primary)' }}>
+                No se encontraron contactos en esta categoría
+              </h3>
+              <p style={{ margin: '0 auto 20px auto', maxWidth: '480px', color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+                {contactSearch 
+                  ? 'Intenta con otro término de búsqueda o limpia los filtros para ver todos tus contactos.'
+                  : 'Agrega a tu agenda a tus ferreterías de confianza, maestros de obra, cuadrillas y proveedores de materiales.'}
               </p>
               {!isReadOnly && (
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={() => handleOpenNewEvent()}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => handleOpenNewContact(contactCategoryFilter !== 'all' ? contactCategoryFilter : 'ferreteria')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 22px', fontWeight: 700 }}
                 >
-                  <Plus size={16} /> Programar Primera Cita
+                  <Plus size={18} /> Agregar Contacto Ahora
                 </button>
               )}
             </div>
           ) : (
-            <>
-              {/* Group: HOY */}
-              {groupedEvents.today.length > 0 && (
-                <div className="agenda-group">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <span style={{ background: '#ff6d00', width: '10px', height: '10px', borderRadius: '50%' }}></span>
-                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#ff6d00' }}>
-                      COMPROMISOS PARA HOY ({groupedEvents.today.length})
-                    </h3>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {groupedEvents.today.map(evt => (
-                      <EventCard 
-                        key={evt.id} 
-                        event={evt} 
-                        onEdit={handleOpenEditEvent} 
-                        onToggle={handleToggleStatus} 
-                        onDelete={onDeleteEvent} 
-                        onViewProject={onViewProject}
-                        getWhatsAppLink={getWhatsAppLink}
-                        getMapsLink={getMapsLink}
-                        isReadOnly={isReadOnly}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '18px' }}>
+              {filteredContacts.map(contact => {
+                const catObj = CONTACT_CATEGORIES.find(c => c.id === contact.category) || CONTACT_CATEGORIES[1];
+                const Icon = catObj.icon;
+                const cleanPhone = getCleanPhone(contact.phone);
+                const cleanPhone2 = getCleanPhone(contact.phone_2);
+                const mapsUrl = getMapsLink(`${contact.address || ''} ${contact.city || ''}`);
+                const waUrl = getContactWhatsAppLink(contact.phone || contact.phone_2, contact.name, contact.specialty);
 
-              {/* Group: MAÑANA */}
-              {groupedEvents.tomorrow.length > 0 && (
-                <div className="agenda-group">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <span style={{ background: 'var(--primary-cyan)', width: '10px', height: '10px', borderRadius: '50%' }}></span>
-                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--primary-cyan)' }}>
-                      MAÑANA ({groupedEvents.tomorrow.length})
-                    </h3>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {groupedEvents.tomorrow.map(evt => (
-                      <EventCard 
-                        key={evt.id} 
-                        event={evt} 
-                        onEdit={handleOpenEditEvent} 
-                        onToggle={handleToggleStatus} 
-                        onDelete={onDeleteEvent} 
-                        onViewProject={onViewProject}
-                        getWhatsAppLink={getWhatsAppLink}
-                        getMapsLink={getMapsLink}
-                        isReadOnly={isReadOnly}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+                return (
+                  <div 
+                    key={contact.id}
+                    className="glass-panel"
+                    style={{
+                      borderRadius: '16px',
+                      padding: '20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      border: '1px solid var(--border-glass)',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      transition: 'transform 0.2s, box-shadow 0.2s',
+                      position: 'relative'
+                    }}
+                  >
+                    {/* Top Row: Category Badge + Actions Menu */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '12px' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          background: catObj.bg || 'rgba(6, 182, 212, 0.12)',
+                          border: `1px solid ${catObj.border || 'rgba(6, 182, 212, 0.3)'}`,
+                          color: catObj.color || 'var(--primary-cyan)',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.3px'
+                        }}>
+                          <Icon size={13} />
+                          {catObj.name}
+                        </span>
 
-              {/* Group: ESTA SEMANA */}
-              {groupedEvents.thisWeek.length > 0 && (
-                <div className="agenda-group">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <span style={{ background: '#38bdf8', width: '10px', height: '10px', borderRadius: '50%' }}></span>
-                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      ESTA SEMANA ({groupedEvents.thisWeek.length})
-                    </h3>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {groupedEvents.thisWeek.map(evt => (
-                      <EventCard 
-                        key={evt.id} 
-                        event={evt} 
-                        onEdit={handleOpenEditEvent} 
-                        onToggle={handleToggleStatus} 
-                        onDelete={onDeleteEvent} 
-                        onViewProject={onViewProject}
-                        getWhatsAppLink={getWhatsAppLink}
-                        getMapsLink={getMapsLink}
-                        isReadOnly={isReadOnly}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+                        {!isReadOnly && (
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditContact(contact)}
+                              title="Editar contacto"
+                              style={{
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid var(--border-glass)',
+                                color: 'var(--text-secondary)',
+                                width: '30px',
+                                height: '30px',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                              }}
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteContact && onDeleteContact(contact.id)}
+                              title="Eliminar contacto"
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.08)',
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                color: '#f87171',
+                                width: '30px',
+                                height: '30px',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
 
-              {/* Group: MÁS ADELANTE */}
-              {groupedEvents.later.length > 0 && (
-                <div className="agenda-group">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <span style={{ background: 'var(--text-muted)', width: '10px', height: '10px', borderRadius: '50%' }}></span>
-                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                      PRÓXIMAS FECHAS ({groupedEvents.later.length})
-                    </h3>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {groupedEvents.later.map(evt => (
-                      <EventCard 
-                        key={evt.id} 
-                        event={evt} 
-                        onEdit={handleOpenEditEvent} 
-                        onToggle={handleToggleStatus} 
-                        onDelete={onDeleteEvent} 
-                        onViewProject={onViewProject}
-                        getWhatsAppLink={getWhatsAppLink}
-                        getMapsLink={getMapsLink}
-                        isReadOnly={isReadOnly}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+                      {/* Contact Name & Specialty */}
+                      <h3 style={{ margin: '0 0 6px 0', fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                        {contact.name}
+                      </h3>
 
-              {/* Group: COMPLETADOS */}
-              {groupedEvents.completed.length > 0 && (
-                <div className="agenda-group" style={{ opacity: 0.8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <span style={{ background: '#10b981', width: '10px', height: '10px', borderRadius: '50%' }}></span>
-                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#34d399' }}>
-                      COMPLETADAS / HISTORIAL ({groupedEvents.completed.length})
-                    </h3>
+                      {contact.specialty && (
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          fontSize: '0.8rem',
+                          color: '#38bdf8',
+                          fontWeight: 600,
+                          marginBottom: '12px'
+                        }}>
+                          <Sparkles size={12} />
+                          {contact.specialty}
+                        </div>
+                      )}
+
+                      {/* Details block */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', fontSize: '0.84rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                        
+                        {contact.contactPerson && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <User size={14} style={{ color: 'var(--primary-cyan)', flexShrink: 0 }} />
+                            <span><strong>Atiende:</strong> {contact.contactPerson}</span>
+                          </div>
+                        )}
+
+                        {contact.phone && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Phone size={14} style={{ color: '#10b981', flexShrink: 0 }} />
+                            <span>{contact.phone}</span>
+                            {contact.phone_2 && (
+                              <span style={{ color: 'var(--text-muted)' }}>| {contact.phone_2}</span>
+                            )}
+                          </div>
+                        )}
+
+                        {contact.email && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Mail size={14} style={{ color: '#a855f7', flexShrink: 0 }} />
+                            <a 
+                              href={`mailto:${contact.email}`}
+                              style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}
+                            >
+                              {contact.email}
+                            </a>
+                          </div>
+                        )}
+
+                        {contact.address && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <MapPin size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                            <span style={{ flex: 1 }}>{contact.address} {contact.city ? `(${contact.city})` : ''}</span>
+                            {mapsUrl && (
+                              <a 
+                                href={mapsUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="Abrir en Google Maps"
+                                style={{ color: 'var(--primary-cyan)', textDecoration: 'none', display: 'inline-flex' }}
+                              >
+                                <ExternalLink size={12} />
+                              </a>
+                            )}
+                          </div>
+                        )}
+
+                        {contact.nitOrId && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            <span><strong>NIT / Doc:</strong> {contact.nitOrId}</span>
+                          </div>
+                        )}
+
+                        {contact.projectName && contact.projectId !== 'general' && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                            <HardHat size={14} style={{ color: '#ec4899', flexShrink: 0 }} />
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                              {contact.projectName}
+                            </span>
+                            {onViewProject && (
+                              <button
+                                type="button"
+                                onClick={() => onViewProject(contact.projectId)}
+                                style={{ background: 'none', border: 'none', color: 'var(--primary-cyan)', cursor: 'pointer', padding: 0, display: 'inline-flex' }}
+                                title="Ver expediente de la obra"
+                              >
+                                <ExternalLink size={12} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {contact.notes && (
+                          <div style={{
+                            marginTop: '8px',
+                            background: 'rgba(0, 0, 0, 0.25)',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255, 255, 255, 0.05)',
+                            fontSize: '0.8rem',
+                            color: 'var(--text-muted)',
+                            lineHeight: 1.4
+                          }}>
+                            {contact.notes}
+                          </div>
+                        )}
+
+                      </div>
+                    </div>
+
+                    {/* Bottom Action Buttons: WhatsApp, Call, Agendar Cita */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr 1fr',
+                      gap: '8px',
+                      marginTop: '18px',
+                      paddingTop: '14px',
+                      borderTop: '1px solid rgba(255, 255, 255, 0.06)'
+                    }}>
+                      
+                      {/* WhatsApp Button */}
+                      {waUrl ? (
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            background: 'rgba(16, 185, 129, 0.12)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            color: '#34d399',
+                            padding: '8px 4px',
+                            borderRadius: '8px',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            textDecoration: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          <MessageCircle size={14} /> WhatsApp
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            border: '1px solid rgba(255, 255, 255, 0.05)',
+                            color: 'var(--text-muted)',
+                            padding: '8px 4px',
+                            borderRadius: '8px',
+                            fontSize: '0.78rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px'
+                          }}
+                        >
+                          <MessageCircle size={14} /> WhatsApp
+                        </button>
+                      )}
+
+                      {/* Direct Call Button */}
+                      {cleanPhone ? (
+                        <a
+                          href={`tel:${cleanPhone}`}
+                          style={{
+                            background: 'rgba(6, 182, 212, 0.1)',
+                            border: '1px solid rgba(6, 182, 212, 0.25)',
+                            color: '#38bdf8',
+                            padding: '8px 4px',
+                            borderRadius: '8px',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            textDecoration: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          <PhoneCall size={14} /> Llamar
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            border: '1px solid rgba(255, 255, 255, 0.05)',
+                            color: 'var(--text-muted)',
+                            padding: '8px 4px',
+                            borderRadius: '8px',
+                            fontSize: '0.78rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px'
+                          }}
+                        >
+                          <PhoneCall size={14} /> Llamar
+                        </button>
+                      )}
+
+                      {/* Schedule Appointment with this Contact */}
+                      <button
+                        type="button"
+                        onClick={() => handleScheduleFromContact(contact)}
+                        title="Programar visita o reunión con este contacto"
+                        style={{
+                          background: 'rgba(245, 158, 11, 0.12)',
+                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                          color: '#fbbf24',
+                          padding: '8px 4px',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '5px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        <CalendarIcon size={14} /> Agendar
+                      </button>
+
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {groupedEvents.completed.map(evt => (
-                      <EventCard 
-                        key={evt.id} 
-                        event={evt} 
-                        onEdit={handleOpenEditEvent} 
-                        onToggle={handleToggleStatus} 
-                        onDelete={onDeleteEvent} 
-                        onViewProject={onViewProject}
-                        getWhatsAppLink={getWhatsAppLink}
-                        getMapsLink={getMapsLink}
-                        isReadOnly={isReadOnly}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
+                );
+              })}
+            </div>
           )}
 
         </div>
       )}
 
-      {/* 5. MODAL: PROGRAMAR / EDITAR CITA O EVENTO */}
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-content" style={{ maxWidth: '680px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CalendarIcon size={20} style={{ color: 'var(--primary-cyan)' }} />
-                <h3 style={{ margin: 0 }}>{editingEventId ? 'Modificar Cita o Evento' : 'Programar Nueva Cita / Visita'}</h3>
+      {/* ======================================================== */}
+      {/* SECTION 2: CITAS Y CALENDARIO INTERACTIVO                */}
+      {/* ======================================================== */}
+      {mainTab === 'calendar' && (
+        <div className="calendar-appointments-section">
+          
+          {/* Calendar Header with Sub-view switcher & Month Navigator */}
+          <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '14px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+              
+              {/* Month & Year Navigation */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={handlePrevMonth}
+                    style={{ padding: '6px 10px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border-glass)', borderRadius: '8px', color: 'var(--text-primary)' }}
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={handleNextMonth}
+                    style={{ padding: '6px 10px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border-glass)', borderRadius: '8px', color: 'var(--text-primary)' }}
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+
+                <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', minWidth: '180px' }}>
+                  {monthNames[month]} {year}
+                </h2>
+
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={handleToday}
+                  style={{ padding: '6px 12px', fontSize: '0.8rem', background: 'rgba(6, 182, 212, 0.1)', border: '1px solid rgba(6, 182, 212, 0.3)', color: 'var(--primary-cyan)', borderRadius: '8px', fontWeight: 600 }}
+                >
+                  Hoy
+                </button>
               </div>
-              <button type="button" className="btn-icon" onClick={() => setShowModal(false)}><X size={18} /></button>
+
+              {/* View Mode Toggle: Calendar Grid vs Chronological List */}
+              <div style={{ display: 'inline-flex', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setViewMode('calendar')}
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: viewMode === 'calendar' ? 'var(--primary-cyan)' : 'transparent',
+                    color: viewMode === 'calendar' ? '#0f172a' : 'var(--text-secondary)',
+                    fontWeight: viewMode === 'calendar' ? 700 : 500,
+                    border: 'none',
+                    borderRadius: '6px'
+                  }}
+                >
+                  <Grid size={15} /> Calendario
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setViewMode('list')}
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: viewMode === 'list' ? 'var(--primary-cyan)' : 'transparent',
+                    color: viewMode === 'list' ? '#0f172a' : 'var(--text-secondary)',
+                    fontWeight: viewMode === 'list' ? 700 : 500,
+                    border: 'none',
+                    borderRadius: '6px'
+                  }}
+                >
+                  <List size={15} /> Lista / Próximos
+                </button>
+              </div>
+
             </div>
 
-            <form onSubmit={handleSubmitForm} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {/* Filter Bar for Calendar */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '16px', paddingTop: '14px', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
               
-              {/* Título */}
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>Título o Asunto del Compromiso *</label>
+              <div style={{ position: 'relative', flex: '1 1 240px' }}>
+                <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input
                   type="text"
-                  className="form-control"
-                  placeholder="Ej. Visita técnica cimentación / Reunión entrega planos"
-                  value={formData.title}
-                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                  required
+                  placeholder="Buscar citas por título, obra, lugar..."
+                  value={eventSearchQuery}
+                  onChange={(e) => setEventSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px 8px 36px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-glass)',
+                    background: 'rgba(0, 0, 0, 0.25)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.85rem'
+                  }}
                 />
               </div>
 
-              {/* Fila: Tipo de evento y Obra asociada */}
-              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>Tipo de Evento</label>
-                  <select
-                    className="form-control"
-                    value={formData.eventType}
-                    onChange={(e) => setFormData(prev => ({ ...prev, eventType: e.target.value }))}
-                  >
-                    {EVENT_TYPES.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
+              <select
+                value={filterProject}
+                onChange={(e) => setFilterProject(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-glass)',
+                  background: 'rgba(0, 0, 0, 0.25)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.85rem'
+                }}
+              >
+                <option value="all">Todas las Obras</option>
+                <option value="general">Citas Generales</option>
+                {projects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-glass)',
+                  background: 'rgba(0, 0, 0, 0.25)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.85rem'
+                }}
+              >
+                <option value="all">Todos los Tipos</option>
+                {EVENT_TYPES.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-glass)',
+                  background: 'rgba(0, 0, 0, 0.25)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.85rem'
+                }}
+              >
+                <option value="all">Todos los Estados</option>
+                <option value="pending">Pendientes / Programados</option>
+                <option value="completed">Completados</option>
+                <option value="cancelled">Cancelados</option>
+              </select>
+
+            </div>
+          </div>
+
+          {/* CALENDAR MONTH GRID VIEW */}
+          {viewMode === 'calendar' && (
+            <div className="glass-panel" style={{ padding: '16px', borderRadius: '16px', overflowX: 'auto' }}>
+              <div style={{ minWidth: '780px' }}>
+                
+                {/* Days of week header */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px', marginBottom: '8px', textAlign: 'center' }}>
+                  {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(d => (
+                    <div key={d} style={{ color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', padding: '6px 0' }}>
+                      {d}
+                    </div>
+                  ))}
                 </div>
 
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>Obra / Proyecto Asociado</label>
-                  <select
-                    className="form-control"
-                    value={formData.projectId}
-                    onChange={(e) => handleProjectChangeInForm(e.target.value)}
-                  >
-                    <option value="general">🏢 Oficina / Sin obra específica</option>
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                {/* Days Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
+                  {calendarDays.map((day, idx) => {
+                    const dayEvents = eventsByDate[day.dateStr] || [];
+                    const isToday = day.dateStr === todayStr;
+                    const maxDisplayEvents = 3;
+                    const overflowCount = dayEvents.length - maxDisplayEvents;
 
-              {/* Fila: Fecha y Horas */}
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)', borderRadius: '10px', padding: '12px 14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <label style={{ fontWeight: 600, fontSize: '0.85rem', margin: 0 }}>Horario y Fecha</label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)', cursor: 'pointer', margin: 0 }}>
-                    <input
-                      type="checkbox"
-                      checked={formData.allDay}
-                      onChange={(e) => setFormData(prev => ({ ...prev, allDay: e.target.checked }))}
-                    />
-                    Todo el día
-                  </label>
-                </div>
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          if (dayEvents.length > 0) {
+                            setSelectedDayEvents({ dateStr: day.dateStr, events: dayEvents });
+                          } else if (!isReadOnly) {
+                            handleOpenNewEvent({ date: day.dateStr });
+                          }
+                        }}
+                        style={{
+                          minHeight: '115px',
+                          background: isToday ? 'rgba(6, 182, 212, 0.08)' : (day.isCurrentMonth ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.25)'),
+                          border: `1px solid ${isToday ? 'var(--primary-cyan)' : (day.isCurrentMonth ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.02)')}`,
+                          borderRadius: '10px',
+                          padding: '8px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                          transition: 'background 0.15s, border-color 0.15s',
+                          opacity: day.isCurrentMonth ? 1 : 0.4
+                        }}
+                      >
+                        {/* Day number */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{
+                            fontSize: '0.82rem',
+                            fontWeight: isToday ? 800 : 600,
+                            color: isToday ? 'var(--primary-cyan)' : (day.isCurrentMonth ? 'var(--text-primary)' : 'var(--text-muted)'),
+                            background: isToday ? 'rgba(6, 182, 212, 0.2)' : 'transparent',
+                            width: isToday ? '24px' : 'auto',
+                            height: isToday ? '24px' : 'auto',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            {day.dayNumber}
+                          </span>
 
-                <div style={{ display: 'grid', gridTemplateColumns: formData.allDay ? '1fr' : '1.5fr 1fr 1fr', gap: '10px' }}>
-                  <div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Fecha</span>
-                    <input
-                      type="date"
-                      className="form-control"
-                      value={formData.date}
-                      onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                      required
-                    />
-                  </div>
+                          {dayEvents.length > 0 && (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                              {dayEvents.length}
+                            </span>
+                          )}
+                        </div>
 
-                  {!formData.allDay && (
-                    <>
-                      <div>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Hora Inicio</span>
-                        <input
-                          type="time"
-                          className="form-control"
-                          value={formData.startTime}
-                          onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                        />
+                        {/* Events Pills */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '2px', flex: 1 }}>
+                          {dayEvents.slice(0, maxDisplayEvents).map(evt => {
+                            const typeObj = EVENT_TYPES.find(t => t.id === evt.eventType) || EVENT_TYPES[0];
+                            const isCompleted = evt.status === 'completed';
+
+                            return (
+                              <div
+                                key={evt.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditEvent(evt);
+                                }}
+                                style={{
+                                  padding: '3px 6px',
+                                  borderRadius: '5px',
+                                  background: isCompleted ? 'rgba(255, 255, 255, 0.05)' : typeObj.bg,
+                                  border: `1px solid ${isCompleted ? 'rgba(255, 255, 255, 0.1)' : typeObj.border}`,
+                                  color: isCompleted ? 'var(--text-muted)' : typeObj.color,
+                                  fontSize: '0.72rem',
+                                  fontWeight: 600,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  textDecoration: isCompleted ? 'line-through' : 'none',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title={`${evt.startTime || ''} - ${evt.title}`}
+                              >
+                                {evt.startTime && <span style={{ opacity: 0.8, fontSize: '0.68rem' }}>{evt.startTime}</span>}
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evt.title}</span>
+                              </div>
+                            );
+                          })}
+
+                          {overflowCount > 0 && (
+                            <div style={{ fontSize: '0.68rem', color: 'var(--primary-cyan)', fontWeight: 700, paddingLeft: '4px' }}>
+                              +{overflowCount} más
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Hora Fin</span>
-                        <input
-                          type="time"
-                          className="form-control"
-                          value={formData.endTime}
-                          onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
-                        />
-                      </div>
-                    </>
-                  )}
+                    );
+                  })}
                 </div>
-              </div>
 
-              {/* Fila: Ubicación / Dirección */}
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', fontWeight: 600 }}>
-                  <MapPin size={15} style={{ color: 'var(--primary-cyan)' }} /> Ubicación / Dirección
-                </label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Ej. Calle 10Sur #34-12, Envigado / Sala de ventas"
-                  value={formData.location}
-                  onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                />
               </div>
+            </div>
+          )}
 
-              {/* Fila: Contacto y Teléfono */}
-              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', fontWeight: 600 }}>
-                    <User size={15} style={{ color: 'var(--primary-teal)' }} /> Persona / Contacto
+          {/* CHRONOLOGICAL LIST VIEW */}
+          {viewMode === 'list' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {filteredEvents.length === 0 ? (
+                <div className="glass-panel" style={{ padding: '50px 20px', textAlign: 'center', borderRadius: '16px' }}>
+                  <CalendarCheck size={40} style={{ color: 'var(--text-muted)', marginBottom: '12px' }} />
+                  <h3 style={{ margin: '0 0 6px 0', color: 'var(--text-primary)' }}>No hay citas agendadas</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    No se encontraron citas o compromisos con los filtros seleccionados.
+                  </p>
+                </div>
+              ) : (
+                filteredEvents.map(evt => {
+                  const typeObj = EVENT_TYPES.find(t => t.id === evt.eventType) || EVENT_TYPES[0];
+                  const Icon = typeObj.icon;
+                  const isCompleted = evt.status === 'completed';
+                  const waLink = getEventWhatsAppLink(evt.contactPhone, evt.title, evt.date);
+                  const mapLink = getMapsLink(evt.location);
+
+                  return (
+                    <div
+                      key={evt.id}
+                      className="glass-panel"
+                      style={{
+                        padding: '16px 20px',
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '14px',
+                        borderLeft: `4px solid ${isCompleted ? '#10b981' : typeObj.color}`,
+                        opacity: isCompleted ? 0.7 : 1
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: '1 1 320px' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleEventStatus(evt, e)}
+                          title={isCompleted ? 'Marcar como pendiente' : 'Marcar como completada'}
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '50%',
+                            background: isCompleted ? '#10b981' : 'rgba(255, 255, 255, 0.05)',
+                            border: `2px solid ${isCompleted ? '#10b981' : 'var(--text-muted)'}`,
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            flexShrink: 0
+                          }}
+                        >
+                          {isCompleted && <Check size={14} />}
+                        </button>
+
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              background: typeObj.bg,
+                              color: typeObj.color,
+                              textTransform: 'uppercase'
+                            }}>
+                              {typeObj.name}
+                            </span>
+
+                            {evt.projectName && evt.projectId !== 'general' && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                • {evt.projectName}
+                              </span>
+                            )}
+                          </div>
+
+                          <h4 style={{ margin: '4px 0', fontSize: '1.05rem', color: 'var(--text-primary)', textDecoration: isCompleted ? 'line-through' : 'none' }}>
+                            {evt.title}
+                          </h4>
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                              <CalendarIcon size={13} style={{ color: 'var(--primary-cyan)' }} />
+                              {evt.date} {evt.startTime && `a las ${evt.startTime}`}
+                            </span>
+
+                            {evt.location && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                <MapPin size={13} style={{ color: '#f59e0b' }} />
+                                {evt.location}
+                              </span>
+                            )}
+
+                            {evt.contactName && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                <User size={13} style={{ color: '#10b981' }} />
+                                {evt.contactName}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Event actions */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {waLink && (
+                          <a
+                            href={waLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              background: 'rgba(16, 185, 129, 0.12)',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              color: '#34d399',
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <MessageCircle size={14} /> WhatsApp
+                          </a>
+                        )}
+
+                        {!isReadOnly && (
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => handleOpenEditEvent(evt)}
+                              style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() => onDeleteEvent && onDeleteEvent(evt.id)}
+                              style={{ padding: '6px 10px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#f87171', borderRadius: '8px' }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 1: CREAR / EDITAR CONTACTO DE DIRECTORIO           */}
+      {/* ======================================================== */}
+      {showContactModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          boxSizing: 'border-box'
+        }}>
+          <div className="glass-panel" style={{
+            maxWidth: '640px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: '26px',
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+            border: '1px solid var(--border-glass)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BookUser size={20} style={{ color: 'var(--primary-cyan)' }} />
+                {editingContactId ? 'Editar Contacto de Agenda' : 'Nuevo Contacto en la Agenda'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowContactModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitContact}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                
+                {/* Name / Razón Social */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                    Nombre o Razón Social *
                   </label>
                   <input
                     type="text"
-                    className="form-control"
-                    placeholder="Ej. Ing. Juan David / Propietario"
-                    value={formData.contactName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, contactName: e.target.value }))}
+                    required
+                    placeholder="Ej. Ferretería El Constructor, Maestro Pedro Gómez, Transportes SAS"
+                    value={contactForm.name}
+                    onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-glass)',
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.9rem'
+                    }}
                   />
                 </div>
 
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', fontWeight: 600 }}>
-                    <Phone size={15} style={{ color: '#10b981' }} /> Teléfono / WhatsApp
+                {/* Category & Specialty */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Categoría
+                    </label>
+                    <select
+                      value={contactForm.category}
+                      onChange={(e) => setContactForm({ ...contactForm, category: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      {CONTACT_CATEGORIES.filter(c => c.id !== 'all').map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Especialidad / Productos
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Hierro figurado, Enchape, Pintura, Volqueta"
+                      value={contactForm.specialty}
+                      onChange={(e) => setContactForm({ ...contactForm, specialty: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Phone & Secondary Phone */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Teléfono / WhatsApp Principal *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="Ej. 3001234567"
+                      value={contactForm.phone}
+                      onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Teléfono Secundario / Fijo
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="Ej. 6044445566"
+                      value={contactForm.phone_2}
+                      onChange={(e) => setContactForm({ ...contactForm, phone_2: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Contact Person & NIT/Document */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Persona de Contacto / Asesor
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Don Jairo (Asesor comercial)"
+                      value={contactForm.contactPerson}
+                      onChange={(e) => setContactForm({ ...contactForm, contactPerson: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      NIT / Cédula (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. 900.123.456-7"
+                      value={contactForm.nitOrId}
+                      onChange={(e) => setContactForm({ ...contactForm, nitOrId: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Email, Address & City */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Correo Electrónico
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="ejemplo@proveedor.com"
+                      value={contactForm.email}
+                      onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Ciudad / Municipio
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Medellín, Envigado, Bello"
+                      value={contactForm.city}
+                      onChange={(e) => setContactForm({ ...contactForm, city: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Address & Associated Project */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Dirección / Barrio
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Calle 50 # 45-20, Barrio Colón"
+                      value={contactForm.address}
+                      onChange={(e) => setContactForm({ ...contactForm, address: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Obra o Proyecto Vinculado
+                    </label>
+                    <select
+                      value={contactForm.projectId}
+                      onChange={(e) => setContactForm({ ...contactForm, projectId: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      <option value="general">General / Ninguna en específico</option>
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Notes & Commercial terms */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                    Notas, Condiciones de Pago y Precios
                   </label>
-                  <input
-                    type="tel"
-                    className="form-control"
-                    placeholder="Ej. 300 123 4567"
-                    value={formData.contactPhone}
-                    onChange={(e) => setFormData(prev => ({ ...prev, contactPhone: e.target.value }))}
+                  <textarea
+                    rows={3}
+                    placeholder="Ej. Despacho a obra en 24h, crédito a 15 días, precios de cemento con flete incluido..."
+                    value={contactForm.notes}
+                    onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-glass)',
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.88rem',
+                      resize: 'vertical'
+                    }}
                   />
                 </div>
+
               </div>
 
-              {/* Fila: Prioridad y Estado */}
-              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>Prioridad</label>
-                  <select
-                    className="form-control"
-                    value={formData.priority}
-                    onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value }))}
-                  >
-                    {PRIORITIES.map(p => (
-                      <option key={p.id} value={p.id}>{p.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>Estado</label>
-                  <select
-                    className="form-control"
-                    value={formData.status}
-                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
-                  >
-                    <option value="pending">⏳ Pendiente</option>
-                    <option value="in_progress">🚧 En curso</option>
-                    <option value="completed">✅ Completada</option>
-                    <option value="cancelled">❌ Cancelada</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Notas u Observaciones */}
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>Notas / Checklist / Observaciones</label>
-                <textarea
-                  className="form-control"
-                  rows="3"
-                  placeholder="Detalles adicionales, recordatorios de EPP para la obra, documentos a llevar..."
-                  value={formData.notes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  style={{ resize: 'vertical' }}
-                />
-              </div>
-
-              {/* Botones de acción */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
+              {/* Modal Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowContactModal(false)}
+                >
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ padding: '8px 20px', fontWeight: 700 }}>
-                  {editingEventId ? 'Guardar Cambios' : 'Agendar Compromiso'}
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ padding: '9px 24px', fontWeight: 700 }}
+                >
+                  {editingContactId ? 'Guardar Cambios' : 'Crear Contacto'}
                 </button>
               </div>
-
             </form>
           </div>
         </div>
       )}
 
-      {/* 6. MODAL: DETALLES DE DÍA ESPECÍFICO */}
-      {selectedDayEvents && (
-        <div className="modal-overlay" onClick={() => setSelectedDayEvents(null)}>
-          <div className="modal-content" style={{ maxWidth: '650px', width: '100%' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      {/* ======================================================== */}
+      {/* MODAL 2: CREAR / EDITAR CITA O EVENTO EN CALENDARIO      */}
+      {/* ======================================================== */}
+      {showEventModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          boxSizing: 'border-box'
+        }}>
+          <div className="glass-panel" style={{
+            maxWidth: '600px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: '26px',
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+            border: '1px solid var(--border-glass)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CalendarIcon size={20} style={{ color: 'var(--primary-cyan)' }} />
-                <h3 style={{ margin: 0 }}>Compromisos para el {selectedDayEvents.dateStr}</h3>
-              </div>
-              <button type="button" className="btn-icon" onClick={() => setSelectedDayEvents(null)}><X size={18} /></button>
+                {editingEventId ? 'Editar Cita / Compromiso' : 'Programar Nueva Cita'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowEventModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
             </div>
 
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '70vh', overflowY: 'auto' }}>
-              {selectedDayEvents.events.map(evt => (
-                <EventCard 
-                  key={evt.id} 
-                  event={evt} 
-                  onEdit={(e) => { setSelectedDayEvents(null); handleOpenEditEvent(e); }} 
-                  onToggle={handleToggleStatus} 
-                  onDelete={onDeleteEvent} 
-                  onViewProject={onViewProject}
-                  getWhatsAppLink={getWhatsAppLink}
-                  getMapsLink={getMapsLink}
-                  isReadOnly={isReadOnly}
-                />
-              ))}
+            <form onSubmit={handleSubmitEvent}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                
+                {/* Event Title */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                    Título de la Cita o Compromiso *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej. Visita avance cimientos, Reunión con cliente Apto 402, Llegada de volqueta"
+                    value={eventFormData.title}
+                    onChange={(e) => setEventFormData({ ...eventFormData, title: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-glass)',
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.9rem'
+                    }}
+                  />
+                </div>
 
-              {!isReadOnly && (
+                {/* Event Type & Associated Project */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Tipo de Cita
+                    </label>
+                    <select
+                      value={eventFormData.eventType}
+                      onChange={(e) => setEventFormData({ ...eventFormData, eventType: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      {EVENT_TYPES.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Obra / Proyecto
+                    </label>
+                    <select
+                      value={eventFormData.projectId}
+                      onChange={(e) => setEventFormData({ ...eventFormData, projectId: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      <option value="general">Cita General / Sin Obra</option>
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Date & Time */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Fecha *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={eventFormData.date}
+                      onChange={(e) => setEventFormData({ ...eventFormData, date: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Hora Inicio
+                    </label>
+                    <input
+                      type="time"
+                      value={eventFormData.startTime}
+                      onChange={(e) => setEventFormData({ ...eventFormData, startTime: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Hora Fin
+                    </label>
+                    <input
+                      type="time"
+                      value={eventFormData.endTime}
+                      onChange={(e) => setEventFormData({ ...eventFormData, endTime: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Location */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                    Lugar o Dirección de Encuentro
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Obra El Poblado, Oficina Habitech, Cra 43A # 1-50"
+                    value={eventFormData.location}
+                    onChange={(e) => setEventFormData({ ...eventFormData, location: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-glass)',
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.9rem'
+                    }}
+                  />
+                </div>
+
+                {/* Contact Name & Phone */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Contacto / Persona a Reunir
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Juan Pérez (Cliente), Maestro Dumar"
+                      value={eventFormData.contactName}
+                      onChange={(e) => setEventFormData({ ...eventFormData, contactName: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Celular / WhatsApp
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="Ej. 3001234567"
+                      value={eventFormData.contactPhone}
+                      onChange={(e) => setEventFormData({ ...eventFormData, contactPhone: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Priority & Status */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Prioridad
+                    </label>
+                    <select
+                      value={eventFormData.priority}
+                      onChange={(e) => setEventFormData({ ...eventFormData, priority: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      {PRIORITIES.map(pr => (
+                        <option key={pr.id} value={pr.id}>{pr.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                      Estado
+                    </label>
+                    <select
+                      value={eventFormData.status}
+                      onChange={(e) => setEventFormData({ ...eventFormData, status: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      <option value="pending">Programada / Pendiente</option>
+                      <option value="completed">Completada / Realizada</option>
+                      <option value="cancelled">Cancelada</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '5px' }}>
+                    Notas o Temas a Tratar
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Ej. Llevar muestras de porcelanato, revisar filtración en baño, entrega de acta..."
+                    value={eventFormData.notes}
+                    onChange={(e) => setEventFormData({ ...eventFormData, notes: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-glass)',
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.88rem',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+
+              </div>
+
+              {/* Modal Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowEventModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ padding: '9px 24px', fontWeight: 700 }}
+                >
+                  {editingEventId ? 'Guardar Cambios' : 'Agendar Cita'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 3: EVENTOS DE UN DÍA ESPECÍFICO (DRILLDOWN)        */}
+      {/* ======================================================== */}
+      {selectedDayEvents && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          boxSizing: 'border-box'
+        }}>
+          <div className="glass-panel" style={{
+            maxWidth: '520px',
+            width: '100%',
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            padding: '24px',
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+            border: '1px solid var(--border-glass)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Compromisos del día
+                </h3>
+                <span style={{ fontSize: '0.82rem', color: 'var(--primary-cyan)', fontWeight: 600 }}>
+                  {selectedDayEvents.dateStr}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDayEvents(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {selectedDayEvents.events.map(evt => {
+                const typeObj = EVENT_TYPES.find(t => t.id === evt.eventType) || EVENT_TYPES[0];
+                return (
+                  <div
+                    key={evt.id}
+                    onClick={() => {
+                      setSelectedDayEvents(null);
+                      handleOpenEditEvent(evt);
+                    }}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: `1px solid ${typeObj.border}`,
+                      cursor: 'pointer',
+                      transition: 'background 0.15s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: typeObj.color, textTransform: 'uppercase' }}>
+                        {typeObj.name}
+                      </span>
+                      {evt.startTime && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {evt.startTime} {evt.endTime && `- ${evt.endTime}`}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      {evt.title}
+                    </div>
+                    {evt.location && (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <MapPin size={12} style={{ color: '#f59e0b' }} /> {evt.location}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {!isReadOnly && (
+              <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
                 <button
                   type="button"
                   className="btn btn-primary"
                   onClick={() => {
-                    const d = selectedDayEvents.dateStr;
+                    const dateStr = selectedDayEvents.dateStr;
                     setSelectedDayEvents(null);
-                    handleOpenNewEvent(d);
+                    handleOpenNewEvent({ date: dateStr });
                   }}
-                  style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
                 >
-                  <Plus size={16} /> Programar otra cita en esta fecha
+                  <Plus size={16} /> Agregar Cita este Día
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1174,205 +2458,3 @@ export default function Agenda({
     </div>
   );
 }
-
-// Sub-Component: Clean Responsive Event Card
-function EventCard({
-  event,
-  onEdit,
-  onToggle,
-  onDelete,
-  onViewProject,
-  getWhatsAppLink,
-  getMapsLink,
-  isReadOnly
-}) {
-  const typeInfo = EVENT_TYPES.find(t => t.id === event.eventType) || EVENT_TYPES[0];
-  const priorityInfo = PRIORITIES.find(p => p.id === event.priority) || PRIORITIES[1];
-  const isCompleted = event.status === 'completed';
-  const IconComp = typeInfo.icon || CalendarIcon;
-
-  return (
-    <div 
-      className="agenda-event-card"
-      style={{
-        background: isCompleted ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.04)',
-        border: `1px solid ${isCompleted ? 'var(--border-glass)' : typeInfo.border}`,
-        borderLeft: `4px solid ${typeInfo.color}`,
-        borderRadius: '12px',
-        padding: '14px 18px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '10px',
-        transition: 'all 0.15s ease',
-        opacity: isCompleted ? 0.75 : 1
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1, minWidth: '220px' }}>
-          
-          {/* Quick Checkbox button */}
-          {!isReadOnly && (
-            <button
-              type="button"
-              onClick={() => onToggle(event)}
-              style={{
-                background: isCompleted ? '#10b981' : 'transparent',
-                border: isCompleted ? '1px solid #10b981' : '2px solid var(--border-glass-active)',
-                color: isCompleted ? '#ffffff' : 'transparent',
-                borderRadius: '6px',
-                width: '22px',
-                height: '22px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                marginTop: '3px',
-                flexShrink: 0
-              }}
-              title={isCompleted ? 'Marcar como pendiente' : 'Marcar como realizada'}
-            >
-              <Check size={14} style={{ opacity: isCompleted ? 1 : 0 }} />
-            </button>
-          )}
-
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
-              <span className="badge" style={{ background: typeInfo.bg, color: typeInfo.color, fontSize: '0.72rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <IconComp size={12} /> {typeInfo.name}
-              </span>
-
-              {event.priority && event.priority !== 'normal' && (
-                <span className="badge" style={{ background: priorityInfo.bg, color: priorityInfo.color, fontSize: '0.68rem', fontWeight: 700 }}>
-                  <Flag size={10} style={{ marginRight: '3px' }} /> {priorityInfo.label}
-                </span>
-              )}
-
-              {event.projectName && event.projectName !== 'Oficina / General' && (
-                <span 
-                  className="badge" 
-                  onClick={() => event.projectId && onViewProject && onViewProject(event.projectId)}
-                  style={{ 
-                    background: 'rgba(56, 189, 248, 0.1)', 
-                    color: 'var(--primary-cyan)', 
-                    fontSize: '0.72rem', 
-                    cursor: event.projectId && onViewProject ? 'pointer' : 'default',
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    gap: '4px' 
-                  }}
-                  title="Clic para ir a la obra"
-                >
-                  <Building size={11} /> {event.projectName}
-                </span>
-              )}
-            </div>
-
-            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', textDecoration: isCompleted ? 'line-through' : 'none' }}>
-              {event.title}
-            </h4>
-          </div>
-        </div>
-
-        {/* Date & Time pill */}
-        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            <CalendarIcon size={14} style={{ color: 'var(--primary-cyan)' }} />
-            {event.date}
-          </div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-            <Clock size={12} />
-            {event.allDay ? 'Todo el día' : `${event.startTime || '09:00'} - ${event.endTime || '10:00'}`}
-          </div>
-        </div>
-      </div>
-
-      {/* Meta details row: Location, Contact, WhatsApp */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', paddingTop: '4px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-        {event.location && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-            <MapPin size={13} style={{ color: 'var(--primary-cyan)' }} />
-            <span>{event.location}</span>
-            <a 
-              href={getMapsLink(event.location)} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              style={{ color: 'var(--primary-cyan)', display: 'inline-flex', alignItems: 'center' }}
-              title="Abrir en Google Maps"
-            >
-              <ExternalLink size={11} />
-            </a>
-          </div>
-        )}
-
-        {event.contactName && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-            <User size={13} style={{ color: 'var(--primary-teal)' }} />
-            <span>{event.contactName}</span>
-          </div>
-        )}
-
-        {event.contactPhone && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <Phone size={13} style={{ color: '#10b981' }} />
-            <span>{event.contactPhone}</span>
-            <a
-              href={getWhatsAppLink(event.contactPhone, event.title, event.date)}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                background: 'rgba(16, 185, 129, 0.15)',
-                color: '#34d399',
-                padding: '2px 6px',
-                borderRadius: '6px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontSize: '0.72rem',
-                textDecoration: 'none',
-                fontWeight: 600
-              }}
-              title="Enviar mensaje de WhatsApp"
-            >
-              <MessageCircle size={11} /> WhatsApp
-            </a>
-          </div>
-        )}
-      </div>
-
-      {/* Notes preview if any */}
-      {event.notes && (
-        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.2)', padding: '6px 10px', borderRadius: '6px', fontStyle: 'italic' }}>
-          💡 {event.notes}
-        </div>
-      )}
-
-      {/* Action Footer */}
-      {!isReadOnly && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '6px' }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => onEdit(event)}
-            style={{ padding: '4px 10px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-          >
-            <Edit3 size={12} /> Editar
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={async () => {
-              if (await window.confirmDialog(`¿Deseas eliminar el compromiso "${event.title}"?`)) {
-                onDelete(event.id);
-              }
-            }}
-            style={{ padding: '4px 10px', fontSize: '0.75rem', color: '#fda4af', borderColor: 'rgba(244, 63, 94, 0.3)', display: 'flex', alignItems: 'center', gap: '4px' }}
-          >
-            <Trash2 size={12} /> Eliminar
-          </button>
-        </div>
-      )}
-
-    </div>
-  );
-}
-
