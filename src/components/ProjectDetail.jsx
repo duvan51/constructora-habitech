@@ -4,8 +4,14 @@ import {
   DollarSign, CheckSquare, FileText, Image as ImageIcon, Camera, 
   TrendingUp, Plus, Trash2, Eye, Download, CheckCircle, Clock, X, Printer,
   Receipt, Search, ChevronDown, ChevronUp, CreditCard, Calculator, FolderOpen, Info, Loader2, ExternalLink, Upload,
-  Link2, Check
+  Link2, Check, Landmark
 } from 'lucide-react';
+import { 
+  getChequerasList, 
+  saveNewChequera, 
+  extractChequera, 
+  cleanPurchaseDescription 
+} from '../utils/chequeras';
 import { 
   getDocumentsForProject, 
   getProgressLogsForProject, 
@@ -211,8 +217,13 @@ export default function ProjectDetail({
     amount: '',
     date: new Date().toISOString().split('T')[0],
     personnelId: '',
-    receiptBase64: ''
+    receiptBase64: '',
+    chequera: 'Caja Dumar'
   });
+  const [chequerasList, setChequerasList] = useState(() => getChequerasList());
+  const [showNewChequeraInput, setShowNewChequeraInput] = useState(false);
+  const [newChequeraName, setNewChequeraName] = useState('');
+  const [expenseChequeraFilter, setExpenseChequeraFilter] = useState('all');
 
   // Timeline Progress Entry State
   const [showAddTimeline, setShowAddTimeline] = useState(false);
@@ -653,6 +664,9 @@ export default function ProjectDetail({
       }
     }
 
+    const selectedChequera = (expenseData.chequera || 'Caja Dumar').trim();
+    const chequeraSuffix = ` [Chequera: ${selectedChequera}]`;
+
     // Log in global ledger with full metadata
     const newTx = {
       projectId: project.id,
@@ -663,7 +677,10 @@ export default function ProjectDetail({
       budgetItemName: category.name,
       personnelId: personIdToUse,
       personnelName: selectedPerson ? selectedPerson.name : null,
-      description: `${category.name} || Compra: ${expenseData.description}${selectedPersonnelSuffix} (Obra: ${project.name})`,
+      chequera: selectedChequera,
+      account: selectedChequera,
+      method: selectedChequera,
+      description: `${category.name} || Compra: ${expenseData.description}${selectedPersonnelSuffix}${chequeraSuffix} (Obra: ${project.name})`,
       amount: amt,
       date: expenseData.date,
       receiptBase64: expenseData.receiptBase64 || null
@@ -727,8 +744,11 @@ export default function ProjectDetail({
         amount: '',
         date: new Date().toISOString().split('T')[0],
         personnelId: '',
-        receiptBase64: ''
+        receiptBase64: '',
+        chequera: selectedChequera || 'Caja Dumar'
       });
+      setShowNewChequeraInput(false);
+      setNewChequeraName('');
       setEditingExpenseId(null);
       setShowAddExpense(false);
 
@@ -765,7 +785,8 @@ export default function ProjectDetail({
       }
     }
 
-    const cleanedDesc = originalDesc.replace(/ \[Pagado a: .*? - Cédula: .*?\]/, '');
+    const currentChequera = extractChequera(exp) || 'Caja Dumar';
+    const cleanedDesc = cleanPurchaseDescription(exp.description, project.name);
 
     // Resolve which budget item matches this expense
     let resolvedIdx = budgetItemIdx;
@@ -809,8 +830,11 @@ export default function ProjectDetail({
       amount: exp.amount.toString(),
       date: exp.date,
       personnelId: foundPersonnelId,
-      receiptBase64: foundReceipt || ''
+      receiptBase64: foundReceipt || '',
+      chequera: currentChequera
     });
+    setShowNewChequeraInput(false);
+    setNewChequeraName('');
     setEditingExpenseId(exp.id);
     if (project.totalCost > 0) {
       setExpensePercentage(((exp.amount / project.totalCost) * 100).toFixed(2));
@@ -1814,14 +1838,17 @@ export default function ProjectDetail({
                   <button className="btn btn-primary" onClick={() => { 
                     setEditingExpenseId(null); 
                     const firstBudgetItem = project.budgetItems[0];
-                    setExpenseData({
+                    setExpenseData(prev => ({
                       description: '',
                       categoryIndex: 0,
                       amount: '',
                       date: new Date().toISOString().split('T')[0],
                       personnelId: firstBudgetItem?.personnelId || '',
-                      receiptBase64: ''
-                    });
+                      receiptBase64: '',
+                      chequera: prev.chequera || 'Caja Dumar'
+                    }));
+                    setShowNewChequeraInput(false);
+                    setNewChequeraName('');
                     setExpensePercentage(''); 
                     setShowAddExpense(true); 
                   }}>
@@ -2030,6 +2057,14 @@ export default function ProjectDetail({
                 });
               }
 
+              // Filter by chequera / caja
+              if (expenseChequeraFilter !== 'all') {
+                const target = expenseChequeraFilter.toLowerCase();
+                filteredExpenses = filteredExpenses.filter(exp => 
+                  (extractChequera(exp) || 'Caja Dumar').toLowerCase() === target
+                );
+              }
+
               const filteredTotal = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
               return (
@@ -2139,6 +2174,30 @@ export default function ProjectDetail({
                           ⚠️ Sin Clasificar ({unclassifiedExpenses.length})
                         </button>
                       )}
+
+                      {/* Filter by Chequera / Caja */}
+                      <select
+                        value={expenseChequeraFilter}
+                        onChange={(e) => setExpenseChequeraFilter(e.target.value)}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '0.8rem',
+                          borderRadius: '16px',
+                          background: 'rgba(0,0,0,0.35)',
+                          border: '1px solid var(--border-glass)',
+                          color: expenseChequeraFilter !== 'all' ? 'var(--primary-cyan)' : 'var(--text-secondary)',
+                          fontWeight: expenseChequeraFilter !== 'all' ? 700 : 400,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="all">🏦 Todas las chequeras ({allProjectExpenses.length})</option>
+                        {chequerasList.map((ch, idx) => {
+                          const count = allProjectExpenses.filter(e => (extractChequera(e) || 'Caja Dumar').toLowerCase() === ch.toLowerCase()).length;
+                          return (
+                            <option key={idx} value={ch}>🏦 {ch} ({count})</option>
+                          );
+                        })}
+                      </select>
                     </div>
                   </div>
 
@@ -2164,6 +2223,7 @@ export default function ProjectDetail({
                             <tr>
                               <th>Fecha</th>
                               <th>Concepto / Compra</th>
+                              <th>Chequera / Caja</th>
                               <th>Renglón Asignado</th>
                               <th>Personal / Proveedor</th>
                               <th style={{ textAlign: 'right' }}>Monto</th>
@@ -2173,10 +2233,8 @@ export default function ProjectDetail({
                           </thead>
                           <tbody>
                             {filteredExpenses.map((exp) => {
-                              const descParts = exp.description.split(' || ');
-                              const displayDesc = descParts[1] 
-                                ? descParts[1].replace('Compra: ', '').replace(` (Obra: ${project.name})`, '')
-                                : exp.description;
+                              const displayDesc = cleanPurchaseDescription(exp.description, project.name);
+                              const expChequera = extractChequera(exp) || 'Caja Dumar';
                               const matchedItem = project.budgetItems.find(item => transactionBelongsToBudgetItem(exp, item));
                               const matchedIdx = matchedItem ? project.budgetItems.indexOf(matchedItem) : 0;
 
@@ -2189,6 +2247,20 @@ export default function ProjectDetail({
                                     <div style={{ fontWeight: 600, color: 'var(--text-primary)', wordBreak: 'break-word', maxWidth: '280px' }}>
                                       {displayDesc}
                                     </div>
+                                  </td>
+                                  <td>
+                                    <span className="badge" style={{
+                                      fontSize: '0.74rem',
+                                      background: 'rgba(59, 130, 246, 0.1)',
+                                      color: '#60a5fa',
+                                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      whiteSpace: 'nowrap'
+                                    }}>
+                                      🏦 {expChequera}
+                                    </span>
                                   </td>
                                   <td>
                                     {matchedItem ? (
@@ -2283,10 +2355,7 @@ export default function ProjectDetail({
                       {/* 2. MOBILE VIEW: Touch-Friendly Responsive Cards */}
                       <div className="table-mobile-cards">
                         {filteredExpenses.map((exp) => {
-                          const descParts = exp.description.split(' || ');
-                          const displayDesc = descParts[1] 
-                            ? descParts[1].replace('Compra: ', '').replace(` (Obra: ${project.name})`, '')
-                            : exp.description;
+                          const displayDesc = cleanPurchaseDescription(exp.description, project.name);
                           const matchedItem = project.budgetItems.find(item => transactionBelongsToBudgetItem(exp, item));
                           const matchedIdx = matchedItem ? project.budgetItems.indexOf(matchedItem) : 0;
 
@@ -2311,6 +2380,7 @@ export default function ProjectDetail({
 
                               <div className="mobile-expense-meta-grid">
                                 <div>📅 Fecha: <strong style={{ color: 'var(--text-primary)' }}>{exp.date}</strong></div>
+                                <div>🏦 Caja: <strong style={{ color: '#60a5fa' }}>{extractChequera(exp) || 'Caja Dumar'}</strong></div>
                                 {exp.personnelName && (
                                   <div>👤 Responsable: <strong style={{ color: 'var(--primary-teal)' }}>{exp.personnelName}</strong></div>
                                 )}
@@ -2821,6 +2891,94 @@ export default function ProjectDetail({
                       </select>
                     </div>
 
+                    {/* SELECTOR DE CHEQUERA / CAJA */}
+                    <div className="form-group" style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#60a5fa', fontSize: '0.9rem' }}>
+                          <Landmark size={16} />
+                          Chequera / Caja de Pago
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowNewChequeraInput(!showNewChequeraInput)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--primary-cyan)',
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                            padding: '0 4px',
+                            fontWeight: 600,
+                            textDecoration: 'underline'
+                          }}
+                        >
+                          {showNewChequeraInput ? '✕ Cancelar' : '+ Agregar otra caja'}
+                        </button>
+                      </div>
+
+                      {showNewChequeraInput ? (
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Ej. Caja Dumar, Bancolombia, etc."
+                            value={newChequeraName}
+                            onChange={(e) => setNewChequeraName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (newChequeraName.trim()) {
+                                  const updated = saveNewChequera(newChequeraName.trim());
+                                  setChequerasList(updated);
+                                  setExpenseData(prev => ({ ...prev, chequera: newChequeraName.trim() }));
+                                  setNewChequeraName('');
+                                  setShowNewChequeraInput(false);
+                                }
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            style={{ padding: '6px 14px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
+                            onClick={() => {
+                              if (newChequeraName.trim()) {
+                                const updated = saveNewChequera(newChequeraName.trim());
+                                setChequerasList(updated);
+                                setExpenseData(prev => ({ ...prev, chequera: newChequeraName.trim() }));
+                                setNewChequeraName('');
+                                setShowNewChequeraInput(false);
+                              }
+                            }}
+                          >
+                            Guardar
+                          </button>
+                        </div>
+                      ) : (
+                        <select
+                          className="form-control"
+                          value={expenseData.chequera || 'Caja Dumar'}
+                          onChange={(e) => {
+                            if (e.target.value === '__add_new__') {
+                              setShowNewChequeraInput(true);
+                            } else {
+                              setExpenseData(prev => ({ ...prev, chequera: e.target.value }));
+                            }
+                          }}
+                          required
+                          style={{ fontWeight: 600 }}
+                        >
+                          {chequerasList.map((ch, idx) => (
+                            <option key={idx} value={ch}>🏦 {ch}</option>
+                          ))}
+                          <option value="__add_new__">➕ Agregar nueva chequera / caja...</option>
+                        </select>
+                      )}
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '6px 0 0 0' }}>
+                        💡 Selecciona de qué cuenta o caja de efectivo sale el dinero para esta compra.
+                      </p>
+                    </div>
+
                     <div className="form-group">
                       <label>Detalle / Descripción de Compra</label>
                       <input
@@ -3116,11 +3274,7 @@ export default function ProjectDetail({
       {/* EXPENSE DETAIL MODAL (VIEW ON EYE CLICK) */}
       {viewingExpense && (() => {
         const exp = viewingExpense.expense;
-        const descParts = exp.description ? exp.description.split(' || ') : [];
-        const rawDisplay = descParts[1] 
-          ? descParts[1].replace('Compra: ', '').replace(` (Obra: ${project.name})`, '')
-          : (exp.description || 'Sin descripción');
-        const displayDesc = rawDisplay.replace(/ \[Pagado a: .*?\]/, '');
+        const displayDesc = cleanPurchaseDescription(exp.description, project.name) || 'Sin descripción';
         
         // Beneficiary details
         let benName = exp.personnelName || null;
@@ -3287,6 +3441,20 @@ export default function ProjectDetail({
                       <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                         {exp.id}
                       </span>
+                    </div>
+
+                    <div style={{
+                      background: 'rgba(59, 130, 246, 0.05)',
+                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                      borderRadius: '8px',
+                      padding: '10px 14px'
+                    }}>
+                      <span style={{ fontSize: '0.75rem', color: '#60a5fa', display: 'block', marginBottom: '2px', fontWeight: 600 }}>
+                        🏦 Chequera / Caja Pagadora
+                      </span>
+                      <strong style={{ color: '#93c5fd', fontSize: '0.95rem' }}>
+                        {extractChequera(exp) || 'Caja Dumar'}
+                      </strong>
                     </div>
                   </div>
                 </div>

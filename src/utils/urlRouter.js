@@ -50,6 +50,7 @@ export const SECTION_TO_SUBTAB = {
 export const TAB_TITLES = {
   dashboard: 'Panel de Control',
   projects: 'Directorio de Obras',
+  agenda: 'Agenda de Obra y Citas',
   management: 'Gestión y Control de Obras',
   personnel: 'Gestión de Personal',
   adjustments: 'Ajustes Totales',

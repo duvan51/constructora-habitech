@@ -27,8 +27,14 @@ import {
   Eye,
   Info,
   RotateCcw,
-  ArrowUpDown
+  ArrowUpDown,
+  Landmark
 } from 'lucide-react';
+import { 
+  getChequerasList, 
+  saveNewChequera, 
+  extractChequera 
+} from '../utils/chequeras';
 
 export default function TotalAdjustments({ 
   projects = [], 
@@ -58,8 +64,12 @@ export default function TotalAdjustments({
     amount: '',
     date: new Date().toISOString().split('T')[0],
     receiptNumber: '',
-    description: ''
+    description: '',
+    chequera: 'Caja Dumar'
   });
+  const [chequerasList, setChequerasList] = useState(() => getChequerasList());
+  const [showNewChequeraInput, setShowNewChequeraInput] = useState(false);
+  const [newChequeraName, setNewChequeraName] = useState('');
   const [abonoSubmitting, setAbonoSubmitting] = useState(false);
   const [abonoSuccessMessage, setAbonoSuccessMessage] = useState('');
 
@@ -300,8 +310,11 @@ export default function TotalAdjustments({
       amount: '',
       date: new Date().toISOString().split('T')[0],
       receiptNumber: '',
-      description: `Abono mano de obra / liquidación a ${cp.person.name}`
+      description: `Abono mano de obra / liquidación a ${cp.person.name}`,
+      chequera: 'Caja Dumar'
     });
+    setShowNewChequeraInput(false);
+    setNewChequeraName('');
   };
 
   const handleAbonoProjectChange = (e) => {
@@ -353,6 +366,8 @@ export default function TotalAdjustments({
         fullDescription += ` (Factura/Soporte: ${abonoForm.receiptNumber.trim()})`;
       }
       fullDescription += ` [Pagado a: ${abonoModalPerson.person.name} - Cédula: ${abonoModalPerson.person.documentId}]`;
+      const selectedChequera = (abonoForm.chequera || 'Caja Dumar').trim();
+      fullDescription += ` [Chequera: ${selectedChequera}]`;
 
       const newTx = {
         type: 'expense',
@@ -363,6 +378,9 @@ export default function TotalAdjustments({
         budgetItemName: targetBudgetItem?.name || null,
         personnelId: abonoModalPerson.person.id,
         personnelName: abonoModalPerson.person.name,
+        chequera: selectedChequera,
+        account: selectedChequera,
+        method: selectedChequera,
         amount: parsedAmount,
         date: abonoForm.date || new Date().toISOString().split('T')[0],
         description: fullDescription,
@@ -1454,6 +1472,90 @@ export default function TotalAdjustments({
                     required
                   />
                 </div>
+              </div>
+
+              {/* Chequera / Caja Selector */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: 600, color: '#60a5fa', margin: 0 }}>
+                    <Landmark size={14} />
+                    Chequera / Caja de Pago:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewChequeraInput(!showNewChequeraInput)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--primary-cyan)',
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                      padding: '0 4px',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    {showNewChequeraInput ? '✕ Cancelar' : '+ Agregar otra caja'}
+                  </button>
+                </div>
+
+                {showNewChequeraInput ? (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Ej. Caja Dumar, Bancolombia, etc."
+                      value={newChequeraName}
+                      onChange={(e) => setNewChequeraName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (newChequeraName.trim()) {
+                            const updated = saveNewChequera(newChequeraName.trim());
+                            setChequerasList(updated);
+                            setAbonoForm(prev => ({ ...prev, chequera: newChequeraName.trim() }));
+                            setNewChequeraName('');
+                            setShowNewChequeraInput(false);
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ padding: '6px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                      onClick={() => {
+                        if (newChequeraName.trim()) {
+                          const updated = saveNewChequera(newChequeraName.trim());
+                          setChequerasList(updated);
+                          setAbonoForm(prev => ({ ...prev, chequera: newChequeraName.trim() }));
+                          setNewChequeraName('');
+                          setShowNewChequeraInput(false);
+                        }
+                      }}
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    className="input-field"
+                    value={abonoForm.chequera || 'Caja Dumar'}
+                    onChange={(e) => {
+                      if (e.target.value === '__add_new__') {
+                        setShowNewChequeraInput(true);
+                      } else {
+                        setAbonoForm(prev => ({ ...prev, chequera: e.target.value }));
+                      }
+                    }}
+                    style={{ width: '100%' }}
+                    required
+                  >
+                    {chequerasList.map((ch, idx) => (
+                      <option key={idx} value={ch}>🏦 {ch}</option>
+                    ))}
+                    <option value="__add_new__">➕ Agregar nueva chequera / caja...</option>
+                  </select>
+                )}
               </div>
 
               {/* Recibo / Factura / Soporte N° */}

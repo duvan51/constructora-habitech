@@ -2,17 +2,28 @@ import React, { useState, useRef, useEffect } from 'react';
 import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Calendar, X, CreditCard, Upload, Camera, Paperclip, Check, Eye, Edit3, Trash2, Landmark, FileText, Printer, Building, Layers, ArrowUpDown, Calculator, RotateCcw } from 'lucide-react';
 import ReceiptModal from './ReceiptModal';
 import ExpenseReceiptModal from './ExpenseReceiptModal';
+import { 
+  getChequerasList, 
+  saveNewChequera, 
+  extractChequera, 
+  cleanPurchaseDescription 
+} from '../utils/chequeras';
 
 export default function Ledger({ transactions, projects, personnel, onAddTransaction, onUpdateTransaction, userRole }) {
   const [filterType, setFilterType] = useState('all'); // 'all' | 'income' | 'expense'
   const [filterProject, setFilterProject] = useState('all'); // 'all' | projectId
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterPersonnel, setFilterPersonnel] = useState('all');
+  const [filterChequera, setFilterChequera] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showCanceled, setShowCanceled] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = más nuevo primero, 'asc' = más viejo primero
+
+  const [chequerasList, setChequerasList] = useState(() => getChequerasList());
+  const [showNewChequeraInput, setShowNewChequeraInput] = useState(false);
+  const [newChequeraName, setNewChequeraName] = useState('');
 
   const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'camera'
   const [fileBase64, setFileBase64] = useState('');
@@ -41,6 +52,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         || selectedTx.receipt_base64 
         || (selectedTx.files && selectedTx.files[0] ? (selectedTx.files[0].fileBase64 || selectedTx.files[0].base64 || selectedTx.files[0].url) : '') 
         || '';
+      const resolvedChequera = extractChequera(selectedTx) || 'Caja Dumar';
       setEditTxData({
         id: selectedTx.id,
         projectId: selectedTx.projectId || 'general',
@@ -48,6 +60,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         category: selectedTx.category,
         milestoneId: selectedTx.milestoneId || '',
         method: selectedTx.method || 'Transferencia',
+        chequera: resolvedChequera,
         budgetItemId: selectedTx.budgetItemId || '',
         budgetItemName: selectedTx.budgetItemName || '',
         description: selectedTx.description,
@@ -137,6 +150,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     category: 'materials',
     milestoneId: '',
     method: 'Transferencia',
+    chequera: 'Caja Dumar',
     budgetItemId: '',
     description: '',
     amount: '',
@@ -283,6 +297,11 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       finalDesc = `${txData.description}${personnelSuffix} (Obra: ${targetProject.name})`;
     }
 
+    const selectedChequera = (txData.chequera || 'Caja Dumar').trim();
+    if (selectedChequera && !finalDesc.includes('[Chequera:')) {
+      finalDesc = `${finalDesc} [Chequera: ${selectedChequera}]`;
+    }
+
     const receiptImg = uploadMode === 'file' ? fileBase64 : capturedImage;
 
     const newTx = {
@@ -293,6 +312,8 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       milestoneId: txData.milestoneId || null,
       milestoneName: milestoneName,
       method: txData.method || 'Transferencia',
+      chequera: selectedChequera,
+      account: selectedChequera,
       budgetItemId: targetBudgetItem ? (targetBudgetItem.id || targetBudgetItem.name) : (txData.budgetItemId || null),
       budgetItemName: targetBudgetItem ? targetBudgetItem.name : null,
       description: finalDesc,
@@ -313,12 +334,15 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       category: 'materials',
       milestoneId: '',
       method: 'Transferencia',
+      chequera: txData.chequera || 'Caja Dumar',
       budgetItemId: '',
       description: '',
       amount: '',
       date: new Date().toISOString().split('T')[0],
       personnelId: ''
     });
+    setShowNewChequeraInput(false);
+    setNewChequeraName('');
     setUploadMode('file');
     setFileBase64('');
     setFileName('');
@@ -379,6 +403,13 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       }
     }
 
+    const selectedChequera = (editTxData.chequera || extractChequera(selectedTx) || 'Caja Dumar').trim();
+    if (selectedChequera && !finalDesc.includes('[Chequera:')) {
+      finalDesc = `${finalDesc} [Chequera: ${selectedChequera}]`;
+    } else if (selectedChequera && finalDesc.includes('[Chequera:')) {
+      finalDesc = finalDesc.replace(/\[Chequera:\s*[^\]]+\]/i, `[Chequera: ${selectedChequera}]`);
+    }
+
     const receiptImg = uploadMode === 'file' ? fileBase64 : capturedImage;
 
     const updatedTx = {
@@ -390,6 +421,8 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       milestoneId: editTxData.milestoneId || selectedTx.milestoneId || null,
       milestoneName: milestoneName || selectedTx.milestoneName || null,
       method: editTxData.method || selectedTx.method || 'Transferencia',
+      chequera: selectedChequera,
+      account: selectedChequera,
       budgetItemId: targetBudgetItem ? (targetBudgetItem.id || targetBudgetItem.name) : (editTxData.budgetItemId || selectedTx.budgetItemId || null),
       budgetItemName: targetBudgetItem ? targetBudgetItem.name : (selectedTx.budgetItemName || null),
       description: finalDesc,
@@ -516,6 +549,10 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     const categoryMatch = filterCategory === 'all' || t.category === filterCategory;
     const personnelMatch = filterPersonnel === 'all' || String(t.personnelId) === filterPersonnel;
     
+    // Chequera / Caja filter
+    const chequeraMatch = filterChequera === 'all' || 
+      (extractChequera(t) || 'Caja Dumar').toLowerCase() === filterChequera.toLowerCase();
+
     // Date range filter
     let dateMatch = true;
     if (startDate) {
@@ -525,7 +562,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       dateMatch = dateMatch && (t.date <= endDate);
     }
     
-    return typeMatch && projectMatch && categoryMatch && personnelMatch && dateMatch;
+    return typeMatch && projectMatch && categoryMatch && personnelMatch && dateMatch && chequeraMatch;
   }).sort((a, b) => {
     const dateA = new Date(a.date).getTime();
     const dateB = new Date(b.date).getTime();
@@ -547,6 +584,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     filterProject !== 'all' || 
     filterCategory !== 'all' || 
     filterPersonnel !== 'all' || 
+    filterChequera !== 'all' ||
     Boolean(startDate) || 
     Boolean(endDate);
 
@@ -576,6 +614,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     setFilterProject('all');
     setFilterCategory('all');
     setFilterPersonnel('all');
+    setFilterChequera('all');
     setStartDate('');
     setEndDate('');
     setShowCanceled(false);
@@ -826,6 +865,19 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           ))}
         </select>
 
+        {/* Chequera / Caja Filter */}
+        <select
+          className="form-control"
+          style={{ width: 'auto', minWidth: '180px', color: filterChequera !== 'all' ? 'var(--primary-cyan)' : 'inherit', fontWeight: filterChequera !== 'all' ? 700 : 400 }}
+          value={filterChequera}
+          onChange={(e) => setFilterChequera(e.target.value)}
+        >
+          <option value="all">🏦 Todas las Chequeras / Cajas</option>
+          {chequerasList.map((ch, idx) => (
+            <option key={idx} value={ch}>🏦 {ch}</option>
+          ))}
+        </select>
+
         {/* Date Range Filters */}
         <div className="ledger-filter-date-group">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1004,6 +1056,21 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                   gap: '4px'
                 }}>
                   👤 Personal: <strong>{selectedPersonnelObj?.name || 'Seleccionado'}</strong>
+                </span>
+              )}
+              {filterChequera !== 'all' && (
+                <span style={{
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  color: '#60a5fa',
+                  padding: '3px 10px',
+                  borderRadius: '16px',
+                  fontSize: '0.8rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  🏦 Chequera / Caja: <strong>{filterChequera}</strong>
                 </span>
               )}
               {filterCategory !== 'all' && (
@@ -1202,6 +1269,24 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                         <td style={{ color: isCanceled ? 'var(--text-muted)' : 'var(--text-primary)', maxWidth: '350px', wordBreak: 'break-word' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <span style={{ textDecoration: isCanceled ? 'line-through' : 'none' }}>{tx.description}</span>
+                            {(() => {
+                              const ch = extractChequera(tx);
+                              if (!ch) return null;
+                              return (
+                                <span style={{ 
+                                  background: 'rgba(59, 130, 246, 0.1)', 
+                                  border: '1px solid rgba(59, 130, 246, 0.25)', 
+                                  color: '#60a5fa', 
+                                  padding: '2px 8px', 
+                                  borderRadius: '12px', 
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  🏦 {ch}
+                                </span>
+                              );
+                            })()}
                             {pName && (
                               <span style={{ 
                                 background: 'rgba(168, 85, 247, 0.1)', 
@@ -1504,6 +1589,24 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                           </span>
                         )}
 
+                        {(() => {
+                          const ch = extractChequera(tx);
+                          if (!ch) return null;
+                          return (
+                            <span style={{ 
+                              fontSize: '0.72rem', 
+                              padding: '2px 8px', 
+                              borderRadius: '12px', 
+                              background: 'rgba(59, 130, 246, 0.12)', 
+                              border: '1px solid rgba(59, 130, 246, 0.25)', 
+                              color: '#60a5fa',
+                              fontWeight: 600
+                            }}>
+                              🏦 {ch}
+                            </span>
+                          );
+                        })()}
+
                         {tx.method && (
                           <span style={{ 
                             fontSize: '0.72rem', 
@@ -1769,6 +1872,93 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                     </select>
                   </div>
                 )}
+
+                {/* Chequera / Caja Selector */}
+                <div className="form-group" style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)', marginBottom: '15px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px', color: '#60a5fa', fontWeight: 700, fontSize: '0.88rem' }}>
+                      <Landmark size={15} />
+                      Chequera / Caja ({txData.type === 'income' ? 'Ingreso a' : 'Pago desde'})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewChequeraInput(!showNewChequeraInput)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--primary-cyan)',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        padding: '0 4px',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      {showNewChequeraInput ? '✕ Cancelar' : '+ Agregar otra caja'}
+                    </button>
+                  </div>
+
+                  {showNewChequeraInput ? (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Nombre de la nueva caja (Ej. Caja Dumar, Bancolombia, etc.)"
+                        value={newChequeraName}
+                        onChange={(e) => setNewChequeraName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (newChequeraName.trim()) {
+                              const updated = saveNewChequera(newChequeraName.trim());
+                              setChequerasList(updated);
+                              setTxData(prev => ({ ...prev, chequera: newChequeraName.trim() }));
+                              setNewChequeraName('');
+                              setShowNewChequeraInput(false);
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{ padding: '6px 14px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
+                        onClick={() => {
+                          if (newChequeraName.trim()) {
+                            const updated = saveNewChequera(newChequeraName.trim());
+                            setChequerasList(updated);
+                            setTxData(prev => ({ ...prev, chequera: newChequeraName.trim() }));
+                            setNewChequeraName('');
+                            setShowNewChequeraInput(false);
+                          }
+                        }}
+                      >
+                        Guardar
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      name="chequera"
+                      className="form-control"
+                      value={txData.chequera || 'Caja Dumar'}
+                      onChange={(e) => {
+                        if (e.target.value === '__add_new__') {
+                          setShowNewChequeraInput(true);
+                        } else {
+                          setTxData(prev => ({ ...prev, chequera: e.target.value }));
+                        }
+                      }}
+                      required
+                    >
+                      {chequerasList.map((ch, idx) => (
+                        <option key={idx} value={ch}>🏦 {ch}</option>
+                      ))}
+                      <option value="__add_new__">➕ Agregar nueva chequera / caja...</option>
+                    </select>
+                  )}
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '6px 0 0 0' }}>
+                    💡 Indica de qué caja o cuenta bancaria sale o entra el dinero.
+                  </p>
+                </div>
 
                 <div className="form-group">
                   <label>Descripción / Concepto del Pago</label>
@@ -2090,6 +2280,24 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                       </select>
                     </div>
                   )}
+
+                  {/* Chequera / Caja in Edit Modal */}
+                  <div className="form-group" style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)', marginBottom: '15px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#60a5fa', fontWeight: 700, fontSize: '0.88rem', marginBottom: '8px' }}>
+                      <Landmark size={15} />
+                      Chequera / Caja del Movimiento
+                    </label>
+                    <select
+                      className="form-control"
+                      value={editTxData.chequera || 'Caja Dumar'}
+                      onChange={(e) => setEditTxData(prev => ({ ...prev, chequera: e.target.value }))}
+                      required
+                    >
+                      {chequerasList.map((ch, idx) => (
+                        <option key={idx} value={ch}>🏦 {ch}</option>
+                      ))}
+                    </select>
+                  </div>
 
                   <div className="form-group">
                     <label>Descripción / Concepto del Pago</label>

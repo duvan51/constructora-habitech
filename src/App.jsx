@@ -15,6 +15,7 @@ import RetefuenteCalculator from './components/RetefuenteCalculator';
 import PersonnelManagement from './components/PersonnelManagement';
 import TotalAdjustments from './components/TotalAdjustments';
 import FloatingProjectSwitcher from './components/FloatingProjectSwitcher';
+import Agenda from './components/Agenda';
 import { 
   seedMockData, 
   getAll, 
@@ -22,7 +23,10 @@ import {
   deleteItem,
   getPortfolio,
   savePortfolioItem,
-  deletePortfolioItem
+  deletePortfolioItem,
+  getAgendaEvents,
+  saveAgendaEvent,
+  deleteAgendaEvent
 } from './db/supabase';
 import { HardHat, Plus, Search, Calendar, Landmark, Menu } from 'lucide-react';
 import Portfolio from './components/Portfolio';
@@ -46,6 +50,7 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [portfolio, setPortfolio] = useState([]);
   const [personnel, setPersonnel] = useState([]);
+  const [agendaEvents, setAgendaEvents] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(() => initialUrlState.current.projectId || null);
   const [projectSubTab, setProjectSubTab] = useState(() => initialUrlState.current.subTab || 'general');
   const [isEditingProject, setIsEditingProject] = useState(() => initialUrlState.current.isEditing || false);
@@ -139,17 +144,19 @@ export default function App() {
   const loadData = async () => {
     // 1. Try loading cached data first for instant load
     try {
-      const [cachedProjects, cachedTransactions, cachedPortfolio, cachedPersonnel] = await Promise.all([
+      const [cachedProjects, cachedTransactions, cachedPortfolio, cachedPersonnel, cachedAgenda] = await Promise.all([
         getCachedData('supabase_projects'),
         getCachedData('supabase_transactions'),
         getCachedData('supabase_portfolio'),
-        getCachedData('supabase_personnel')
+        getCachedData('supabase_personnel'),
+        getCachedData('supabase_agenda')
       ]);
 
       if (cachedProjects) setProjects(cachedProjects);
       if (cachedTransactions) setTransactions(cachedTransactions);
       if (cachedPortfolio) setPortfolio(cachedPortfolio);
       if (cachedPersonnel) setPersonnel(cachedPersonnel);
+      if (cachedAgenda) setAgendaEvents(cachedAgenda);
     } catch (cacheErr) {
       console.warn('Failed to load cached projects/transactions:', cacheErr);
     }
@@ -177,19 +184,60 @@ export default function App() {
         console.warn('Personnel table may not exist yet in Supabase. Check supabase_schema.sql.', personnelErr);
       }
 
+      let allAgenda = [];
+      try {
+        allAgenda = await getAgendaEvents();
+        setAgendaEvents(allAgenda);
+      } catch (agendaErr) {
+        console.warn('Agenda fetch issue:', agendaErr);
+      }
+
       // Save fresh data to cache for next load
       try {
         await Promise.all([
           setCachedData('supabase_projects', allProj),
           setCachedData('supabase_transactions', allTx),
           allPort.length > 0 ? setCachedData('supabase_portfolio', allPort) : Promise.resolve(),
-          allPersonnel.length > 0 ? setCachedData('supabase_personnel', allPersonnel) : Promise.resolve()
+          allPersonnel.length > 0 ? setCachedData('supabase_personnel', allPersonnel) : Promise.resolve(),
+          allAgenda.length > 0 ? setCachedData('supabase_agenda', allAgenda) : Promise.resolve()
         ]);
       } catch (cacheErr) {
         console.warn('Failed to save to cache:', cacheErr);
       }
     } catch (err) {
       console.error('Error loading data:', err);
+    }
+  };
+
+  const handleSaveAgendaEvent = async (eventData) => {
+    try {
+      window.setGlobalLoading(true);
+      await saveAgendaEvent(eventData);
+      const updated = await getAgendaEvents();
+      setAgendaEvents(updated);
+      window.showToast?.('Evento guardado en la agenda exitosamente', 'success');
+    } catch (err) {
+      console.error('Error saving agenda event:', err);
+      window.showToast?.('Error al guardar el evento', 'error');
+    } finally {
+      window.setGlobalLoading(false);
+    }
+  };
+
+  const handleDeleteAgendaEvent = async (id) => {
+    if (await window.confirmDialog('¿Estás seguro de eliminar este evento o cita de la agenda?')) {
+      try {
+        window.setGlobalLoading(true);
+        await deleteAgendaEvent(id);
+        const updated = await getAgendaEvents();
+        setAgendaEvents(updated);
+        window.showToast?.('Evento eliminado de la agenda', 'success');
+      } catch (err) {
+        console.error('Error deleting agenda event:', err);
+        window.showToast?.('Error al eliminar evento', 'error');
+      } finally {
+        window.setGlobalLoading(false);
+      }
     }
   };
 
@@ -897,6 +945,19 @@ export default function App() {
                 userRole={currentUser.role}
                 onSave={handleSavePortfolioItem}
                 onDelete={handleDeletePortfolioItem}
+              />
+            )}
+
+            {/* Agenda de Obra y Citas View */}
+            {currentTab === 'agenda' && (
+              <Agenda 
+                projects={projects}
+                personnel={personnel}
+                events={agendaEvents}
+                onSaveEvent={handleSaveAgendaEvent}
+                onDeleteEvent={handleDeleteAgendaEvent}
+                onViewProject={(id) => handleOpenProject(id, 'general')}
+                userRole={currentUser.role}
               />
             )}
 

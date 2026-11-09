@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { X, Printer, CheckCircle } from 'lucide-react';
 import { printElement } from '../utils/printHelper';
+import { extractChequera, cleanPurchaseDescription } from '../utils/chequeras';
 
 export default function ExpenseReceiptModal({ project, transaction, onClose }) {
   if (!project || !transaction) return null;
@@ -64,16 +65,11 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
 
   // Strip description text to show clean details
   const getCleanDescription = () => {
-    if (!transaction.description) return '';
-    let desc = transaction.description;
-    // If it contains "|| Compra: ", extract what is after it
-    if (desc.includes('|| Compra:')) {
-      const parts = desc.split('|| Compra:');
-      desc = parts[1]?.split('(Obra:')[0]?.trim() || desc;
-    }
-    // Strip the personnel suffix
-    desc = desc.replace(/ \[Pagado a: .*? - Cédula: .*?\]/, '');
-    return desc;
+    return cleanPurchaseDescription(transaction.description, project?.name) || 'Compra / Egreso de Obra';
+  };
+
+  const getChequeraName = () => {
+    return extractChequera(transaction) || 'Caja Dumar';
   };
 
   // Get the associated budget line (Renglón Presupuestario)
@@ -170,8 +166,9 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
               <table className="receipt-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', marginBottom: '10px' }}>
                 <thead>
                   <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb', color: '#374151', fontSize: '0.85rem', textAlign: 'left' }}>
-                    <th style={{ padding: '10px', minWidth: '200px' }}>Detalle de la Transacción / Compra</th>
-                    <th style={{ padding: '10px', minWidth: '120px' }}>Categoría Presupuesto</th>
+                    <th style={{ padding: '10px', minWidth: '180px' }}>Detalle de la Transacción / Compra</th>
+                    <th style={{ padding: '10px', minWidth: '120px' }}>Categoría</th>
+                    <th style={{ padding: '10px', minWidth: '130px' }}>Chequera / Caja</th>
                     <th style={{ padding: '10px', textAlign: 'right', minWidth: '120px' }}>Valor Retirado (Egreso)</th>
                   </tr>
                 </thead>
@@ -187,6 +184,11 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
                       </div>
                     </td>
                     <td style={{ padding: '12px 10px' }}>{getCategoryLabel(transaction.category)}</td>
+                    <td style={{ padding: '12px 10px' }}>
+                      <span style={{ fontWeight: 600, color: '#0369a1', background: '#e0f2fe', padding: '3px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                        🏦 {getChequeraName()}
+                      </span>
+                    </td>
                     <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#ef4444' }}>
                       {formatCurrency(transaction.amount)}
                     </td>
@@ -217,7 +219,7 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
               marginTop: '15px',
               textAlign: 'left'
             }}>
-              <strong>NOTA:</strong> Este egreso está asociado al renglón presupuestario: <strong>{getBudgetLine()}</strong>.
+              <strong>NOTA:</strong> Este egreso fue pagado desde la chequera/caja: <strong>{getChequeraName()}</strong> y está asociado al renglón presupuestario: <strong>{getBudgetLine()}</strong>.
             </div>
 
             {/* Receipt Footer */}

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { extractChequera } from '../utils/chequeras';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -94,6 +95,7 @@ const processPaymentPlanFiles = async (paymentPlan, projectId) => {
 // Mapping helpers to translate Postgres snake_case to React camelCase
 const mapTransactionToCamel = (t) => {
   if (!t) return null;
+  const parsedChequera = t.chequera || extractChequera(t.description) || null;
   return {
     id: t.id,
     projectId: t.project_id || 'general',
@@ -106,6 +108,9 @@ const mapTransactionToCamel = (t) => {
     receiptBase64: t.receipt_base64 || null,
     personnelId: t.personnel_id || null,
     personnelName: t.personnel_name || null,
+    chequera: parsedChequera,
+    account: parsedChequera,
+    method: t.method || parsedChequera || 'Transferencia',
     createdAt: t.created_at
   };
 };
@@ -675,6 +680,132 @@ export const deleteProgressLog = async (id) => {
   if (error) throw error;
   return true;
 };
+
+// --- Agenda & Citas Services ---
+
+const AGENDA_STORAGE_KEY = 'habitech_agenda_events';
+
+export const getAgendaEvents = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('agenda')
+      .select('*')
+      .order('date', { ascending: true })
+      .order('time', { ascending: true });
+
+    if (error) throw error;
+    if (data) {
+      const mapped = data.map(ev => ({
+        id: ev.id,
+        title: ev.title,
+        type: ev.type,
+        date: ev.date,
+        time: ev.time,
+        duration: ev.duration,
+        projectId: ev.project_id,
+        projectName: ev.project_name,
+        location: ev.location,
+        contactName: ev.contact_name,
+        contactPhone: ev.contact_phone,
+        notes: ev.notes,
+        priority: ev.priority,
+        status: ev.status,
+        attendees: ev.attendees || [],
+        createdAt: ev.created_at,
+        updatedAt: ev.updated_at
+      }));
+      try {
+        localStorage.setItem(AGENDA_STORAGE_KEY, JSON.stringify(mapped));
+      } catch (e) {}
+      return mapped;
+    }
+  } catch (err) {
+    console.warn('Supabase agenda fetch fallback to local cache:', err?.message || err);
+    try {
+      const cached = localStorage.getItem(AGENDA_STORAGE_KEY);
+      if (cached) return JSON.parse(cached);
+    } catch (e) {
+      console.error('Error reading agenda local cache:', e);
+    }
+  }
+  return [];
+};
+
+export const saveAgendaEvent = async (event) => {
+  const itemToSave = {
+    title: event.title,
+    type: event.type || 'visita_obra',
+    date: event.date,
+    time: event.time || '08:00',
+    duration: event.duration || 60,
+    project_id: event.projectId || null,
+    project_name: event.projectName || '',
+    location: event.location || '',
+    contact_name: event.contactName || '',
+    contact_phone: event.contactPhone || '',
+    notes: event.notes || '',
+    priority: event.priority || 'medium',
+    status: event.status || 'scheduled',
+    attendees: event.attendees || []
+  };
+
+  if (event.id) {
+    itemToSave.id = event.id;
+  }
+
+  // Always update local cache
+  try {
+    const cached = JSON.parse(localStorage.getItem(AGENDA_STORAGE_KEY) || '[]');
+    const existingIndex = cached.findIndex(e => e.id === event.id);
+    const updatedObj = { ...event, ...itemToSave, id: event.id || String(Date.now()) };
+    if (existingIndex >= 0) {
+      cached[existingIndex] = updatedObj;
+    } else {
+      cached.push(updatedObj);
+    }
+    localStorage.setItem(AGENDA_STORAGE_KEY, JSON.stringify(cached));
+  } catch (e) {}
+
+  try {
+    const { data, error } = await supabase
+      .from('agenda')
+      .upsert(itemToSave)
+      .select();
+
+    if (error) {
+      console.warn('Could not save agenda to Supabase, saved locally:', error.message);
+      return [{ ...event, id: event.id || String(Date.now()) }];
+    }
+    return data;
+  } catch (err) {
+    console.warn('Supabase saveAgendaEvent error, saved locally:', err);
+    return [{ ...event, id: event.id || String(Date.now()) }];
+  }
+};
+
+export const deleteAgendaEvent = async (id) => {
+  // Update local cache
+  try {
+    const cached = JSON.parse(localStorage.getItem(AGENDA_STORAGE_KEY) || '[]');
+    const filtered = cached.filter(e => e.id !== id);
+    localStorage.setItem(AGENDA_STORAGE_KEY, JSON.stringify(filtered));
+  } catch (e) {}
+
+  try {
+    const { error } = await supabase
+      .from('agenda')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.warn('Could not delete agenda from Supabase, deleted locally:', error.message);
+    }
+  } catch (err) {
+    console.warn('Supabase deleteAgendaEvent error, deleted locally:', err);
+  }
+  return true;
+};
+
 
 
 

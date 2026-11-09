@@ -1,4 +1,4 @@
-import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, CheckSquare, Calculator, UserCheck, Scale, Percent } from 'lucide-react';
+import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, CheckSquare, Calculator, UserCheck, Scale, Percent, Calendar } from 'lucide-react';
 
 export default function Sidebar({ currentTab, setTab, projectCount, currentUser, onLogout, isOpen, onClose }) {
   const isClient = currentUser?.role === 'client';
@@ -11,12 +11,14 @@ export default function Sidebar({ currentTab, setTab, projectCount, currentUser,
     ];
   } else if (isDesign) {
     menuItems = [
-      { id: 'projects', name: 'Obras y Expedientes', icon: <HardHat size={18} />, count: projectCount }
+      { id: 'projects', name: 'Obras y Expedientes', icon: <HardHat size={18} />, count: projectCount },
+      { id: 'agenda', name: 'Agenda de Citas', icon: <Calendar size={18} /> }
     ];
   } else {
     menuItems = [
       { id: 'dashboard', name: 'Panel de Control', icon: <Home size={18} /> },
       { id: 'projects', name: 'Obras y Proyectos', icon: <HardHat size={18} />, count: projectCount },
+      { id: 'agenda', name: 'Agenda de Obra', icon: <Calendar size={18} /> },
       { id: 'management', name: 'Gestión de Obras', icon: <CheckSquare size={18} /> },
       { id: 'personnel', name: 'Gestionar Personal', icon: <UserCheck size={18} /> },
       { id: 'adjustments', name: 'Ajustes Totales', icon: <Scale size={18} /> },

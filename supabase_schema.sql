@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 -- Si la tabla 'transactions' ya existía, asegúrate de correr estas líneas:
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS personnel_id TEXT;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS personnel_name TEXT;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS chequera TEXT;
 
 -- 3. Create Documents Table (contracts, receipt scans)
 CREATE TABLE IF NOT EXISTS documents (
@@ -216,3 +217,36 @@ CREATE POLICY "Public SELECT personnel" ON personnel FOR SELECT USING (true);
 CREATE POLICY "Public INSERT personnel" ON personnel FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public UPDATE personnel" ON personnel FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Public DELETE personnel" ON personnel FOR DELETE USING (true);
+
+-- 9. Create Agenda / Citas Table
+CREATE TABLE IF NOT EXISTS agenda (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  title TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'visita_obra',
+  date DATE NOT NULL,
+  time TEXT NOT NULL DEFAULT '08:00',
+  duration INTEGER NOT NULL DEFAULT 60,
+  project_id TEXT,
+  project_name TEXT,
+  location TEXT,
+  contact_name TEXT,
+  contact_phone TEXT,
+  notes TEXT,
+  priority TEXT NOT NULL DEFAULT 'medium',
+  status TEXT NOT NULL DEFAULT 'scheduled',
+  attendees JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Enable RLS and configure policies for the agenda table
+ALTER TABLE agenda ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public SELECT agenda" ON agenda;
+DROP POLICY IF EXISTS "Public INSERT agenda" ON agenda;
+DROP POLICY IF EXISTS "Public UPDATE agenda" ON agenda;
+DROP POLICY IF EXISTS "Public DELETE agenda" ON agenda;
+CREATE POLICY "Public SELECT agenda" ON agenda FOR SELECT USING (true);
+CREATE POLICY "Public INSERT agenda" ON agenda FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public UPDATE agenda" ON agenda FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Public DELETE agenda" ON agenda FOR DELETE USING (true);
+
