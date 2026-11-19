@@ -141,7 +141,14 @@ export default function ReceiptModal({ project, payment, onClose }) {
                       </div>
                     </td>
                     <td style={{ padding: '12px 10px' }}>{p.date}</td>
-                    <td style={{ padding: '12px 10px' }}>{p.method}</td>
+                    <td style={{ padding: '12px 10px' }}>
+                      <div>{p.method}</div>
+                      {p.chequera && (
+                        <div style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: 600 }}>
+                          🏦 {p.chequera}
+                        </div>
+                      )}
+                    </td>
                     <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
                       {formatCurrency(p.amount)}
                     </td>

@@ -203,8 +203,11 @@ export default function ProjectDetail({
     amount: '',
     date: new Date().toISOString().split('T')[0],
     method: 'Transferencia',
+    chequera: 'Caja Dumar',
     files: [] // { fileBase64, fileName, fileType }
   });
+  const [showNewChequeraInputHito, setShowNewChequeraInputHito] = useState(false);
+  const [newChequeraNameHito, setNewChequeraNameHito] = useState('');
   
   // Expense Logging Form State
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -247,7 +250,9 @@ export default function ProjectDetail({
   const [calcPercentage, setCalcPercentage] = useState('');
   const [expensePercentage, setExpensePercentage] = useState('');
   const [expenseFilter, setExpenseFilter] = useState('all'); // 'all', 'assigned', 'unassigned'
-  const [expenseSearch, setExpenseSearch] = useState('');
+  const [expenseStartDate, setExpenseStartDate] = useState('');
+  const [expenseEndDate, setExpenseEndDate] = useState('');
+  const [expensePersonnelFilter, setExpensePersonnelFilter] = useState('all');
   const [expandedBudgetItem, setExpandedBudgetItem] = useState(null); // idx of item whose embedded expenses are expanded
 
   // Restructure Payment Plan States
@@ -501,17 +506,19 @@ export default function ProjectDetail({
     }
 
     const payId = `pay_${new Date().getTime()}`;
+    const selectedChequera = (newPayment.chequera || 'Caja Dumar').trim();
     const newPayItem = {
       id: payId,
       amount: amt,
       date: newPayment.date,
       method: newPayment.method,
+      chequera: selectedChequera,
       files: newPayment.files
     };
 
     // Calculate milestone payments
     const currentMilestone = project.paymentPlan.find(h => h.id === showHitoPayments.id);
-    const existingPayments = currentMilestone.payments || (currentMilestone.status === 'paid' ? [{ id: 'legacy', amount: currentMilestone.amount, date: currentMilestone.paidDate || currentMilestone.dueDate, method: 'Transferencia', files: [] }] : []);
+    const existingPayments = currentMilestone.payments || (currentMilestone.status === 'paid' ? [{ id: 'legacy', amount: currentMilestone.amount, date: currentMilestone.paidDate || currentMilestone.dueDate, method: 'Transferencia', chequera: 'Caja Dumar', files: [] }] : []);
     const updatedPaymentsList = [...existingPayments, newPayItem];
 
     const hitoTotalPaid = updatedPaymentsList.reduce((s, p) => s + p.amount, 0);
@@ -542,7 +549,9 @@ export default function ProjectDetail({
       milestoneName: showHitoPayments.name,
       paymentId: payId,
       method: newPayment.method,
-      description: `Cobro Parcial Hito: ${showHitoPayments.name} (${newPayment.method}) - Obra: ${project.name}`,
+      chequera: selectedChequera,
+      account: selectedChequera,
+      description: `Cobro Parcial Hito: ${showHitoPayments.name} (${newPayment.method}) - Obra: ${project.name} [Chequera: ${selectedChequera}]`,
       amount: amt,
       date: newPayment.date,
       receiptBase64: newPayment.files && newPayment.files.length > 0 ? (newPayment.files[0].fileBase64 || newPayment.files[0].base64 || '') : null,
@@ -1717,8 +1726,11 @@ export default function ProjectDetail({
                               amount: hitoRemaining > 0 ? hitoRemaining.toString() : '',
                               date: new Date().toISOString().split('T')[0],
                               method: 'Transferencia',
+                              chequera: 'Caja Dumar',
                               files: []
                             });
+                            setShowNewChequeraInputHito(false);
+                            setNewChequeraNameHito('');
                             setShowHitoPayments(pay);
                           }}>
                             <Eye size={12} /> {userRole === 'viewer' ? 'Ver Cobros' : 'Gestionar Cobros'}
@@ -1802,8 +1814,11 @@ export default function ProjectDetail({
                         amount: hitoRemaining > 0 ? hitoRemaining.toString() : '',
                         date: new Date().toISOString().split('T')[0],
                         method: 'Transferencia',
+                        chequera: 'Caja Dumar',
                         files: []
                       });
+                      setShowNewChequeraInputHito(false);
+                      setNewChequeraNameHito('');
                       setShowHitoPayments(pay);
                     }}>
                       <Eye size={14} /> {userRole === 'viewer' ? 'Ver Cobros' : 'Gestionar Cobros'}
@@ -2028,6 +2043,24 @@ export default function ProjectDetail({
                 return true;
               });
 
+              // Financial calculations: Real vs Expected
+              const projectIncomeTx = transactions.filter(t => 
+                String(t.projectId) === String(project.id) && 
+                t.type === 'income' && 
+                !t.description?.startsWith('[CANCELADO]') && 
+                !t.description?.startsWith('[ANULADO]')
+              );
+              const incomeTxTotal = projectIncomeTx.reduce((s, t) => s + (t.amount || 0), 0);
+              const realIncome = Math.max(totalPaid, incomeTxTotal);
+              const realExpense = allProjectExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+              const realDiff = realIncome - realExpense;
+              const realMarginPercent = realIncome > 0 ? ((realDiff / realIncome) * 100).toFixed(1) : '0';
+
+              const expectedIncome = project.totalCost || 0;
+              const expectedExpense = totalBudgetEst || 0;
+              const expectedDiff = expectedIncome - expectedExpense;
+              const expectedMarginPercent = expectedIncome > 0 ? ((expectedDiff / expectedIncome) * 100).toFixed(1) : '0';
+
               const unclassifiedExpenses = allProjectExpenses.filter(t => 
                 !project.budgetItems.some(item => transactionBelongsToBudgetItem(t, item))
               );
@@ -2044,16 +2077,24 @@ export default function ProjectDetail({
                 filteredExpenses = unclassifiedExpenses;
               }
 
-              // Filter by search query
-              if (expenseSearch.trim()) {
-                const q = expenseSearch.toLowerCase();
+              // Filter by dates
+              if (expenseStartDate) {
+                filteredExpenses = filteredExpenses.filter(exp => (exp.date || '') >= expenseStartDate);
+              }
+              if (expenseEndDate) {
+                filteredExpenses = filteredExpenses.filter(exp => (exp.date || '') <= expenseEndDate);
+              }
+
+              // Filter by personnel
+              if (expensePersonnelFilter !== 'all') {
                 filteredExpenses = filteredExpenses.filter(exp => {
-                  const desc = (exp.description || '').toLowerCase();
-                  const person = (exp.personnelName || '').toLowerCase();
-                  const date = (exp.date || '').toLowerCase();
-                  const matched = project.budgetItems.find(i => transactionBelongsToBudgetItem(exp, i));
-                  const itemName = (matched?.name || '').toLowerCase();
-                  return desc.includes(q) || person.includes(q) || date.includes(q) || itemName.includes(q);
+                  const pName = (exp.personnelName || '').trim().toLowerCase();
+                  const target = expensePersonnelFilter.trim().toLowerCase();
+                  if (exp.personnelId && String(exp.personnelId).toLowerCase() === target) return true;
+                  if (pName && pName === target) return true;
+                  const matched = (personnel || []).find(p => String(p.id).toLowerCase() === target);
+                  if (matched && matched.name.trim().toLowerCase() === pName) return true;
+                  return false;
                 });
               }
 
@@ -2065,127 +2106,312 @@ export default function ProjectDetail({
                 );
               }
 
+              // Build unique personnel options for filter dropdown
+              const uniquePersonnelOptions = [];
+              const seenPersonnel = new Set();
+              (personnel || []).forEach(p => {
+                if (p.name && !seenPersonnel.has(p.name.trim().toLowerCase())) {
+                  seenPersonnel.add(p.name.trim().toLowerCase());
+                  uniquePersonnelOptions.push({ value: p.id || p.name, label: p.name });
+                }
+              });
+              allProjectExpenses.forEach(exp => {
+                if (exp.personnelName && !seenPersonnel.has(exp.personnelName.trim().toLowerCase())) {
+                  seenPersonnel.add(exp.personnelName.trim().toLowerCase());
+                  uniquePersonnelOptions.push({ value: exp.personnelName, label: exp.personnelName });
+                }
+              });
+
               const filteredTotal = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
               return (
-                <div className="glass-panel project-detail-panel" style={{ marginTop: '10px', marginBottom: '15px', borderRadius: '14px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-                  {/* Header & Metrics */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-                    <div>
-                      <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-                        <Receipt size={18} style={{ color: 'var(--primary-cyan)' }} />
-                        Tabla y Registro de Gastos de Obra
-                        <span className="badge" style={{ fontSize: '0.72rem', background: 'rgba(6, 182, 212, 0.12)', color: 'var(--primary-cyan)' }}>
-                          {allProjectExpenses.length} registrados
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                  
+                  {/* ========================================================= */}
+                  {/* RESUMEN FINANCIERO: VALORES REALES Y VALORES ESPERADOS    */}
+                  {/* ========================================================= */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+                    
+                    {/* FILA 1: VALORES REALES (A LA FECHA) */}
+                    <div className="glass-panel" style={{
+                      padding: '16px 20px',
+                      borderRadius: '14px',
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(6, 182, 212, 0.05) 100%)',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }}></div>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Valores Reales a la Fecha (Flujo de Caja Ejecutado)
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Dinero efectivamente cobrado vs. gastado en obra
                         </span>
-                      </h4>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: 0 }}>
-                        Listado completo, auditable y filtrable de todos los egresos y compras de insumos/personal de esta obra.
-                      </p>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px' }}>
+                        {/* Ingreso Real */}
+                        <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '12px', padding: '12px 16px' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: '#10b981' }}>●</span> Ingreso Real
+                          </div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#34d399', marginTop: '4px' }}>
+                            {formatCurrency(realIncome)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Total cobrado al cliente
+                          </div>
+                        </div>
+
+                        {/* Egreso Real */}
+                        <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(244, 63, 94, 0.2)', borderRadius: '12px', padding: '12px 16px' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: '#f43f5e' }}>●</span> Egreso Real
+                          </div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fda4af', marginTop: '4px' }}>
+                            {formatCurrency(realExpense)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Total compras y pagos de obra
+                          </div>
+                        </div>
+
+                        {/* Diferencia Real */}
+                        <div style={{
+                          background: realDiff >= 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)',
+                          border: `1px solid ${realDiff >= 0 ? 'rgba(16, 185, 129, 0.35)' : 'rgba(244, 63, 94, 0.35)'}`,
+                          borderRadius: '12px',
+                          padding: '12px 16px'
+                        }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: realDiff >= 0 ? '#10b981' : '#f43f5e' }}>⚖️</span> Diferencia Real (Margen)
+                          </div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: realDiff >= 0 ? '#34d399' : '#f87171', marginTop: '4px' }}>
+                            {realDiff >= 0 ? `+${formatCurrency(realDiff)}` : formatCurrency(realDiff)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: realDiff >= 0 ? '#6ee7b7' : '#fda4af', marginTop: '2px' }}>
+                            {realDiff >= 0 ? `Superávit a favor (${realMarginPercent}%)` : `Déficit temporal (${realMarginPercent}%)`}
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Filtrado</span>
-                      <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-cyan)' }}>{formatCurrency(filteredTotal)}</span>
+                    {/* FILA 2: VALORES ESPERADOS (PROYECTADOS / CONTRATO) */}
+                    <div className="glass-panel" style={{
+                      padding: '16px 20px',
+                      borderRadius: '14px',
+                      background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.05) 0%, rgba(59, 130, 246, 0.05) 100%)',
+                      border: '1px solid rgba(6, 182, 212, 0.25)',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--primary-cyan)', boxShadow: '0 0 8px var(--primary-cyan)' }}></div>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#67e8f9', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Valores Esperados (Presupuesto y Contrato Proyectado)
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Presupuesto pactado de venta vs. costo proyectado
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px' }}>
+                        {/* Ingreso Esperado */}
+                        <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(6, 182, 212, 0.2)', borderRadius: '12px', padding: '12px 16px' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: 'var(--primary-cyan)' }}>●</span> Ingreso Esperado
+                          </div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary-cyan)', marginTop: '4px' }}>
+                            {formatCurrency(expectedIncome)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Valor total del contrato
+                          </div>
+                        </div>
+
+                        {/* Egreso Esperado */}
+                        <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: '12px', padding: '12px 16px' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: '#f59e0b' }}>●</span> Egreso Esperado
+                          </div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fbbf24', marginTop: '4px' }}>
+                            {formatCurrency(expectedExpense)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Costo total presupuestado
+                          </div>
+                        </div>
+
+                        {/* Diferencia Esperada */}
+                        <div style={{
+                          background: expectedDiff >= 0 ? 'rgba(6, 182, 212, 0.08)' : 'rgba(244, 63, 94, 0.08)',
+                          border: `1px solid ${expectedDiff >= 0 ? 'rgba(6, 182, 212, 0.35)' : 'rgba(244, 63, 94, 0.35)'}`,
+                          borderRadius: '12px',
+                          padding: '12px 16px'
+                        }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: expectedDiff >= 0 ? 'var(--primary-cyan)' : '#f43f5e' }}>📊</span> Diferencia Esperada (Utilidad)
+                          </div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: expectedDiff >= 0 ? '#67e8f9' : '#f87171', marginTop: '4px' }}>
+                            {expectedDiff >= 0 ? `+${formatCurrency(expectedDiff)}` : formatCurrency(expectedDiff)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: expectedDiff >= 0 ? '#a5f3fc' : '#fda4af', marginTop: '2px' }}>
+                            {expectedDiff >= 0 ? `Ganancia proyectada (${expectedMarginPercent}%)` : `Pérdida proyectada (${expectedMarginPercent}%)`}
+                          </div>
+                        </div>
+                      </div>
                     </div>
+
                   </div>
 
-                  {/* Warning banner if there are unclassified expenses */}
-                  {unclassifiedExpenses.length > 0 && expenseFilter !== 'unassigned' && (
-                    <div style={{ 
-                      background: 'rgba(245, 158, 11, 0.08)', 
-                      border: '1px solid rgba(245, 158, 11, 0.25)', 
-                      borderRadius: '10px', 
-                      padding: '10px 14px', 
-                      marginBottom: '16px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: '8px'
-                    }}>
-                      <div style={{ fontSize: '0.82rem', color: '#fde047', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>⚠️</span>
-                        <span>Hay <strong>{unclassifiedExpenses.length}</strong> gasto(s) sin asignar a un renglón presupuestario.</span>
+                  {/* ========================================================= */}
+                  {/* TABLA Y REGISTRO DE GASTOS DE OBRA                       */}
+                  {/* ========================================================= */}
+                  <div className="glass-panel project-detail-panel" style={{ borderRadius: '14px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                    {/* Header & Metrics */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                      <div>
+                        <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                          <Receipt size={18} style={{ color: 'var(--primary-cyan)' }} />
+                          Tabla y Registro de Gastos de Obra
+                          <span className="badge" style={{ fontSize: '0.72rem', background: 'rgba(6, 182, 212, 0.12)', color: 'var(--primary-cyan)' }}>
+                            {allProjectExpenses.length} registrados
+                          </span>
+                        </h4>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: 0 }}>
+                          Listado completo, auditable y filtrable de todos los egresos y compras de insumos/personal de esta obra.
+                        </p>
                       </div>
-                      <button 
-                        type="button" 
-                        className="btn btn-secondary" 
-                        style={{ padding: '4px 10px', fontSize: '0.75rem', borderColor: 'rgba(245, 158, 11, 0.4)', color: '#fbbf24' }}
-                        onClick={() => setExpenseFilter('unassigned')}
-                      >
-                        Ver gastos sin clasificar
-                      </button>
-                    </div>
-                  )}
 
-                  {/* Search and Filters Toolbar */}
-                  <div className="expenses-section-toolbar">
-                    <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: '360px' }}>
-                      <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                      <input 
-                        type="text"
-                        placeholder="Buscar por concepto, personal, fecha..."
-                        value={expenseSearch}
-                        onChange={(e) => setExpenseSearch(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px 8px 34px',
-                          fontSize: '0.82rem',
-                          borderRadius: '20px',
-                          background: 'rgba(0, 0, 0, 0.25)',
-                          border: '1px solid var(--border-glass)',
-                          color: 'var(--text-primary)'
-                        }}
-                      />
-                      {expenseSearch && (
-                        <button 
-                          type="button" 
-                          onClick={() => setExpenseSearch('')}
-                          style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Filtrado</span>
+                        <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-cyan)' }}>{formatCurrency(filteredTotal)}</span>
+                      </div>
                     </div>
 
-                    <div className="expenses-filter-pills">
-                      <button 
-                        type="button" 
-                        className={`filter-pill-btn ${expenseFilter === 'all' ? 'active' : ''}`}
-                        onClick={() => setExpenseFilter('all')}
-                      >
-                        Todos ({allProjectExpenses.length})
-                      </button>
-                      <button 
-                        type="button" 
-                        className={`filter-pill-btn ${expenseFilter === 'assigned' ? 'active' : ''}`}
-                        onClick={() => setExpenseFilter('assigned')}
-                      >
-                        Asignados ({assignedExpenses.length})
-                      </button>
-                      {unclassifiedExpenses.length > 0 && (
+                    {/* Warning banner if there are unclassified expenses */}
+                    {unclassifiedExpenses.length > 0 && expenseFilter !== 'unassigned' && (
+                      <div style={{ 
+                        background: 'rgba(245, 158, 11, 0.08)', 
+                        border: '1px solid rgba(245, 158, 11, 0.25)', 
+                        borderRadius: '10px', 
+                        padding: '10px 14px', 
+                        marginBottom: '16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '8px'
+                      }}>
+                        <div style={{ fontSize: '0.82rem', color: '#fde047', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>⚠️</span>
+                          <span>Hay <strong>{unclassifiedExpenses.length}</strong> gasto(s) sin asignar a un renglón presupuestario.</span>
+                        </div>
                         <button 
                           type="button" 
-                          className={`filter-pill-btn ${expenseFilter === 'unassigned' ? 'active' : ''}`}
-                          style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: expenseFilter === 'unassigned' ? '#fbbf24' : 'var(--text-secondary)' }}
+                          className="btn btn-secondary" 
+                          style={{ padding: '4px 10px', fontSize: '0.75rem', borderColor: 'rgba(245, 158, 11, 0.4)', color: '#fbbf24' }}
                           onClick={() => setExpenseFilter('unassigned')}
                         >
-                          ⚠️ Sin Clasificar ({unclassifiedExpenses.length})
+                          Ver gastos sin clasificar
                         </button>
-                      )}
+                      </div>
+                    )}
+
+                    {/* Filters Toolbar: Fechas, Personal, Chequeras, Pills (Búsqueda removida) */}
+                    <div className="expenses-section-toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                      
+                      {/* Filtro de Fechas */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', background: 'rgba(0, 0, 0, 0.25)', padding: '5px 10px', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>📅 Desde:</span>
+                          <input 
+                            type="date"
+                            value={expenseStartDate}
+                            onChange={(e) => setExpenseStartDate(e.target.value)}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '0.78rem',
+                              borderRadius: '8px',
+                              background: 'rgba(255, 255, 255, 0.04)',
+                              border: '1px solid var(--border-glass)',
+                              color: 'var(--text-primary)'
+                            }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Hasta:</span>
+                          <input 
+                            type="date"
+                            value={expenseEndDate}
+                            onChange={(e) => setExpenseEndDate(e.target.value)}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '0.78rem',
+                              borderRadius: '8px',
+                              background: 'rgba(255, 255, 255, 0.04)',
+                              border: '1px solid var(--border-glass)',
+                              color: 'var(--text-primary)'
+                            }}
+                          />
+                        </div>
+                        {(expenseStartDate || expenseEndDate) && (
+                          <button
+                            type="button"
+                            onClick={() => { setExpenseStartDate(''); setExpenseEndDate(''); }}
+                            style={{
+                              background: 'rgba(244, 63, 94, 0.12)',
+                              border: '1px solid rgba(244, 63, 94, 0.3)',
+                              color: '#fda4af',
+                              fontSize: '0.72rem',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontWeight: 600
+                            }}
+                            title="Limpiar fechas"
+                          >
+                            ✕ Limpiar
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Filtro de Personal */}
+                      <select
+                        value={expensePersonnelFilter}
+                        onChange={(e) => setExpensePersonnelFilter(e.target.value)}
+                        style={{
+                          padding: '7px 12px',
+                          fontSize: '0.8rem',
+                          borderRadius: '12px',
+                          background: 'rgba(0,0,0,0.35)',
+                          border: '1px solid var(--border-glass)',
+                          color: expensePersonnelFilter !== 'all' ? 'var(--primary-cyan)' : 'var(--text-secondary)',
+                          fontWeight: expensePersonnelFilter !== 'all' ? 700 : 400,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="all">👤 Todo el personal / proveedores</option>
+                        {uniquePersonnelOptions.map((opt, idx) => (
+                          <option key={idx} value={opt.value}>👤 {opt.label}</option>
+                        ))}
+                      </select>
 
                       {/* Filter by Chequera / Caja */}
                       <select
                         value={expenseChequeraFilter}
                         onChange={(e) => setExpenseChequeraFilter(e.target.value)}
                         style={{
-                          padding: '6px 12px',
+                          padding: '7px 12px',
                           fontSize: '0.8rem',
-                          borderRadius: '16px',
+                          borderRadius: '12px',
                           background: 'rgba(0,0,0,0.35)',
                           border: '1px solid var(--border-glass)',
-                          color: expenseChequeraFilter !== 'all' ? 'var(--primary-cyan)' : 'var(--text-secondary)',
+                          color: expenseChequeraFilter !== 'all' ? '#60a5fa' : 'var(--text-secondary)',
                           fontWeight: expenseChequeraFilter !== 'all' ? 700 : 400,
                           cursor: 'pointer'
                         }}
@@ -2198,8 +2424,36 @@ export default function ProjectDetail({
                           );
                         })}
                       </select>
+
+                      {/* Filter Pills */}
+                      <div className="expenses-filter-pills" style={{ display: 'flex', gap: '6px' }}>
+                        <button 
+                          type="button" 
+                          className={`filter-pill-btn ${expenseFilter === 'all' ? 'active' : ''}`}
+                          onClick={() => setExpenseFilter('all')}
+                        >
+                          Todos ({allProjectExpenses.length})
+                        </button>
+                        <button 
+                          type="button" 
+                          className={`filter-pill-btn ${expenseFilter === 'assigned' ? 'active' : ''}`}
+                          onClick={() => setExpenseFilter('assigned')}
+                        >
+                          Asignados ({assignedExpenses.length})
+                        </button>
+                        {unclassifiedExpenses.length > 0 && (
+                          <button 
+                            type="button" 
+                            className={`filter-pill-btn ${expenseFilter === 'unassigned' ? 'active' : ''}`}
+                            style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: expenseFilter === 'unassigned' ? '#fbbf24' : 'var(--text-secondary)' }}
+                            onClick={() => setExpenseFilter('unassigned')}
+                          >
+                            ⚠️ Sin Clasificar ({unclassifiedExpenses.length})
+                          </button>
+                        )}
+                      </div>
+
                     </div>
-                  </div>
 
                   {/* EXPENSES LISTING */}
                   {filteredExpenses.length === 0 ? (
@@ -2438,8 +2692,9 @@ export default function ProjectDetail({
                     </>
                   )}
                 </div>
-              );
-            })()}
+              </div>
+            );
+          })()}
 
             {/* Total Budget Summary card */}
             <div className="budget-summary-grid">
@@ -3823,7 +4078,88 @@ export default function ProjectDetail({
                           <option value="Transferencia">Transferencia</option>
                           <option value="Efectivo">Efectivo</option>
                           <option value="Cheque">Cheque</option>
+                          <option value="Consignación">Consignación</option>
                         </select>
+                      </div>
+
+                      <div className="form-group">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#60a5fa', fontWeight: 600, margin: 0, fontSize: '0.8rem' }}>
+                            <Landmark size={13} /> Chequera / Caja de Destino:
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowNewChequeraInputHito(!showNewChequeraInputHito)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--primary-cyan)',
+                              fontSize: '0.72rem',
+                              cursor: 'pointer',
+                              padding: 0,
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            {showNewChequeraInputHito ? '✕ Cancelar' : '+ Otra caja'}
+                          </button>
+                        </div>
+                        {showNewChequeraInputHito ? (
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <input
+                              type="text"
+                              className="form-control"
+                              placeholder="Ej. Bancolombia Empresas, Caja Duván"
+                              value={newChequeraNameHito}
+                              onChange={(e) => setNewChequeraNameHito(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (newChequeraNameHito.trim()) {
+                                    const updated = saveNewChequera(newChequeraNameHito.trim());
+                                    setChequerasList(updated);
+                                    setNewPayment(prev => ({ ...prev, chequera: newChequeraNameHito.trim() }));
+                                    setNewChequeraNameHito('');
+                                    setShowNewChequeraInputHito(false);
+                                  }
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              style={{ padding: '6px 10px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                              onClick={() => {
+                                if (newChequeraNameHito.trim()) {
+                                  const updated = saveNewChequera(newChequeraNameHito.trim());
+                                  setChequerasList(updated);
+                                  setNewPayment(prev => ({ ...prev, chequera: newChequeraNameHito.trim() }));
+                                  setNewChequeraNameHito('');
+                                  setShowNewChequeraInputHito(false);
+                                }
+                              }}
+                            >
+                              Guardar
+                            </button>
+                          </div>
+                        ) : (
+                          <select
+                            className="form-control"
+                            value={newPayment.chequera || 'Caja Dumar'}
+                            onChange={(e) => {
+                              if (e.target.value === '__add_new__') {
+                                setShowNewChequeraInputHito(true);
+                              } else {
+                                setNewPayment(prev => ({ ...prev, chequera: e.target.value }));
+                              }
+                            }}
+                            required
+                          >
+                            {chequerasList.map((ch, idx) => (
+                              <option key={idx} value={ch}>🏦 {ch}</option>
+                            ))}
+                            <option value="__add_new__">➕ Agregar nueva chequera / caja...</option>
+                          </select>
+                        )}
                       </div>
                     </div>
 
@@ -3908,6 +4244,9 @@ export default function ProjectDetail({
                                 </span>
                                 <span style={{ fontSize: '0.75rem', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-secondary)' }}>
                                   {p.method}
+                                </span>
+                                <span style={{ fontSize: '0.75rem', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', padding: '2px 8px', borderRadius: '4px', color: '#60a5fa', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <Landmark size={12} /> {p.chequera || 'Caja Dumar'}
                                 </span>
                               </div>
                               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
