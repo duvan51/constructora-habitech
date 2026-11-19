@@ -15,6 +15,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterPersonnel, setFilterPersonnel] = useState('all');
   const [filterChequera, setFilterChequera] = useState('all');
+  const [filterMonth, setFilterMonth] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showCanceled, setShowCanceled] = useState(false);
@@ -553,8 +554,11 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     const chequeraMatch = filterChequera === 'all' || 
       (extractChequera(t) || 'Caja Dumar').toLowerCase() === filterChequera.toLowerCase();
 
-    // Date range filter
+    // Date range and month filter
     let dateMatch = true;
+    if (filterMonth) {
+      dateMatch = dateMatch && Boolean(t.date && t.date.startsWith(filterMonth));
+    }
     if (startDate) {
       dateMatch = dateMatch && (t.date >= startDate);
     }
@@ -585,6 +589,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     filterCategory !== 'all' || 
     filterPersonnel !== 'all' || 
     filterChequera !== 'all' ||
+    Boolean(filterMonth) ||
     Boolean(startDate) || 
     Boolean(endDate);
 
@@ -615,6 +620,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     setFilterCategory('all');
     setFilterPersonnel('all');
     setFilterChequera('all');
+    setFilterMonth('');
     setStartDate('');
     setEndDate('');
     setShowCanceled(false);
@@ -878,6 +884,36 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           ))}
         </select>
 
+        {/* Month Filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0, 0, 0, 0.25)', padding: '5px 10px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+          <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            🗓️ Mes:
+          </span>
+          <input
+            type="month"
+            className="form-control"
+            style={{ width: 'auto', padding: '5px 8px', fontSize: '0.82rem', cursor: 'pointer' }}
+            value={filterMonth}
+            onChange={(e) => {
+              setFilterMonth(e.target.value);
+              if (e.target.value) {
+                setStartDate('');
+                setEndDate('');
+              }
+            }}
+          />
+          {filterMonth && (
+            <button
+              type="button"
+              onClick={() => setFilterMonth('')}
+              style={{ background: 'none', border: 'none', color: '#fda4af', cursor: 'pointer', padding: '0 2px', fontSize: '0.85rem' }}
+              title="Quitar filtro de mes"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
         {/* Date Range Filters */}
         <div className="ledger-filter-date-group">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -887,7 +923,10 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
               className="form-control"
               style={{ width: '100%', padding: '6px 12px' }}
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                if (e.target.value) setFilterMonth('');
+              }}
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -897,18 +936,22 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
               className="form-control"
               style={{ width: '100%', padding: '6px 12px' }}
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                if (e.target.value) setFilterMonth('');
+              }}
             />
           </div>
         </div>
 
         {/* Clear Date Filters Button */}
-        {(startDate || endDate) && (
+        {(filterMonth || startDate || endDate) && (
           <button
             type="button"
             className="btn btn-secondary"
             style={{ padding: '6px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
             onClick={() => {
+              setFilterMonth('');
               setStartDate('');
               setEndDate('');
             }}
@@ -1107,6 +1150,18 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                   fontSize: '0.8rem'
                 }}>
                   🏢 Obra: <strong>{filterProject === 'general' ? 'Gastos Administrativos' : (selectedProjectObj?.name || 'Seleccionada')}</strong>
+                </span>
+              )}
+              {filterMonth && (
+                <span style={{
+                  background: 'rgba(6, 182, 212, 0.15)',
+                  border: '1px solid rgba(6, 182, 212, 0.3)',
+                  color: 'var(--primary-cyan)',
+                  padding: '3px 10px',
+                  borderRadius: '16px',
+                  fontSize: '0.8rem'
+                }}>
+                  🗓️ Mes: <strong>{filterMonth}</strong>
                 </span>
               )}
               {(startDate || endDate) && (

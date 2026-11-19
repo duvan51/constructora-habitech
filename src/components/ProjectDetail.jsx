@@ -2061,6 +2061,9 @@ export default function ProjectDetail({
               const expectedDiff = expectedIncome - expectedExpense;
               const expectedMarginPercent = expectedIncome > 0 ? ((expectedDiff / expectedIncome) * 100).toFixed(1) : '0';
 
+              const contractVsExpenseDiff = expectedIncome - realExpense;
+              const contractMarginPercent = expectedIncome > 0 ? ((contractVsExpenseDiff / expectedIncome) * 100).toFixed(1) : '0';
+
               const unclassifiedExpenses = allProjectExpenses.filter(t => 
                 !project.budgetItems.some(item => transactionBelongsToBudgetItem(t, item))
               );
@@ -2261,6 +2264,73 @@ export default function ProjectDetail({
                           </div>
                           <div style={{ fontSize: '0.72rem', color: expectedDiff >= 0 ? '#a5f3fc' : '#fda4af', marginTop: '2px' }}>
                             {expectedDiff >= 0 ? `Ganancia proyectada (${expectedMarginPercent}%)` : `Pérdida proyectada (${expectedMarginPercent}%)`}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* FILA 3: COMPARATIVA INGRESO ESPERADO VS EGRESO REAL */}
+                    <div className="glass-panel" style={{
+                      padding: '16px 20px',
+                      borderRadius: '14px',
+                      background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.05) 0%, rgba(59, 130, 246, 0.05) 100%)',
+                      border: '1px solid rgba(168, 85, 247, 0.25)',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#a855f7', boxShadow: '0 0 8px #a855f7' }}></div>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Comparativa: Ingreso Esperado vs. Egreso Real (Margen Contrato)
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Presupuesto total del contrato frente a lo efectivamente gastado a la fecha
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px' }}>
+                        {/* Ingreso Esperado */}
+                        <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: '12px', padding: '12px 16px' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: '#a855f7' }}>●</span> Ingreso Esperado
+                          </div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#c084fc', marginTop: '4px' }}>
+                            {formatCurrency(expectedIncome)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Contrato total pactado
+                          </div>
+                        </div>
+
+                        {/* Egreso Real */}
+                        <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(244, 63, 94, 0.2)', borderRadius: '12px', padding: '12px 16px' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: '#f43f5e' }}>●</span> Egreso Real
+                          </div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fda4af', marginTop: '4px' }}>
+                            {formatCurrency(realExpense)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Gastos ejecutados a la fecha
+                          </div>
+                        </div>
+
+                        {/* Diferencia */}
+                        <div style={{
+                          background: contractVsExpenseDiff >= 0 ? 'rgba(168, 85, 247, 0.08)' : 'rgba(244, 63, 94, 0.08)',
+                          border: `1px solid ${contractVsExpenseDiff >= 0 ? 'rgba(168, 85, 247, 0.35)' : 'rgba(244, 63, 94, 0.35)'}`,
+                          borderRadius: '12px',
+                          padding: '12px 16px'
+                        }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: contractVsExpenseDiff >= 0 ? '#a855f7' : '#f43f5e' }}>💰</span> Diferencia (Margen Contrato)
+                          </div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: contractVsExpenseDiff >= 0 ? '#d8b4fe' : '#f87171', marginTop: '4px' }}>
+                            {contractVsExpenseDiff >= 0 ? `+${formatCurrency(contractVsExpenseDiff)}` : formatCurrency(contractVsExpenseDiff)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: contractVsExpenseDiff >= 0 ? '#e9d5ff' : '#fda4af', marginTop: '2px' }}>
+                            {contractVsExpenseDiff >= 0 ? `Saldo disponible (${contractMarginPercent}%)` : `Presupuesto sobrepasado (${contractMarginPercent}%)`}
                           </div>
                         </div>
                       </div>
