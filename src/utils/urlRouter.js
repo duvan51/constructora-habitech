@@ -56,6 +56,7 @@ export const TAB_TITLES = {
   adjustments: 'Ajustes Totales',
   portfolio: 'Portafolio de Proyectos',
   ledger: 'Libro de Caja y Finanzas',
+  chequeras: 'Saldos y Control de Chequeras',
   quote: 'Cotizador Habitech',
   retefuente: 'Calculadora de Retefuente',
   users: 'Gestión de Usuarios',

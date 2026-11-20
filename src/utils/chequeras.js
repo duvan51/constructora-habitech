@@ -102,3 +102,64 @@ export const cleanPurchaseDescription = (rawDesc, projectName = '') => {
   return desc.trim();
 };
 
+/**
+ * Remove a custom chequera (defaults cannot be removed).
+ */
+export const removeChequera = (name) => {
+  if (!name) return getChequerasList();
+  if (DEFAULT_CHEQUERAS.some(def => def.toLowerCase() === name.toLowerCase())) {
+    return getChequerasList();
+  }
+  const current = getChequerasList();
+  const updated = current.filter(c => c.toLowerCase() !== name.toLowerCase());
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn('Error updating chequeras in localStorage:', e);
+  }
+  return updated;
+};
+
+/**
+ * Get visual styling (badge color, icon accent) for known or custom chequeras.
+ */
+export const getChequeraTheme = (chequeraName) => {
+  const name = (chequeraName || '').toLowerCase();
+  if (name.includes('dumar')) {
+    return {
+      bg: 'rgba(6, 182, 212, 0.12)',
+      border: 'rgba(6, 182, 212, 0.35)',
+      color: '#06b6d4',
+      pillBg: 'rgba(6, 182, 212, 0.2)',
+      label: 'Caja Dumar'
+    };
+  }
+  if (name.includes('duvan')) {
+    return {
+      bg: 'rgba(255, 109, 0, 0.12)',
+      border: 'rgba(255, 109, 0, 0.35)',
+      color: '#ff6d00',
+      pillBg: 'rgba(255, 109, 0, 0.2)',
+      label: 'Caja Duvan'
+    };
+  }
+  if (name.includes('bancolombia')) {
+    return {
+      bg: 'rgba(250, 204, 21, 0.12)',
+      border: 'rgba(250, 204, 21, 0.35)',
+      color: '#facc15',
+      pillBg: 'rgba(250, 204, 21, 0.2)',
+      label: 'Bancolombia Empresas'
+    };
+  }
+  // Custom or other bank
+  return {
+    bg: 'rgba(168, 85, 247, 0.12)',
+    border: 'rgba(168, 85, 247, 0.35)',
+    color: '#c084fc',
+    pillBg: 'rgba(168, 85, 247, 0.2)',
+    label: chequeraName || 'Caja General'
+  };
+};
+
+

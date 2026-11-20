@@ -1351,14 +1351,35 @@ p {
   left: 0;
   bottom: 0;
   width: 260px;
-  padding: 30px 20px;
+  padding: 24px 16px;
   display: flex;
   flex-direction: column;
   z-index: 1000;
   border-radius: 0 24px 24px 0;
   border-right: 1px solid var(--border-glass);
-  background: rgba(11, 15, 25, 0.95);
+  background: rgba(11, 15, 25, 0.96);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(6, 182, 212, 0.35) transparent;
+}
+
+.sidebar-component::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-component::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-component::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.35);
+  border-radius: 4px;
+}
+
+.sidebar-component::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-cyan);
 }
 
 .mobile-header {

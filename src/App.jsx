@@ -16,6 +16,7 @@ import PersonnelManagement from './components/PersonnelManagement';
 import TotalAdjustments from './components/TotalAdjustments';
 import FloatingProjectSwitcher from './components/FloatingProjectSwitcher';
 import Agenda from './components/Agenda';
+import ChequerasManager from './components/ChequerasManager';
 import { 
   seedMockData, 
   getAll, 
@@ -1059,6 +1060,19 @@ export default function App() {
                 onAddTransaction={handleAddManualTransaction}
                 onNavigateToProject={(id) => handleOpenProject(id, 'budget')}
                 onNavigateToLedger={() => setTab('ledger')}
+              />
+            )}
+
+            {/* Saldos y Control de Chequeras (Solo Super Admin) */}
+            {currentTab === 'chequeras' && currentUser.role === 'admin' && (
+              <ChequerasManager 
+                transactions={transactions}
+                projects={projects}
+                personnel={personnel}
+                currentUser={currentUser}
+                onAddTransaction={handleAddManualTransaction}
+                onUpdateTransaction={handleUpdateTransaction}
+                onNavigateToProject={(id) => handleOpenProject(id, 'general')}
               />
             )}
 

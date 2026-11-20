@@ -1,4 +1,4 @@
-import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, CheckSquare, Calculator, UserCheck, Scale, Percent, Calendar } from 'lucide-react';
+import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, CheckSquare, Calculator, UserCheck, Scale, Percent, Calendar, Landmark } from 'lucide-react';
 
 export default function Sidebar({ currentTab, setTab, projectCount, currentUser, onLogout, isOpen, onClose }) {
   const isClient = currentUser?.role === 'client';
@@ -29,6 +29,7 @@ export default function Sidebar({ currentTab, setTab, projectCount, currentUser,
     ];
 
     if (currentUser && currentUser.role === 'admin') {
+      menuItems.push({ id: 'chequeras', name: 'Saldos y Chequeras', icon: <Landmark size={18} /> });
       menuItems.push({ id: 'users', name: 'Gestión Usuarios', icon: <Users size={18} /> });
       menuItems.push({ id: 'settings', name: 'Configuración', icon: <Settings size={18} /> });
     }
@@ -54,7 +55,7 @@ export default function Sidebar({ currentTab, setTab, projectCount, currentUser,
   return (
     <aside className={`sidebar-component glass-panel ${isOpen ? 'open' : ''}`}>
       {/* Brand Logo */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', marginBottom: '35px', padding: '0 10px', width: '100%', position: 'relative' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', marginBottom: '24px', padding: '0 10px', width: '100%', position: 'relative', flexShrink: 0 }}>
         {onClose && (
           <button 
             type="button"
@@ -107,7 +108,7 @@ export default function Sidebar({ currentTab, setTab, projectCount, currentUser,
       </div>
 
       {/* Navigation List */}
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: '1 0 auto' }}>
         {menuItems.map(item => {
           const isActive = currentTab === item.id;
           return (
@@ -155,12 +156,13 @@ export default function Sidebar({ currentTab, setTab, projectCount, currentUser,
 
       {/* Footer Info */}
       <div style={{
-        marginTop: 'auto',
+        marginTop: '20px',
         padding: '15px 10px',
         borderTop: '1px solid var(--border-glass)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px'
+        gap: '12px',
+        flexShrink: 0
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
