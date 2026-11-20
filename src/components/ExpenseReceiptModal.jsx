@@ -69,7 +69,7 @@ export default function ExpenseReceiptModal({ project, transaction, onClose }) {
   };
 
   const getChequeraName = () => {
-    return extractChequera(transaction) || 'Caja Dumar';
+    return extractChequera(transaction) || 'Sin Asignar (En blanco)';
   };
 
   // Get the associated budget line (Renglón Presupuestario)

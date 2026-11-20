@@ -203,7 +203,7 @@ export default function ProjectDetail({
     amount: '',
     date: new Date().toISOString().split('T')[0],
     method: 'Transferencia',
-    chequera: 'Caja Dumar',
+    chequera: '',
     files: [] // { fileBase64, fileName, fileType }
   });
   const [showNewChequeraInputHito, setShowNewChequeraInputHito] = useState(false);
@@ -221,7 +221,7 @@ export default function ProjectDetail({
     date: new Date().toISOString().split('T')[0],
     personnelId: '',
     receiptBase64: '',
-    chequera: 'Caja Dumar'
+    chequera: ''
   });
   const [chequerasList, setChequerasList] = useState(() => getChequerasList());
   const [showNewChequeraInput, setShowNewChequeraInput] = useState(false);
@@ -506,7 +506,7 @@ export default function ProjectDetail({
     }
 
     const payId = `pay_${new Date().getTime()}`;
-    const selectedChequera = (newPayment.chequera || 'Caja Dumar').trim();
+    const selectedChequera = (newPayment.chequera || '').trim();
     const newPayItem = {
       id: payId,
       amount: amt,
@@ -518,7 +518,7 @@ export default function ProjectDetail({
 
     // Calculate milestone payments
     const currentMilestone = project.paymentPlan.find(h => h.id === showHitoPayments.id);
-    const existingPayments = currentMilestone.payments || (currentMilestone.status === 'paid' ? [{ id: 'legacy', amount: currentMilestone.amount, date: currentMilestone.paidDate || currentMilestone.dueDate, method: 'Transferencia', chequera: 'Caja Dumar', files: [] }] : []);
+    const existingPayments = currentMilestone.payments || (currentMilestone.status === 'paid' ? [{ id: 'legacy', amount: currentMilestone.amount, date: currentMilestone.paidDate || currentMilestone.dueDate, method: 'Transferencia', chequera: '', files: [] }] : []);
     const updatedPaymentsList = [...existingPayments, newPayItem];
 
     const hitoTotalPaid = updatedPaymentsList.reduce((s, p) => s + p.amount, 0);
@@ -673,8 +673,8 @@ export default function ProjectDetail({
       }
     }
 
-    const selectedChequera = (expenseData.chequera || 'Caja Dumar').trim();
-    const chequeraSuffix = ` [Chequera: ${selectedChequera}]`;
+    const selectedChequera = (expenseData.chequera || '').trim();
+    const chequeraSuffix = selectedChequera ? ` [Chequera: ${selectedChequera}]` : '';
 
     // Log in global ledger with full metadata
     const newTx = {
@@ -688,7 +688,7 @@ export default function ProjectDetail({
       personnelName: selectedPerson ? selectedPerson.name : null,
       chequera: selectedChequera,
       account: selectedChequera,
-      method: selectedChequera,
+      method: selectedChequera || 'Transferencia',
       description: `${category.name} || Compra: ${expenseData.description}${selectedPersonnelSuffix}${chequeraSuffix} (Obra: ${project.name})`,
       amount: amt,
       date: expenseData.date,
@@ -754,7 +754,7 @@ export default function ProjectDetail({
         date: new Date().toISOString().split('T')[0],
         personnelId: '',
         receiptBase64: '',
-        chequera: selectedChequera || 'Caja Dumar'
+        chequera: ''
       });
       setShowNewChequeraInput(false);
       setNewChequeraName('');
@@ -794,7 +794,7 @@ export default function ProjectDetail({
       }
     }
 
-    const currentChequera = extractChequera(exp) || 'Caja Dumar';
+    const currentChequera = extractChequera(exp) || '';
     const cleanedDesc = cleanPurchaseDescription(exp.description, project.name);
 
     // Resolve which budget item matches this expense
@@ -1726,7 +1726,7 @@ export default function ProjectDetail({
                               amount: hitoRemaining > 0 ? hitoRemaining.toString() : '',
                               date: new Date().toISOString().split('T')[0],
                               method: 'Transferencia',
-                              chequera: 'Caja Dumar',
+                              chequera: '',
                               files: []
                             });
                             setShowNewChequeraInputHito(false);
@@ -1814,7 +1814,7 @@ export default function ProjectDetail({
                         amount: hitoRemaining > 0 ? hitoRemaining.toString() : '',
                         date: new Date().toISOString().split('T')[0],
                         method: 'Transferencia',
-                        chequera: 'Caja Dumar',
+                        chequera: '',
                         files: []
                       });
                       setShowNewChequeraInputHito(false);
@@ -1860,7 +1860,7 @@ export default function ProjectDetail({
                       date: new Date().toISOString().split('T')[0],
                       personnelId: firstBudgetItem?.personnelId || '',
                       receiptBase64: '',
-                      chequera: prev.chequera || 'Caja Dumar'
+                      chequera: prev.chequera || ''
                     }));
                     setShowNewChequeraInput(false);
                     setNewChequeraName('');
@@ -2103,10 +2103,14 @@ export default function ProjectDetail({
 
               // Filter by chequera / caja
               if (expenseChequeraFilter !== 'all') {
-                const target = expenseChequeraFilter.toLowerCase();
-                filteredExpenses = filteredExpenses.filter(exp => 
-                  (extractChequera(exp) || 'Caja Dumar').toLowerCase() === target
-                );
+                if (expenseChequeraFilter === 'unassigned') {
+                  filteredExpenses = filteredExpenses.filter(exp => !extractChequera(exp));
+                } else {
+                  const target = expenseChequeraFilter.toLowerCase();
+                  filteredExpenses = filteredExpenses.filter(exp => 
+                    (extractChequera(exp) || '').toLowerCase() === target
+                  );
+                }
               }
 
               // Build unique personnel options for filter dropdown
@@ -2487,8 +2491,9 @@ export default function ProjectDetail({
                         }}
                       >
                         <option value="all">🏦 Todas las chequeras ({allProjectExpenses.length})</option>
+                        <option value="unassigned">⚠️ Sin Asignar ({allProjectExpenses.filter(e => !extractChequera(e)).length})</option>
                         {chequerasList.map((ch, idx) => {
-                          const count = allProjectExpenses.filter(e => (extractChequera(e) || 'Caja Dumar').toLowerCase() === ch.toLowerCase()).length;
+                          const count = allProjectExpenses.filter(e => (extractChequera(e) || '').toLowerCase() === ch.toLowerCase()).length;
                           return (
                             <option key={idx} value={ch}>🏦 {ch} ({count})</option>
                           );
@@ -2558,7 +2563,7 @@ export default function ProjectDetail({
                           <tbody>
                             {filteredExpenses.map((exp) => {
                               const displayDesc = cleanPurchaseDescription(exp.description, project.name);
-                              const expChequera = extractChequera(exp) || 'Caja Dumar';
+                              const expChequera = extractChequera(exp) || 'Sin Asignar';
                               const matchedItem = project.budgetItems.find(item => transactionBelongsToBudgetItem(exp, item));
                               const matchedIdx = matchedItem ? project.budgetItems.indexOf(matchedItem) : 0;
 
@@ -2704,7 +2709,7 @@ export default function ProjectDetail({
 
                               <div className="mobile-expense-meta-grid">
                                 <div>📅 Fecha: <strong style={{ color: 'var(--text-primary)' }}>{exp.date}</strong></div>
-                                <div>🏦 Caja: <strong style={{ color: '#60a5fa' }}>{extractChequera(exp) || 'Caja Dumar'}</strong></div>
+                                <div>🏦 Caja: <strong style={{ color: '#60a5fa' }}>{extractChequera(exp) || 'Sin Asignar'}</strong></div>
                                 {exp.personnelName && (
                                   <div>👤 Responsable: <strong style={{ color: 'var(--primary-teal)' }}>{exp.personnelName}</strong></div>
                                 )}
@@ -3282,7 +3287,7 @@ export default function ProjectDetail({
                       ) : (
                         <select
                           className="form-control"
-                          value={expenseData.chequera || 'Caja Dumar'}
+                          value={expenseData.chequera || ''}
                           onChange={(e) => {
                             if (e.target.value === '__add_new__') {
                               setShowNewChequeraInput(true);
@@ -3290,9 +3295,9 @@ export default function ProjectDetail({
                               setExpenseData(prev => ({ ...prev, chequera: e.target.value }));
                             }
                           }}
-                          required
                           style={{ fontWeight: 600 }}
                         >
+                          <option value="">-- Sin Chequera (En blanco) --</option>
                           {chequerasList.map((ch, idx) => (
                             <option key={idx} value={ch}>🏦 {ch}</option>
                           ))}
@@ -3778,7 +3783,7 @@ export default function ProjectDetail({
                         🏦 Chequera / Caja Pagadora
                       </span>
                       <strong style={{ color: '#93c5fd', fontSize: '0.95rem' }}>
-                        {extractChequera(exp) || 'Caja Dumar'}
+                        {extractChequera(exp) || 'Sin Asignar (En blanco)'}
                       </strong>
                     </div>
                   </div>
@@ -4214,7 +4219,7 @@ export default function ProjectDetail({
                         ) : (
                           <select
                             className="form-control"
-                            value={newPayment.chequera || 'Caja Dumar'}
+                            value={newPayment.chequera || ''}
                             onChange={(e) => {
                               if (e.target.value === '__add_new__') {
                                 setShowNewChequeraInputHito(true);
@@ -4222,8 +4227,8 @@ export default function ProjectDetail({
                                 setNewPayment(prev => ({ ...prev, chequera: e.target.value }));
                               }
                             }}
-                            required
                           >
+                            <option value="">-- Sin Chequera (En blanco) --</option>
                             {chequerasList.map((ch, idx) => (
                               <option key={idx} value={ch}>🏦 {ch}</option>
                             ))}
@@ -4316,7 +4321,7 @@ export default function ProjectDetail({
                                   {p.method}
                                 </span>
                                 <span style={{ fontSize: '0.75rem', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', padding: '2px 8px', borderRadius: '4px', color: '#60a5fa', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                  <Landmark size={12} /> {p.chequera || 'Caja Dumar'}
+                                  <Landmark size={12} /> {p.chequera || 'Sin Asignar'}
                                 </span>
                               </div>
                               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>

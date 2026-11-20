@@ -22,7 +22,9 @@ import {
   DollarSign, 
   X, 
   Layers,
-  Edit3
+  Edit3,
+  HelpCircle,
+  Zap
 } from 'lucide-react';
 import { 
   getChequerasList, 
@@ -48,11 +50,11 @@ export default function ChequerasManager({
   // Check super admin permission
   const isAdmin = currentUser?.role === 'admin';
 
-  // State for chequeras list
+  // State for chequeras list (starts with Bancolombia Empresas, Caja Dumar, Caja Duvan)
   const [chequeras, setChequeras] = useState(() => getChequerasList());
 
   // Filter States
-  const [selectedChequeraFilter, setSelectedChequeraFilter] = useState('all');
+  const [selectedChequeraFilter, setSelectedChequeraFilter] = useState('all'); // 'all', 'unassigned', or chequera name
   const [filterFlow, setFilterFlow] = useState('all'); // 'all', 'income', 'expense', 'transfer'
   const [filterMonth, setFilterMonth] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
@@ -72,7 +74,7 @@ export default function ChequerasManager({
 
   const [showDirectTxModal, setShowDirectTxModal] = useState(false);
   const [directTxData, setDirectTxData] = useState({
-    chequera: 'Caja Dumar',
+    chequera: 'Bancolombia Empresas',
     type: 'income',
     amount: '',
     date: new Date().toISOString().split('T')[0],
@@ -148,11 +150,12 @@ export default function ChequerasManager({
     return map;
   }, [personnel]);
 
-  // Process and normalize transactions with resolved Chequera
+  // Process and normalize transactions with resolved Chequera (DO NOT default to Caja Dumar!)
   const enrichedTransactions = useMemo(() => {
     return transactions.map(tx => {
-      // Determine chequera
-      const ch = extractChequera(tx) || 'Caja Dumar';
+      // Determine chequera - if not provided or empty, leave as '' (Sin Asignar)
+      const rawCh = extractChequera(tx);
+      const ch = (rawCh && rawCh.trim()) ? rawCh.trim() : '';
       
       // Determine if it is a transfer between chequeras
       const isTransfer = (
@@ -197,6 +200,7 @@ export default function ChequerasManager({
       return {
         ...tx,
         resolvedChequera: ch,
+        isUnassigned: !ch,
         isTransfer,
         projectName,
         personName,
@@ -207,8 +211,8 @@ export default function ChequerasManager({
     });
   }, [transactions, projectMap, personnelMap]);
 
-  // Calculate Balances & Metrics for each Chequera
-  const chequerasStats = useMemo(() => {
+  // Calculate Balances & Metrics for each Chequera AND unassigned movements
+  const { chequerasStats, unassignedStats } = useMemo(() => {
     const stats = {};
     allKnownChequeras.forEach(ch => {
       stats[ch] = {
@@ -221,9 +225,37 @@ export default function ChequerasManager({
       };
     });
 
+    const unassigned = {
+      name: 'Sin Asignar (En blanco)',
+      key: 'unassigned',
+      totalIncome: 0,
+      totalExpense: 0,
+      balance: 0,
+      movementCount: 0,
+      lastDate: null
+    };
+
     enrichedTransactions.forEach(tx => {
       if (tx.isCanceled) return; // Skip canceled/anulados
       const ch = tx.resolvedChequera;
+      const amount = Number(tx.amount) || 0;
+
+      // Unassigned movement
+      if (!ch) {
+        if (tx.type === 'income') {
+          unassigned.totalIncome += amount;
+        } else if (tx.type === 'expense') {
+          unassigned.totalExpense += amount;
+        }
+        unassigned.movementCount += 1;
+        if (tx.date) {
+          if (!unassigned.lastDate || new Date(tx.date) > new Date(unassigned.lastDate)) {
+            unassigned.lastDate = tx.date;
+          }
+        }
+        return;
+      }
+
       if (!stats[ch]) {
         stats[ch] = {
           name: ch,
@@ -235,7 +267,6 @@ export default function ChequerasManager({
         };
       }
 
-      const amount = Number(tx.amount) || 0;
       if (tx.type === 'income') {
         stats[ch].totalIncome += amount;
       } else if (tx.type === 'expense') {
@@ -250,15 +281,18 @@ export default function ChequerasManager({
       }
     });
 
-    // Compute balance for each
+    // Compute balance for unassigned
+    unassigned.balance = unassigned.totalIncome - unassigned.totalExpense;
+
+    // Compute balance for each chequera
     Object.values(stats).forEach(item => {
       item.balance = item.totalIncome - item.totalExpense;
     });
 
-    return stats;
+    return { chequerasStats: stats, unassignedStats: unassigned };
   }, [allKnownChequeras, enrichedTransactions]);
 
-  // Global consolidated KPIs
+  // Global consolidated KPIs (only across explicit chequeras)
   const globalKPIs = useMemo(() => {
     let totalIncome = 0;
     let totalExpense = 0;
@@ -286,7 +320,9 @@ export default function ChequerasManager({
     return enrichedTransactions
       .filter(tx => {
         // Chequera filter
-        if (selectedChequeraFilter !== 'all') {
+        if (selectedChequeraFilter === 'unassigned') {
+          if (tx.resolvedChequera) return false;
+        } else if (selectedChequeraFilter !== 'all') {
           if (tx.resolvedChequera.toLowerCase() !== selectedChequeraFilter.toLowerCase()) {
             return false;
           }
@@ -360,6 +396,68 @@ export default function ChequerasManager({
       count: filteredMovements.length
     };
   }, [filteredMovements]);
+
+  // Mass assign all unassigned movements to Bancolombia Empresas
+  const handleAssignAllUnassignedToBancolombia = async () => {
+    const unassignedList = enrichedTransactions.filter(t => !t.resolvedChequera && !t.isCanceled);
+    if (unassignedList.length === 0) {
+      alert('No hay movimientos sin chequera para asignar.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Deseas asignar los ${unassignedList.length} movimientos en blanco a "Bancolombia Empresas"?\n\nEsto actualizará sus registros automáticamente.`
+    );
+    if (!confirmed) return;
+
+    if (window.setGlobalLoading) window.setGlobalLoading(true);
+    try {
+      for (const tx of unassignedList) {
+        let desc = tx.description || '';
+        desc = desc.replace(/\[(?:Chequera|Caja|Cuenta):\s*[^\]]+\]/gi, '').trim();
+        desc = `${desc} [Chequera: Bancolombia Empresas]`.trim();
+        const updated = {
+          ...tx,
+          chequera: 'Bancolombia Empresas',
+          account: 'Bancolombia Empresas',
+          description: desc
+        };
+        if (onUpdateTransaction) {
+          await onUpdateTransaction(updated);
+        }
+      }
+      showNotification(`✅ Se asignaron ${unassignedList.length} movimientos a Bancolombia Empresas.`);
+    } catch (err) {
+      console.error('Error asignando movimientos en lote:', err);
+      alert('Ocurrió un error al asignar los movimientos.');
+    } finally {
+      if (window.setGlobalLoading) window.setGlobalLoading(false);
+    }
+  };
+
+  // Quick single assign to Bancolombia Empresas
+  const handleAssignSingleToBancolombia = async (tx) => {
+    try {
+      let desc = tx.description || '';
+      desc = desc.replace(/\[(?:Chequera|Caja|Cuenta):\s*[^\]]+\]/gi, '').trim();
+      desc = `${desc} [Chequera: Bancolombia Empresas]`.trim();
+
+      const updated = {
+        ...tx,
+        chequera: 'Bancolombia Empresas',
+        account: 'Bancolombia Empresas',
+        description: desc
+      };
+
+      if (onUpdateTransaction) {
+        await onUpdateTransaction(updated);
+      }
+      showNotification('✅ Movimiento asignado a Bancolombia Empresas.');
+    } catch (err) {
+      console.error(err);
+      alert('Error al asignar chequera.');
+    }
+  };
 
   // Handle Transfer between two chequeras
   const handleExecuteTransfer = async (e) => {
@@ -442,6 +540,11 @@ export default function ChequerasManager({
       const proj = projectMap[directTxData.projectId] || null;
       const projName = proj ? proj.name : (directTxData.projectId === 'general' ? 'Gastos Generales / Admón' : 'General');
       
+      const chToSave = (directTxData.chequera || '').trim();
+      const descWithChequera = chToSave 
+        ? `${directTxData.description?.trim() || 'Movimiento directo'} [Chequera: ${chToSave}]`
+        : (directTxData.description?.trim() || 'Movimiento directo');
+
       const newTx = {
         id: txId,
         date: directTxData.date,
@@ -451,8 +554,9 @@ export default function ChequerasManager({
         projectId: directTxData.projectId,
         projectName: projName,
         method: directTxData.method || 'Transferencia',
-        chequera: directTxData.chequera,
-        description: `${directTxData.description?.trim() || 'Movimiento directo'} [Chequera: ${directTxData.chequera}]`,
+        chequera: chToSave,
+        account: chToSave,
+        description: descWithChequera,
         personnelId: directTxData.personnelId || null
       };
 
@@ -460,10 +564,10 @@ export default function ChequerasManager({
         await onAddTransaction(newTx);
       }
 
-      showNotification(`✅ Movimiento registrado exitosamente en ${directTxData.chequera}.`);
+      showNotification(`✅ Movimiento registrado exitosamente${chToSave ? ` en ${chToSave}` : ' (Sin chequera)'}.`);
       setShowDirectTxModal(false);
       setDirectTxData({
-        chequera: 'Caja Dumar',
+        chequera: 'Bancolombia Empresas',
         type: 'income',
         amount: '',
         date: new Date().toISOString().split('T')[0],
@@ -502,6 +606,7 @@ export default function ChequerasManager({
         projectName: 'Gastos Generales / Admón',
         method: 'Apertura de Cuenta',
         chequera: cleanName,
+        account: cleanName,
         description: `Saldo inicial de apertura [Chequera: ${cleanName}]`
       };
       onAddTransaction(initTx);
@@ -513,29 +618,39 @@ export default function ChequerasManager({
     setNewAccountInitialBalance('');
   };
 
-  // Handle reassigning a transaction to a different chequera
+  // Handle reassigning a transaction to a different chequera (or leaving it blank)
   const handleSaveReassignment = async () => {
-    if (!reassignTargetTx || !newAssignedChequera) return;
+    if (!reassignTargetTx) return;
 
     try {
       let desc = reassignTargetTx.description || '';
       // Strip old chequera tag if present
       desc = desc.replace(/\[(?:Chequera|Caja|Cuenta):\s*[^\]]+\]/gi, '').trim();
-      // Append new chequera tag
-      desc = `${desc} [Chequera: ${newAssignedChequera}]`.trim();
 
-      const updated = {
-        ...reassignTargetTx,
-        chequera: newAssignedChequera,
-        account: newAssignedChequera,
-        description: desc
-      };
+      let updated;
+      if (newAssignedChequera && newAssignedChequera.trim()) {
+        desc = `${desc} [Chequera: ${newAssignedChequera.trim()}]`.trim();
+        updated = {
+          ...reassignTargetTx,
+          chequera: newAssignedChequera.trim(),
+          account: newAssignedChequera.trim(),
+          description: desc
+        };
+      } else {
+        // Leave completely blank
+        updated = {
+          ...reassignTargetTx,
+          chequera: '',
+          account: '',
+          description: desc
+        };
+      }
 
       if (onUpdateTransaction) {
         await onUpdateTransaction(updated);
       }
 
-      showNotification(`✅ Movimiento reasignado a ${newAssignedChequera}.`);
+      showNotification(`✅ Movimiento actualizado: ${newAssignedChequera ? `Asignado a ${newAssignedChequera}` : 'Dejado en blanco (Sin Chequera)'}.`);
       setReassignTargetTx(null);
       setNewAssignedChequera('');
     } catch (err) {
@@ -554,7 +669,7 @@ export default function ChequerasManager({
     const headers = ['Fecha', 'Chequera / Cuenta', 'Tipo Flujo', 'Concepto', 'Obra / Proyecto', 'Personal / Cliente', 'Método', 'Monto COP', 'Estado'];
     const rows = filteredMovements.map(m => [
       `"${m.date || ''}"`,
-      `"${m.resolvedChequera || ''}"`,
+      `"${m.resolvedChequera || 'Sin Asignar'}"`,
       `"${m.type === 'income' ? 'Ingreso / Entrada' : 'Egreso / Salida'}"`,
       `"${(m.cleanDesc || '').replace(/"/g, '""')}"`,
       `"${(m.projectName || '').replace(/"/g, '""')}"`,
@@ -652,13 +767,13 @@ export default function ChequerasManager({
             width: '52px',
             height: '52px',
             borderRadius: '16px',
-            background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(255, 109, 0, 0.2))',
+            background: 'linear-gradient(135deg, rgba(250, 204, 21, 0.2), rgba(6, 182, 212, 0.2))',
             border: '1px solid var(--border-glass)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'var(--primary-cyan)',
-            boxShadow: '0 0 20px rgba(6, 182, 212, 0.15)'
+            color: '#facc15',
+            boxShadow: '0 0 20px rgba(250, 204, 21, 0.15)'
           }}>
             <Landmark size={28} />
           </div>
@@ -672,7 +787,7 @@ export default function ChequerasManager({
               </span>
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-              Monitoreo y auditoría en tiempo real de cuentas bancarias, cajas de efectivo y flujos de clientes.
+              Monitoreo y auditoría exacta de cuentas bancarias y cajas de efectivo. No se asume ninguna chequera si no ha sido seleccionada.
             </p>
           </div>
         </div>
@@ -711,6 +826,76 @@ export default function ChequerasManager({
         </div>
       </div>
 
+      {/* NOTICE BANNER: UNASSIGNED MOVEMENTS QUICK-FIX */}
+      {unassignedStats.movementCount > 0 && (
+        <div style={{
+          background: 'rgba(245, 158, 11, 0.1)',
+          border: '1px solid rgba(245, 158, 11, 0.3)',
+          borderRadius: '14px',
+          padding: '16px 20px',
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '14px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              background: 'rgba(245, 158, 11, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fbbf24',
+              flexShrink: 0
+            }}>
+              <AlertCircle size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fde047' }}>
+                Hay {unassignedStats.movementCount} movimientos sin chequera asignada (en blanco)
+              </div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Total: +{formatCOP(unassignedStats.totalIncome)} en ingresos y -{formatCOP(unassignedStats.totalExpense)} en egresos. La mayoría de operaciones de la constructora son de <strong>Bancolombia Empresas</strong>.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setSelectedChequeraFilter('unassigned')}
+              style={{ fontSize: '0.82rem', padding: '8px 14px' }}
+            >
+              Ver Movimientos en Blanco
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={handleAssignAllUnassignedToBancolombia}
+              style={{
+                fontSize: '0.82rem',
+                padding: '8px 16px',
+                background: 'linear-gradient(135deg, #facc15, #eab308)',
+                color: '#0b0f19',
+                fontWeight: 800,
+                border: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 15px rgba(250, 204, 21, 0.3)'
+              }}
+            >
+              <Zap size={15} />
+              <span>Asignar Todos a Bancolombia Empresas</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* CONSOLIDATED GLOBAL METRICS CARDS */}
       <div style={{
         display: 'grid',
@@ -733,7 +918,7 @@ export default function ChequerasManager({
                 {formatCOP(globalKPIs.totalBalance)}
               </div>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Disponible consolidado en todas las cajas
+                Disponible neto en cuentas registradas
               </span>
             </div>
             <div className="metric-icon cyan">
@@ -758,7 +943,7 @@ export default function ChequerasManager({
                 + {formatCOP(globalKPIs.totalIncome)}
               </div>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Entregado por clientes y abonos
+                Recaudos clasificados en cuentas
               </span>
             </div>
             <div className="metric-icon teal">
@@ -783,7 +968,7 @@ export default function ChequerasManager({
                 - {formatCOP(globalKPIs.totalExpense)}
               </div>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Gastos pagados en compras y obras
+                Gastos clasificados en cuentas
               </span>
             </div>
             <div className="metric-icon red">
@@ -793,25 +978,25 @@ export default function ChequerasManager({
         </div>
 
         {/* Chequeras Activas */}
-        <div className="glass-panel metric-card" style={{ padding: '20px', borderLeft: '4px solid var(--primary-orange)' }}>
+        <div className="glass-panel metric-card" style={{ padding: '20px', borderLeft: '4px solid #facc15' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)', fontWeight: 700 }}>
-                Cuentas y Chequeras
+                Cuentas Registradas
               </span>
               <div style={{
                 fontSize: '1.6rem',
                 fontWeight: 800,
-                color: 'var(--primary-orange)',
+                color: '#facc15',
                 marginTop: '6px'
               }}>
                 {globalKPIs.activeChequerasCount} Activas
               </div>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                {globalKPIs.totalMovements} movimientos auditados
+                {globalKPIs.totalMovements} movimientos clasificados
               </span>
             </div>
-            <div className="metric-icon orange">
+            <div className="metric-icon yellow" style={{ background: 'rgba(250, 204, 21, 0.15)', color: '#facc15' }}>
               <Landmark size={22} />
             </div>
           </div>
@@ -909,7 +1094,7 @@ export default function ChequerasManager({
                   <div style={{
                     fontSize: '1.75rem',
                     fontWeight: 900,
-                    color: stat.balance >= 0 ? 'var(--primary-cyan)' : 'var(--primary-red)',
+                    color: stat.balance >= 0 ? theme.color : 'var(--primary-red)',
                     marginTop: '2px',
                     letterSpacing: '-0.5px'
                   }}>
@@ -985,6 +1170,118 @@ export default function ChequerasManager({
               </div>
             );
           })}
+
+          {/* DEDICATED CARD FOR UNASSIGNED MOVEMENTS (IF ANY) */}
+          {unassignedStats.movementCount > 0 && (
+            <div
+              className="glass-panel"
+              style={{
+                padding: '22px',
+                borderRadius: '16px',
+                border: selectedChequeraFilter === 'unassigned' ? '2px solid #fbbf24' : '1px dashed rgba(245, 158, 11, 0.4)',
+                background: selectedChequeraFilter === 'unassigned' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.05)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: 'rgba(245, 158, 11, 0.2)',
+                    color: '#fbbf24',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <AlertCircle size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#fde047' }}>
+                      Sin Asignar (En blanco)
+                    </h3>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      {unassignedStats.movementCount} movimientos sin clasificar
+                    </span>
+                  </div>
+                </div>
+
+                <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', fontSize: '0.68rem', fontWeight: 700 }}>
+                  Por Clasificar
+                </span>
+              </div>
+
+              <div style={{
+                background: 'rgba(0, 0, 0, 0.25)',
+                padding: '14px 16px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.04)'
+              }}>
+                <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  Saldo Neto Sin Clasificar
+                </span>
+                <div style={{
+                  fontSize: '1.75rem',
+                  fontWeight: 900,
+                  color: '#fbbf24',
+                  marginTop: '2px',
+                  letterSpacing: '-0.5px'
+                }}>
+                  {formatCOP(unassignedStats.balance)}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ background: 'rgba(16, 185, 129, 0.08)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--primary-teal)', fontWeight: 700 }}>Ingresos en Blanco</div>
+                  <div style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--primary-teal)', marginTop: '4px' }}>
+                    +{formatCOP(unassignedStats.totalIncome)}
+                  </div>
+                </div>
+                <div style={{ background: 'rgba(244, 63, 94, 0.08)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(244, 63, 94, 0.2)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--primary-red)', fontWeight: 700 }}>Egresos en Blanco</div>
+                  <div style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--primary-red)', marginTop: '4px' }}>
+                    -{formatCOP(unassignedStats.totalExpense)}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '4px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setSelectedChequeraFilter(selectedChequeraFilter === 'unassigned' ? 'all' : 'unassigned')}
+                  style={{ flex: 1, fontSize: '0.8rem', padding: '8px 12px' }}
+                >
+                  {selectedChequeraFilter === 'unassigned' ? 'Ver Todas' : 'Filtrar Sin Asignar'}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={handleAssignAllUnassignedToBancolombia}
+                  title="Pasar todos estos movimientos a Bancolombia Empresas"
+                  style={{
+                    background: '#facc15',
+                    color: '#0b0f19',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    padding: '8px 12px',
+                    border: 'none',
+                    borderRadius: '8px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Zap size={13} />
+                  <span>A Bancolombia</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1032,11 +1329,12 @@ export default function ChequerasManager({
               className="form-control"
               value={selectedChequeraFilter}
               onChange={(e) => setSelectedChequeraFilter(e.target.value)}
-              style={{ minWidth: '170px', fontSize: '0.85rem', padding: '8px 12px' }}
+              style={{ minWidth: '180px', fontSize: '0.85rem', padding: '8px 12px' }}
             >
               <option value="all">Todas las Chequeras</option>
+              <option value="unassigned">⚠️ Sin Asignar (En blanco) ({unassignedStats.movementCount})</option>
               {allKnownChequeras.map(c => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c}>🏦 {c}</option>
               ))}
             </select>
           </div>
@@ -1201,7 +1499,7 @@ export default function ChequerasManager({
               <thead>
                 <tr>
                   <th style={{ width: '105px' }}>Fecha</th>
-                  <th style={{ width: '160px' }}>Chequera / Caja</th>
+                  <th style={{ width: '165px' }}>Chequera / Caja</th>
                   <th style={{ width: '130px' }}>Flujo</th>
                   <th>Concepto / Detalle</th>
                   <th style={{ width: '170px' }}>Obra / Proyecto</th>
@@ -1209,11 +1507,12 @@ export default function ChequerasManager({
                   <th style={{ width: '120px' }}>Método</th>
                   <th style={{ textAlign: 'right', width: '140px' }}>Monto COP</th>
                   <th style={{ textAlign: 'center', width: '90px' }}>Soporte</th>
-                  <th style={{ textAlign: 'center', width: '90px' }}>Acciones</th>
+                  <th style={{ textAlign: 'center', width: '110px' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredMovements.map(m => {
+                  const hasChequera = Boolean(m.resolvedChequera);
                   const theme = getChequeraTheme(m.resolvedChequera);
                   const isIncome = m.type === 'income';
                   const isAnulado = m.isCanceled;
@@ -1233,23 +1532,43 @@ export default function ChequerasManager({
 
                       {/* Chequera */}
                       <td>
-                        <span 
-                          className="badge" 
-                          style={{
-                            background: theme.bg,
-                            color: theme.color,
-                            border: `1px solid ${theme.border}`,
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            padding: '3px 8px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          <Landmark size={11} />
-                          {m.resolvedChequera}
-                        </span>
+                        {hasChequera ? (
+                          <span 
+                            className="badge" 
+                            style={{
+                              background: theme.bg,
+                              color: theme.color,
+                              border: `1px solid ${theme.border}`,
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              padding: '3px 8px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <Landmark size={11} />
+                            {m.resolvedChequera}
+                          </span>
+                        ) : (
+                          <span 
+                            className="badge" 
+                            style={{
+                              background: 'rgba(245, 158, 11, 0.12)',
+                              color: '#fbbf24',
+                              border: '1px solid rgba(245, 158, 11, 0.3)',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '3px 8px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            title="No se seleccionó chequera al registrar este movimiento"
+                          >
+                            <AlertCircle size={11} /> Sin Asignar
+                          </span>
+                        )}
                       </td>
 
                       {/* Flujo */}
@@ -1339,16 +1658,29 @@ export default function ChequerasManager({
 
                       {/* Acciones */}
                       <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
-                          {/* Reassign chequera */}
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '4px', alignItems: 'center' }}>
+                          {/* Quick assign to Bancolombia shortcut if unassigned */}
+                          {!hasChequera && (
+                            <button
+                              type="button"
+                              onClick={() => handleAssignSingleToBancolombia(m)}
+                              className="btn-icon"
+                              title="Asignar a Bancolombia Empresas"
+                              style={{ color: '#facc15' }}
+                            >
+                              <Zap size={14} />
+                            </button>
+                          )}
+
+                          {/* Reassign / Choose Chequera */}
                           <button
                             type="button"
                             onClick={() => {
                               setReassignTargetTx(m);
-                              setNewAssignedChequera(m.resolvedChequera);
+                              setNewAssignedChequera(m.resolvedChequera || 'Bancolombia Empresas');
                             }}
                             className="btn-icon"
-                            title="Reasignar a otra Chequera / Caja"
+                            title="Cambiar o Asignar Chequera"
                             style={{ color: 'var(--text-secondary)' }}
                           >
                             <Edit3 size={13} />
@@ -1509,7 +1841,7 @@ export default function ChequerasManager({
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, color: 'var(--text-primary)' }}>
                 <Plus size={20} style={{ color: 'var(--primary-cyan)' }} />
-                <span>Registrar Movimiento Directo en Chequera</span>
+                <span>Registrar Movimiento en Chequera</span>
               </h3>
               <button type="button" className="btn-icon" onClick={() => setShowDirectTxModal(false)}>
                 <X size={18} />
@@ -1527,8 +1859,8 @@ export default function ChequerasManager({
                       className="form-control"
                       value={directTxData.chequera}
                       onChange={(e) => setDirectTxData({ ...directTxData, chequera: e.target.value })}
-                      required
                     >
+                      <option value="">-- Sin Chequera (En blanco) --</option>
                       {allKnownChequeras.map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
@@ -1665,7 +1997,7 @@ export default function ChequerasManager({
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Ej. Caja Menor Obra Guarne, Davivienda, etc."
+                    placeholder="Ej. Davivienda Habitech, Caja Menor Marinilla..."
                     value={newAccountName}
                     onChange={(e) => setNewAccountName(e.target.value)}
                     required
@@ -1712,7 +2044,7 @@ export default function ChequerasManager({
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, color: 'var(--text-primary)' }}>
                 <Edit3 size={18} style={{ color: 'var(--primary-cyan)' }} />
-                <span>Reasignar Chequera</span>
+                <span>Asignar o Cambiar Chequera</span>
               </h3>
               <button type="button" className="btn-icon" onClick={() => setReassignTargetTx(null)}>
                 <X size={18} />
@@ -1721,7 +2053,7 @@ export default function ChequerasManager({
 
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
-                Cambia la caja/chequera a la cual pertenece este movimiento. Los saldos de ambas chequeras se actualizarán automáticamente.
+                Selecciona la cuenta a la cual pertenece este movimiento. También puedes dejarlo en blanco si no corresponde a ninguna chequera.
               </p>
 
               <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
@@ -1732,17 +2064,23 @@ export default function ChequerasManager({
                 <div style={{ fontSize: '0.82rem', color: reassignTargetTx.type === 'income' ? 'var(--primary-teal)' : 'var(--primary-red)', marginTop: '4px', fontWeight: 800 }}>
                   {reassignTargetTx.type === 'income' ? '+' : '-'}{formatCOP(reassignTargetTx.amount)}
                 </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Chequera actual: <strong style={{ color: reassignTargetTx.resolvedChequera ? 'var(--primary-cyan)' : '#fbbf24' }}>
+                    {reassignTargetTx.resolvedChequera || 'Sin Asignar (En blanco)'}
+                  </strong>
+                </div>
               </div>
 
               <div className="form-group">
                 <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                  Seleccionar Nueva Chequera
+                  Seleccionar Chequera / Cuenta
                 </label>
                 <select
                   className="form-control"
                   value={newAssignedChequera}
                   onChange={(e) => setNewAssignedChequera(e.target.value)}
                 >
+                  <option value="">-- Sin Asignar (Dejar en blanco) --</option>
                   {allKnownChequeras.map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
@@ -1755,7 +2093,7 @@ export default function ChequerasManager({
                 Cancelar
               </button>
               <button type="button" className="btn btn-primary" onClick={handleSaveReassignment}>
-                Guardar Reasignación
+                Guardar Asignación
               </button>
             </div>
           </div>

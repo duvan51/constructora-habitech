@@ -65,7 +65,7 @@ export default function TotalAdjustments({
     date: new Date().toISOString().split('T')[0],
     receiptNumber: '',
     description: '',
-    chequera: 'Caja Dumar'
+    chequera: ''
   });
   const [chequerasList, setChequerasList] = useState(() => getChequerasList());
   const [showNewChequeraInput, setShowNewChequeraInput] = useState(false);
@@ -366,8 +366,10 @@ export default function TotalAdjustments({
         fullDescription += ` (Factura/Soporte: ${abonoForm.receiptNumber.trim()})`;
       }
       fullDescription += ` [Pagado a: ${abonoModalPerson.person.name} - Cédula: ${abonoModalPerson.person.documentId}]`;
-      const selectedChequera = (abonoForm.chequera || 'Caja Dumar').trim();
-      fullDescription += ` [Chequera: ${selectedChequera}]`;
+      const selectedChequera = (abonoForm.chequera || '').trim();
+      if (selectedChequera) {
+        fullDescription += ` [Chequera: ${selectedChequera}]`;
+      }
 
       const newTx = {
         type: 'expense',
@@ -1539,7 +1541,7 @@ export default function TotalAdjustments({
                 ) : (
                   <select
                     className="input-field"
-                    value={abonoForm.chequera || 'Caja Dumar'}
+                    value={abonoForm.chequera || ''}
                     onChange={(e) => {
                       if (e.target.value === '__add_new__') {
                         setShowNewChequeraInput(true);
@@ -1548,8 +1550,8 @@ export default function TotalAdjustments({
                       }
                     }}
                     style={{ width: '100%' }}
-                    required
                   >
+                    <option value="">-- Sin Chequera (En blanco) --</option>
                     {chequerasList.map((ch, idx) => (
                       <option key={idx} value={ch}>🏦 {ch}</option>
                     ))}

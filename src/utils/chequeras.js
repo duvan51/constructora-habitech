@@ -3,9 +3,9 @@
 // and allows users to dynamically add new cash boxes / bank accounts.
 
 export const DEFAULT_CHEQUERAS = [
+  'Bancolombia Empresas',
   'Caja Dumar',
-  'Caja Duvan',
-  'Bancolombia Empresas'
+  'Caja Duvan'
 ];
 
 const STORAGE_KEY = 'habitech_chequeras';
@@ -124,7 +124,25 @@ export const removeChequera = (name) => {
  * Get visual styling (badge color, icon accent) for known or custom chequeras.
  */
 export const getChequeraTheme = (chequeraName) => {
-  const name = (chequeraName || '').toLowerCase();
+  const name = (chequeraName || '').toLowerCase().trim();
+  if (!name || name === 'sin asignar' || name.includes('en blanco')) {
+    return {
+      bg: 'rgba(148, 163, 184, 0.08)',
+      border: 'rgba(148, 163, 184, 0.25)',
+      color: '#94a3b8',
+      pillBg: 'rgba(148, 163, 184, 0.15)',
+      label: 'Sin Asignar (En blanco)'
+    };
+  }
+  if (name.includes('bancolombia')) {
+    return {
+      bg: 'rgba(250, 204, 21, 0.12)',
+      border: 'rgba(250, 204, 21, 0.35)',
+      color: '#facc15',
+      pillBg: 'rgba(250, 204, 21, 0.2)',
+      label: 'Bancolombia Empresas'
+    };
+  }
   if (name.includes('dumar')) {
     return {
       bg: 'rgba(6, 182, 212, 0.12)',
@@ -141,15 +159,6 @@ export const getChequeraTheme = (chequeraName) => {
       color: '#ff6d00',
       pillBg: 'rgba(255, 109, 0, 0.2)',
       label: 'Caja Duvan'
-    };
-  }
-  if (name.includes('bancolombia')) {
-    return {
-      bg: 'rgba(250, 204, 21, 0.12)',
-      border: 'rgba(250, 204, 21, 0.35)',
-      color: '#facc15',
-      pillBg: 'rgba(250, 204, 21, 0.2)',
-      label: 'Bancolombia Empresas'
     };
   }
   // Custom or other bank

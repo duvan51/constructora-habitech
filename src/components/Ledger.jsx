@@ -53,7 +53,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
         || selectedTx.receipt_base64 
         || (selectedTx.files && selectedTx.files[0] ? (selectedTx.files[0].fileBase64 || selectedTx.files[0].base64 || selectedTx.files[0].url) : '') 
         || '';
-      const resolvedChequera = extractChequera(selectedTx) || 'Caja Dumar';
+      const resolvedChequera = extractChequera(selectedTx) || '';
       setEditTxData({
         id: selectedTx.id,
         projectId: selectedTx.projectId || 'general',
@@ -151,7 +151,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     category: 'materials',
     milestoneId: '',
     method: 'Transferencia',
-    chequera: 'Caja Dumar',
+    chequera: '',
     budgetItemId: '',
     description: '',
     amount: '',
@@ -298,7 +298,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       finalDesc = `${txData.description}${personnelSuffix} (Obra: ${targetProject.name})`;
     }
 
-    const selectedChequera = (txData.chequera || 'Caja Dumar').trim();
+    const selectedChequera = (txData.chequera || '').trim();
     if (selectedChequera && !finalDesc.includes('[Chequera:')) {
       finalDesc = `${finalDesc} [Chequera: ${selectedChequera}]`;
     }
@@ -335,7 +335,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       category: 'materials',
       milestoneId: '',
       method: 'Transferencia',
-      chequera: txData.chequera || 'Caja Dumar',
+      chequera: '',
       budgetItemId: '',
       description: '',
       amount: '',
@@ -404,11 +404,13 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
       }
     }
 
-    const selectedChequera = (editTxData.chequera || extractChequera(selectedTx) || 'Caja Dumar').trim();
+    const selectedChequera = (editTxData.chequera || extractChequera(selectedTx) || '').trim();
     if (selectedChequera && !finalDesc.includes('[Chequera:')) {
       finalDesc = `${finalDesc} [Chequera: ${selectedChequera}]`;
     } else if (selectedChequera && finalDesc.includes('[Chequera:')) {
       finalDesc = finalDesc.replace(/\[Chequera:\s*[^\]]+\]/i, `[Chequera: ${selectedChequera}]`);
+    } else if (!selectedChequera && finalDesc.includes('[Chequera:')) {
+      finalDesc = finalDesc.replace(/\[Chequera:\s*[^\]]+\]/i, '').trim();
     }
 
     const receiptImg = uploadMode === 'file' ? fileBase64 : capturedImage;
@@ -551,8 +553,14 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
     const personnelMatch = filterPersonnel === 'all' || String(t.personnelId) === filterPersonnel;
     
     // Chequera / Caja filter
-    const chequeraMatch = filterChequera === 'all' || 
-      (extractChequera(t) || 'Caja Dumar').toLowerCase() === filterChequera.toLowerCase();
+    let chequeraMatch = true;
+    if (filterChequera !== 'all') {
+      if (filterChequera === 'unassigned') {
+        chequeraMatch = !extractChequera(t);
+      } else {
+        chequeraMatch = (extractChequera(t) || '').toLowerCase() === filterChequera.toLowerCase();
+      }
+    }
 
     // Date range and month filter
     let dateMatch = true;
@@ -879,6 +887,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
           onChange={(e) => setFilterChequera(e.target.value)}
         >
           <option value="all">🏦 Todas las Chequeras / Cajas</option>
+          <option value="unassigned">⚠️ Sin Asignar (En blanco)</option>
           {chequerasList.map((ch, idx) => (
             <option key={idx} value={ch}>🏦 {ch}</option>
           ))}
@@ -1994,7 +2003,7 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                     <select
                       name="chequera"
                       className="form-control"
-                      value={txData.chequera || 'Caja Dumar'}
+                      value={txData.chequera || ''}
                       onChange={(e) => {
                         if (e.target.value === '__add_new__') {
                           setShowNewChequeraInput(true);
@@ -2002,8 +2011,8 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                           setTxData(prev => ({ ...prev, chequera: e.target.value }));
                         }
                       }}
-                      required
                     >
+                      <option value="">-- Sin Chequera (En blanco) --</option>
                       {chequerasList.map((ch, idx) => (
                         <option key={idx} value={ch}>🏦 {ch}</option>
                       ))}
@@ -2344,10 +2353,10 @@ export default function Ledger({ transactions, projects, personnel, onAddTransac
                     </label>
                     <select
                       className="form-control"
-                      value={editTxData.chequera || 'Caja Dumar'}
+                      value={editTxData.chequera || ''}
                       onChange={(e) => setEditTxData(prev => ({ ...prev, chequera: e.target.value }))}
-                      required
                     >
+                      <option value="">-- Sin Chequera (En blanco) --</option>
                       {chequerasList.map((ch, idx) => (
                         <option key={idx} value={ch}>🏦 {ch}</option>
                       ))}
