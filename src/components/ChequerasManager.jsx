@@ -23,8 +23,7 @@ import {
   X, 
   Layers,
   Edit3,
-  HelpCircle,
-  Zap
+  HelpCircle
 } from 'lucide-react';
 import { 
   getChequerasList, 
@@ -397,68 +396,6 @@ export default function ChequerasManager({
     };
   }, [filteredMovements]);
 
-  // Mass assign all unassigned movements to Bancolombia Empresas
-  const handleAssignAllUnassignedToBancolombia = async () => {
-    const unassignedList = enrichedTransactions.filter(t => !t.resolvedChequera && !t.isCanceled);
-    if (unassignedList.length === 0) {
-      alert('No hay movimientos sin chequera para asignar.');
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `¿Deseas asignar los ${unassignedList.length} movimientos en blanco a "Bancolombia Empresas"?\n\nEsto actualizará sus registros automáticamente.`
-    );
-    if (!confirmed) return;
-
-    if (window.setGlobalLoading) window.setGlobalLoading(true);
-    try {
-      for (const tx of unassignedList) {
-        let desc = tx.description || '';
-        desc = desc.replace(/\[(?:Chequera|Caja|Cuenta):\s*[^\]]+\]/gi, '').trim();
-        desc = `${desc} [Chequera: Bancolombia Empresas]`.trim();
-        const updated = {
-          ...tx,
-          chequera: 'Bancolombia Empresas',
-          account: 'Bancolombia Empresas',
-          description: desc
-        };
-        if (onUpdateTransaction) {
-          await onUpdateTransaction(updated);
-        }
-      }
-      showNotification(`✅ Se asignaron ${unassignedList.length} movimientos a Bancolombia Empresas.`);
-    } catch (err) {
-      console.error('Error asignando movimientos en lote:', err);
-      alert('Ocurrió un error al asignar los movimientos.');
-    } finally {
-      if (window.setGlobalLoading) window.setGlobalLoading(false);
-    }
-  };
-
-  // Quick single assign to Bancolombia Empresas
-  const handleAssignSingleToBancolombia = async (tx) => {
-    try {
-      let desc = tx.description || '';
-      desc = desc.replace(/\[(?:Chequera|Caja|Cuenta):\s*[^\]]+\]/gi, '').trim();
-      desc = `${desc} [Chequera: Bancolombia Empresas]`.trim();
-
-      const updated = {
-        ...tx,
-        chequera: 'Bancolombia Empresas',
-        account: 'Bancolombia Empresas',
-        description: desc
-      };
-
-      if (onUpdateTransaction) {
-        await onUpdateTransaction(updated);
-      }
-      showNotification('✅ Movimiento asignado a Bancolombia Empresas.');
-    } catch (err) {
-      console.error(err);
-      alert('Error al asignar chequera.');
-    }
-  };
-
   // Handle Transfer between two chequeras
   const handleExecuteTransfer = async (e) => {
     e.preventDefault();
@@ -826,23 +763,23 @@ export default function ChequerasManager({
         </div>
       </div>
 
-      {/* NOTICE BANNER: UNASSIGNED MOVEMENTS QUICK-FIX */}
+      {/* NOTICE BANNER: UNASSIGNED MOVEMENTS */}
       {unassignedStats.movementCount > 0 && (
         <div style={{
-          background: 'rgba(245, 158, 11, 0.1)',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
+          background: 'rgba(245, 158, 11, 0.08)',
+          border: '1px solid rgba(245, 158, 11, 0.25)',
           borderRadius: '14px',
-          padding: '16px 20px',
+          padding: '14px 20px',
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '14px'
+          gap: '12px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
-              width: '40px',
-              height: '40px',
+              width: '36px',
+              height: '36px',
               borderRadius: '10px',
               background: 'rgba(245, 158, 11, 0.2)',
               display: 'flex',
@@ -851,48 +788,26 @@ export default function ChequerasManager({
               color: '#fbbf24',
               flexShrink: 0
             }}>
-              <AlertCircle size={22} />
+              <AlertCircle size={20} />
             </div>
             <div>
-              <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fde047' }}>
+              <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#fde047' }}>
                 Hay {unassignedStats.movementCount} movimientos sin chequera asignada (en blanco)
               </div>
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Total: +{formatCOP(unassignedStats.totalIncome)} en ingresos y -{formatCOP(unassignedStats.totalExpense)} en egresos. La mayoría de operaciones de la constructora son de <strong>Bancolombia Empresas</strong>.
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Total: +{formatCOP(unassignedStats.totalIncome)} en ingresos y -{formatCOP(unassignedStats.totalExpense)} en egresos sin clasificar.
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setSelectedChequeraFilter('unassigned')}
-              style={{ fontSize: '0.82rem', padding: '8px 14px' }}
-            >
-              Ver Movimientos en Blanco
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={handleAssignAllUnassignedToBancolombia}
-              style={{
-                fontSize: '0.82rem',
-                padding: '8px 16px',
-                background: 'linear-gradient(135deg, #facc15, #eab308)',
-                color: '#0b0f19',
-                fontWeight: 800,
-                border: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 4px 15px rgba(250, 204, 21, 0.3)'
-              }}
-            >
-              <Zap size={15} />
-              <span>Asignar Todos a Bancolombia Empresas</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setSelectedChequeraFilter(selectedChequeraFilter === 'unassigned' ? 'all' : 'unassigned')}
+            style={{ fontSize: '0.82rem', padding: '8px 16px' }}
+          >
+            {selectedChequeraFilter === 'unassigned' ? 'Mostrar Todas las Cajas' : 'Filtrar Movimientos en Blanco'}
+          </button>
         </div>
       )}
 
@@ -1254,30 +1169,9 @@ export default function ChequerasManager({
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setSelectedChequeraFilter(selectedChequeraFilter === 'unassigned' ? 'all' : 'unassigned')}
-                  style={{ flex: 1, fontSize: '0.8rem', padding: '8px 12px' }}
+                  style={{ width: '100%', fontSize: '0.8rem', padding: '8px 12px' }}
                 >
                   {selectedChequeraFilter === 'unassigned' ? 'Ver Todas' : 'Filtrar Sin Asignar'}
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={handleAssignAllUnassignedToBancolombia}
-                  title="Pasar todos estos movimientos a Bancolombia Empresas"
-                  style={{
-                    background: '#facc15',
-                    color: '#0b0f19',
-                    fontWeight: 700,
-                    fontSize: '0.8rem',
-                    padding: '8px 12px',
-                    border: 'none',
-                    borderRadius: '8px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <Zap size={13} />
-                  <span>A Bancolombia</span>
                 </button>
               </div>
             </div>
@@ -1659,25 +1553,12 @@ export default function ChequerasManager({
                       {/* Acciones */}
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '4px', alignItems: 'center' }}>
-                          {/* Quick assign to Bancolombia shortcut if unassigned */}
-                          {!hasChequera && (
-                            <button
-                              type="button"
-                              onClick={() => handleAssignSingleToBancolombia(m)}
-                              className="btn-icon"
-                              title="Asignar a Bancolombia Empresas"
-                              style={{ color: '#facc15' }}
-                            >
-                              <Zap size={14} />
-                            </button>
-                          )}
-
                           {/* Reassign / Choose Chequera */}
                           <button
                             type="button"
                             onClick={() => {
                               setReassignTargetTx(m);
-                              setNewAssignedChequera(m.resolvedChequera || 'Bancolombia Empresas');
+                              setNewAssignedChequera(m.resolvedChequera || '');
                             }}
                             className="btn-icon"
                             title="Cambiar o Asignar Chequera"
