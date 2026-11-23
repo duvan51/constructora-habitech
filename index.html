@@ -7,6 +7,19 @@
     <title>Habitech Constructor | Control de Obras y Presupuestos</title>
     <meta name="description" content="Plataforma premium para el control financiero, presupuestario y avance de obras de Habitech." />
     
+    <!-- Instant theme initializer to prevent flash -->
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('habitech_theme') || 'dark';
+          document.documentElement.setAttribute('data-theme', t);
+          if (t === 'light') {
+            document.documentElement.classList.add('theme-light');
+          }
+        } catch(e) {}
+      })();
+    </script>
+    
     <!-- Google Fonts: Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

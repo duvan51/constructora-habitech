@@ -66,6 +66,29 @@ export default function App() {
   const [quickSwitcherEnabled, setQuickSwitcherEnabled] = useState(() => {
     return localStorage.getItem('habitech_quick_switcher_enabled') !== 'false';
   });
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('habitech_theme') || 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (theme === 'light') {
+      document.documentElement.classList.add('theme-light');
+      document.body.classList.add('theme-light');
+    } else {
+      document.documentElement.classList.remove('theme-light');
+      document.body.classList.remove('theme-light');
+    }
+    localStorage.setItem('habitech_theme', theme);
+  }, [theme]);
+
+  const handleToggleTheme = (newTheme) => {
+    if (typeof newTheme === 'string') {
+      setTheme(newTheme);
+    } else {
+      setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    }
+  };
   const loadingCountRef = useRef(0);
   const isNavigatingHistoryRef = useRef(false);
   const initialUrlHandledRef = useRef(false);
@@ -869,6 +892,8 @@ export default function App() {
         onLogout={handleLogout}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
 
       <main className="main-content">
@@ -1081,6 +1106,8 @@ export default function App() {
               <ApiSettings 
                 quickSwitcherEnabled={quickSwitcherEnabled}
                 onToggleQuickSwitcher={handleToggleQuickSwitcher}
+                theme={theme}
+                onToggleTheme={handleToggleTheme}
               />
             )}
           </>

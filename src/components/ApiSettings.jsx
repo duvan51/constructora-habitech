@@ -9,12 +9,17 @@ import {
   EyeOff, 
   Server,
   BookOpen,
-  Layers
+  Layers,
+  Palette,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 export default function ApiSettings({ 
   quickSwitcherEnabled: propEnabled, 
-  onToggleQuickSwitcher: propToggle 
+  onToggleQuickSwitcher: propToggle,
+  theme: propTheme,
+  onToggleTheme: propToggleTheme
 }) {
   const [activeSubTab, setActiveSubTab] = useState('api');
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -26,7 +31,12 @@ export default function ApiSettings({
     return localStorage.getItem('habitech_quick_switcher_enabled') !== 'false';
   });
 
+  const [localTheme, setLocalTheme] = useState(() => {
+    return localStorage.getItem('habitech_theme') || 'dark';
+  });
+
   const isSwitcherActive = propEnabled !== undefined ? propEnabled : localEnabled;
+  const currentTheme = propTheme || localTheme;
 
   const handleToggleSwitcher = () => {
     const nextVal = !isSwitcherActive;
@@ -35,6 +45,23 @@ export default function ApiSettings({
     } else {
       setLocalEnabled(nextVal);
       localStorage.setItem('habitech_quick_switcher_enabled', String(nextVal));
+    }
+  };
+
+  const handleSetTheme = (themeName) => {
+    if (propToggleTheme) {
+      propToggleTheme(themeName);
+    } else {
+      setLocalTheme(themeName);
+      localStorage.setItem('habitech_theme', themeName);
+      document.documentElement.setAttribute('data-theme', themeName);
+      if (themeName === 'light') {
+        document.documentElement.classList.add('theme-light');
+        document.body.classList.add('theme-light');
+      } else {
+        document.documentElement.classList.remove('theme-light');
+        document.body.classList.remove('theme-light');
+      }
     }
   };
 
@@ -115,6 +142,30 @@ npx supabase functions deploy proyectos-activos --project-ref flknwsgtcswiusahfj
           >
             <Settings size={16} />
             <span>General</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('appearance')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              width: '100%',
+              padding: '12px 15px',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeSubTab === 'appearance' ? 'rgba(255, 109, 0, 0.1)' : 'transparent',
+              color: activeSubTab === 'appearance' ? 'var(--primary-cyan)' : 'var(--text-secondary)',
+              borderLeft: activeSubTab === 'appearance' ? '3px solid var(--primary-cyan)' : '3px solid transparent',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'var(--transition-smooth)'
+            }}
+          >
+            <Palette size={16} />
+            <span>Apariencia y Tema</span>
           </button>
         </div>
 
@@ -422,6 +473,97 @@ npx supabase functions deploy proyectos-activos --project-ref flknwsgtcswiusahfj
               <p style={{ marginBottom: '20px' }}>Detalles técnicos y estado de la plataforma Habitech Constructor.</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {/* Theme Selector Option in General */}
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid var(--border-glass)',
+                  borderRadius: '12px',
+                  padding: '18px 22px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '20px',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ flex: 1, minWidth: '220px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        background: currentTheme === 'light' ? 'rgba(255, 109, 0, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary-cyan)'
+                      }}>
+                        <Palette size={18} />
+                      </div>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.98rem' }}>
+                        Tema Visual de la Plataforma
+                      </span>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '5px',
+                        background: currentTheme === 'light' ? 'rgba(255, 109, 0, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                        color: 'var(--primary-cyan)'
+                      }}>
+                        {currentTheme === 'light' ? 'Modo Claro' : 'Modo Oscuro'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: '1.45', paddingLeft: '42px' }}>
+                      Alterna entre el Modo Oscuro (Cyber Executive) y el Modo Claro (Diurno de Alto Contraste).
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleSetTheme('dark')}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        border: currentTheme === 'dark' ? '1.5px solid var(--primary-cyan)' : '1px solid var(--border-glass)',
+                        background: currentTheme === 'dark' ? 'rgba(255, 109, 0, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                        color: currentTheme === 'dark' ? 'var(--primary-cyan)' : 'var(--text-secondary)',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'var(--transition-smooth)'
+                      }}
+                    >
+                      <Moon size={15} />
+                      Oscuro
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetTheme('light')}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        border: currentTheme === 'light' ? '1.5px solid var(--primary-cyan)' : '1px solid var(--border-glass)',
+                        background: currentTheme === 'light' ? 'rgba(255, 109, 0, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                        color: currentTheme === 'light' ? 'var(--primary-cyan)' : 'var(--text-secondary)',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'var(--transition-smooth)'
+                      }}
+                    >
+                      <Sun size={15} />
+                      Claro
+                    </button>
+                  </div>
+                </div>
+
                 {/* Floating Quick Project Switcher Option */}
                 <div style={{
                   background: isSwitcherActive ? 'rgba(255, 109, 0, 0.05)' : 'rgba(255, 255, 255, 0.02)',
@@ -559,6 +701,252 @@ npx supabase functions deploy proyectos-activos --project-ref flknwsgtcswiusahfj
                   }}>
                     CONECTADO (ONLINE)
                   </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSubTab === 'appearance' && (
+            <div className="glass-panel" style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
+              <div>
+                <h2 style={{ fontSize: '1.4rem', marginTop: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Palette style={{ color: 'var(--primary-cyan)' }} size={24} />
+                  Apariencia y Tema Visual
+                </h2>
+                <p style={{ marginTop: '8px', fontSize: '0.95rem', lineHeight: '1.6' }}>
+                  Personaliza la experiencia visual de Habitech Constructor. Tu preferencia se guardará automáticamente en este navegador y se aplicará cada vez que ingreses.
+                </p>
+              </div>
+
+              {/* Theme Cards Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                {/* Dark Mode Card */}
+                <div 
+                  onClick={() => handleSetTheme('dark')}
+                  style={{
+                    background: currentTheme === 'dark' ? 'rgba(255, 109, 0, 0.06)' : 'rgba(255, 255, 255, 0.02)',
+                    border: currentTheme === 'dark' ? '2px solid var(--primary-cyan)' : '1px solid var(--border-glass)',
+                    borderRadius: '16px',
+                    padding: '24px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    transition: 'all 0.25s ease',
+                    boxShadow: currentTheme === 'dark' ? '0 8px 30px rgba(255, 109, 0, 0.15)' : 'none',
+                    position: 'relative'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
+                        background: 'rgba(15, 23, 42, 0.8)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#60a5fa'
+                      }}>
+                        <Moon size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>Modo Oscuro</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Cyber Executive</div>
+                      </div>
+                    </div>
+                    {currentTheme === 'dark' && (
+                      <span style={{
+                        background: 'var(--primary-cyan)',
+                        color: '#ffffff',
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <Check size={12} strokeWidth={3} /> Activo
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Visual Preview Box */}
+                  <div style={{
+                    borderRadius: '10px',
+                    padding: '12px',
+                    background: '#0b0f19',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '6px' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#f3f4f6', fontWeight: 600 }}>HABITECH</span>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#FF6D00' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <div style={{ width: '30%', height: '32px', borderRadius: '4px', background: '#111827', border: '1px solid rgba(255, 109, 0, 0.3)' }} />
+                      <div style={{ width: '70%', height: '32px', borderRadius: '4px', background: '#1e293b' }} />
+                    </div>
+                  </div>
+
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.45' }}>
+                    Ideal para jornadas de trabajo prolongadas, reduce la fatiga visual y resalta los acentos naranja de la marca.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleSetTheme('dark'); }}
+                    style={{
+                      marginTop: 'auto',
+                      padding: '10px 16px',
+                      borderRadius: '8px',
+                      border: currentTheme === 'dark' ? 'none' : '1px solid var(--border-glass)',
+                      background: currentTheme === 'dark' ? 'linear-gradient(135deg, #FF6D00 0%, #FF8A00 100%)' : 'rgba(255, 255, 255, 0.05)',
+                      color: currentTheme === 'dark' ? '#ffffff' : 'var(--text-primary)',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'var(--transition-smooth)'
+                    }}
+                  >
+                    <Moon size={15} />
+                    {currentTheme === 'dark' ? 'Tema Actual Activado' : 'Activar Modo Oscuro'}
+                  </button>
+                </div>
+
+                {/* Light Mode Card */}
+                <div 
+                  onClick={() => handleSetTheme('light')}
+                  style={{
+                    background: currentTheme === 'light' ? 'rgba(255, 109, 0, 0.06)' : 'rgba(255, 255, 255, 0.02)',
+                    border: currentTheme === 'light' ? '2px solid var(--primary-cyan)' : '1px solid var(--border-glass)',
+                    borderRadius: '16px',
+                    padding: '24px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    transition: 'all 0.25s ease',
+                    boxShadow: currentTheme === 'light' ? '0 8px 30px rgba(255, 109, 0, 0.15)' : 'none',
+                    position: 'relative'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
+                        background: '#fef3c7',
+                        border: '1px solid #fde68a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#d97706'
+                      }}>
+                        <Sun size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>Modo Claro</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Diurno de Alto Contraste</div>
+                      </div>
+                    </div>
+                    {currentTheme === 'light' && (
+                      <span style={{
+                        background: 'var(--primary-cyan)',
+                        color: '#ffffff',
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <Check size={12} strokeWidth={3} /> Activo
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Visual Preview Box */}
+                  <div style={{
+                    borderRadius: '10px',
+                    padding: '12px',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#0f172a', fontWeight: 700 }}>HABITECH</span>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#FF6D00' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <div style={{ width: '30%', height: '32px', borderRadius: '4px', background: '#ffffff', border: '1.5px solid #FF6D00' }} />
+                      <div style={{ width: '70%', height: '32px', borderRadius: '4px', background: '#ffffff', border: '1px solid #e2e8f0' }} />
+                    </div>
+                  </div>
+
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.45' }}>
+                    Excelente legibilidad en oficinas iluminadas y para presentaciones o exportación de tablas y presupuestos.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleSetTheme('light'); }}
+                    style={{
+                      marginTop: 'auto',
+                      padding: '10px 16px',
+                      borderRadius: '8px',
+                      border: currentTheme === 'light' ? 'none' : '1px solid var(--border-glass)',
+                      background: currentTheme === 'light' ? 'linear-gradient(135deg, #FF6D00 0%, #FF8A00 100%)' : 'rgba(255, 255, 255, 0.05)',
+                      color: currentTheme === 'light' ? '#ffffff' : 'var(--text-primary)',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'var(--transition-smooth)'
+                    }}
+                  >
+                    <Sun size={15} />
+                    {currentTheme === 'light' ? 'Tema Actual Activado' : 'Activar Modo Claro'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Brand Accent Note */}
+              <div style={{
+                background: 'rgba(255, 109, 0, 0.05)',
+                border: '1px solid rgba(255, 109, 0, 0.2)',
+                borderRadius: '12px',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '15px'
+              }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: '#FF6D00',
+                  boxShadow: '0 0 12px rgba(255, 109, 0, 0.4)',
+                  flexShrink: 0
+                }} />
+                <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: '1.45' }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>Identidad Visual Habitech:</strong> El tono <strong style={{ color: '#FF6D00' }}>#FF6D00 (Naranja Habitech)</strong> se conserva como acento principal en ambos temas para garantizar la coherencia institucional y la rápida identificación de acciones clave.
                 </div>
               </div>
             </div>

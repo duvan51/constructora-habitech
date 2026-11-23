@@ -1,6 +1,6 @@
-import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, CheckSquare, Calculator, UserCheck, Scale, Percent, Calendar, Landmark } from 'lucide-react';
+import { Home, HardHat, DollarSign, Users, LogOut, X, Briefcase, Settings, CheckSquare, Calculator, UserCheck, Scale, Percent, Calendar, Landmark, Sun, Moon } from 'lucide-react';
 
-export default function Sidebar({ currentTab, setTab, projectCount, currentUser, onLogout, isOpen, onClose }) {
+export default function Sidebar({ currentTab, setTab, projectCount, currentUser, onLogout, isOpen, onClose, theme = 'dark', onToggleTheme }) {
   const isClient = currentUser?.role === 'client';
   const isDesign = currentUser?.role === 'disign' || currentUser?.role === 'design';
 
@@ -194,6 +194,42 @@ export default function Sidebar({ currentTab, setTab, projectCount, currentUser,
             )}
           </div>
         </div>
+
+        {onToggleTheme && (
+          <button
+            type="button"
+            onClick={() => onToggleTheme(theme === 'light' ? 'dark' : 'light')}
+            title={theme === 'light' ? 'Cambiar a Modo Oscuro' : 'Cambiar a Modo Claro'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              width: '100%',
+              padding: '7px 12px',
+              borderRadius: '8px',
+              border: theme === 'light' ? '1px solid rgba(255, 109, 0, 0.35)' : '1px solid var(--border-glass)',
+              background: theme === 'light' ? 'rgba(255, 109, 0, 0.08)' : 'rgba(255, 255, 255, 0.05)',
+              color: 'var(--text-primary)',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'var(--transition-smooth)'
+            }}
+          >
+            {theme === 'light' ? (
+              <>
+                <Moon size={14} style={{ color: '#FF6D00' }} />
+                <span>Modo Oscuro</span>
+              </>
+            ) : (
+              <>
+                <Sun size={14} style={{ color: '#FFB300' }} />
+                <span>Modo Claro</span>
+              </>
+            )}
+          </button>
+        )}
 
         {onLogout && (
           <button
