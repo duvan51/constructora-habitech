@@ -252,6 +252,8 @@ export default function ProjectDetail({
   const [expenseFilter, setExpenseFilter] = useState('all'); // 'all', 'assigned', 'unassigned'
   const [expenseStartDate, setExpenseStartDate] = useState('');
   const [expenseEndDate, setExpenseEndDate] = useState('');
+  const [expenseMonthFilter, setExpenseMonthFilter] = useState('');
+  const [expenseDateOrder, setExpenseDateOrder] = useState('desc'); // 'desc' (más recientes) o 'asc' (más antiguas)
   const [expensePersonnelFilter, setExpensePersonnelFilter] = useState('all');
   const [expandedBudgetItem, setExpandedBudgetItem] = useState(null); // idx of item whose embedded expenses are expanded
 
@@ -2080,6 +2082,11 @@ export default function ProjectDetail({
                 filteredExpenses = unclassifiedExpenses;
               }
 
+              // Filter by month
+              if (expenseMonthFilter) {
+                filteredExpenses = filteredExpenses.filter(exp => (exp.date || '').startsWith(expenseMonthFilter));
+              }
+
               // Filter by dates
               if (expenseStartDate) {
                 filteredExpenses = filteredExpenses.filter(exp => (exp.date || '') >= expenseStartDate);
@@ -2112,6 +2119,17 @@ export default function ProjectDetail({
                   );
                 }
               }
+
+              // Organizar / Ordenar por fecha
+              filteredExpenses = [...filteredExpenses].sort((a, b) => {
+                const dateA = a.date || '';
+                const dateB = b.date || '';
+                if (expenseDateOrder === 'asc') {
+                  return dateA.localeCompare(dateB);
+                } else {
+                  return dateB.localeCompare(dateA);
+                }
+              });
 
               // Build unique personnel options for filter dropdown
               const uniquePersonnelOptions = [];
@@ -2396,136 +2414,295 @@ export default function ProjectDetail({
                       </div>
                     )}
 
-                    {/* Filters Toolbar: Fechas, Personal, Chequeras, Pills (Búsqueda removida) */}
-                    <div className="expenses-section-toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                    {/* Filters Toolbar: Fechas, Personal, Chequeras, Pills */}
+                    <div className="expenses-section-toolbar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
                       
-                      {/* Filtro de Fechas */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', background: 'rgba(0, 0, 0, 0.25)', padding: '5px 10px', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>📅 Desde:</span>
-                          <input 
-                            type="date"
-                            value={expenseStartDate}
-                            onChange={(e) => setExpenseStartDate(e.target.value)}
-                            style={{
-                              padding: '4px 8px',
-                              fontSize: '0.78rem',
-                              borderRadius: '8px',
-                              background: 'rgba(255, 255, 255, 0.04)',
-                              border: '1px solid var(--border-glass)',
-                              color: 'var(--text-primary)'
-                            }}
-                          />
+                      {/* Top Row: Fechas, Personal, Chequeras, Pills */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                        {/* Filtro de Fechas */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', background: 'rgba(0, 0, 0, 0.25)', padding: '5px 10px', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>📅 Desde:</span>
+                            <input 
+                              type="date"
+                              value={expenseStartDate}
+                              onChange={(e) => {
+                                setExpenseStartDate(e.target.value);
+                                if (expenseMonthFilter) setExpenseMonthFilter('');
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '0.78rem',
+                                borderRadius: '8px',
+                                background: 'rgba(255, 255, 255, 0.04)',
+                                border: '1px solid var(--border-glass)',
+                                color: 'var(--text-primary)'
+                              }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Hasta:</span>
+                            <input 
+                              type="date"
+                              value={expenseEndDate}
+                              onChange={(e) => {
+                                setExpenseEndDate(e.target.value);
+                                if (expenseMonthFilter) setExpenseMonthFilter('');
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '0.78rem',
+                                borderRadius: '8px',
+                                background: 'rgba(255, 255, 255, 0.04)',
+                                border: '1px solid var(--border-glass)',
+                                color: 'var(--text-primary)'
+                              }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', borderLeft: '1px solid var(--border-glass)', paddingLeft: '6px' }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>🗓️ Mes:</span>
+                            <input 
+                              type="month"
+                              value={expenseMonthFilter}
+                              onChange={(e) => {
+                                setExpenseMonthFilter(e.target.value);
+                                if (e.target.value) {
+                                  setExpenseStartDate('');
+                                  setExpenseEndDate('');
+                                }
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '0.78rem',
+                                borderRadius: '8px',
+                                background: 'rgba(255, 255, 255, 0.04)',
+                                border: '1px solid var(--border-glass)',
+                                color: 'var(--text-primary)'
+                              }}
+                            />
+                          </div>
+                          {(expenseStartDate || expenseEndDate || expenseMonthFilter) && (
+                            <button
+                              type="button"
+                              onClick={() => { setExpenseStartDate(''); setExpenseEndDate(''); setExpenseMonthFilter(''); }}
+                              style={{
+                                background: 'rgba(244, 63, 94, 0.12)',
+                                border: '1px solid rgba(244, 63, 94, 0.3)',
+                                color: '#fda4af',
+                                fontSize: '0.72rem',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontWeight: 600
+                              }}
+                              title="Limpiar fechas y mes"
+                            >
+                              ✕ Limpiar
+                            </button>
+                          )}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Hasta:</span>
-                          <input 
-                            type="date"
-                            value={expenseEndDate}
-                            onChange={(e) => setExpenseEndDate(e.target.value)}
-                            style={{
-                              padding: '4px 8px',
-                              fontSize: '0.78rem',
-                              borderRadius: '8px',
-                              background: 'rgba(255, 255, 255, 0.04)',
-                              border: '1px solid var(--border-glass)',
-                              color: 'var(--text-primary)'
-                            }}
-                          />
-                        </div>
-                        {(expenseStartDate || expenseEndDate) && (
-                          <button
-                            type="button"
-                            onClick={() => { setExpenseStartDate(''); setExpenseEndDate(''); }}
-                            style={{
-                              background: 'rgba(244, 63, 94, 0.12)',
-                              border: '1px solid rgba(244, 63, 94, 0.3)',
-                              color: '#fda4af',
-                              fontSize: '0.72rem',
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontWeight: 600
-                            }}
-                            title="Limpiar fechas"
-                          >
-                            ✕ Limpiar
-                          </button>
-                        )}
-                      </div>
 
-                      {/* Filtro de Personal */}
-                      <select
-                        value={expensePersonnelFilter}
-                        onChange={(e) => setExpensePersonnelFilter(e.target.value)}
-                        style={{
-                          padding: '7px 12px',
-                          fontSize: '0.8rem',
-                          borderRadius: '12px',
-                          background: 'rgba(0,0,0,0.35)',
-                          border: '1px solid var(--border-glass)',
-                          color: expensePersonnelFilter !== 'all' ? 'var(--primary-cyan)' : 'var(--text-secondary)',
-                          fontWeight: expensePersonnelFilter !== 'all' ? 700 : 400,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <option value="all">👤 Todo el personal / proveedores</option>
-                        {uniquePersonnelOptions.map((opt, idx) => (
-                          <option key={idx} value={opt.value}>👤 {opt.label}</option>
-                        ))}
-                      </select>
-
-                      {/* Filter by Chequera / Caja */}
-                      <select
-                        value={expenseChequeraFilter}
-                        onChange={(e) => setExpenseChequeraFilter(e.target.value)}
-                        style={{
-                          padding: '7px 12px',
-                          fontSize: '0.8rem',
-                          borderRadius: '12px',
-                          background: 'rgba(0,0,0,0.35)',
-                          border: '1px solid var(--border-glass)',
-                          color: expenseChequeraFilter !== 'all' ? '#60a5fa' : 'var(--text-secondary)',
-                          fontWeight: expenseChequeraFilter !== 'all' ? 700 : 400,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <option value="all">🏦 Todas las chequeras ({allProjectExpenses.length})</option>
-                        <option value="unassigned">⚠️ Sin Asignar ({allProjectExpenses.filter(e => !extractChequera(e)).length})</option>
-                        {chequerasList.map((ch, idx) => {
-                          const count = allProjectExpenses.filter(e => (extractChequera(e) || '').toLowerCase() === ch.toLowerCase()).length;
-                          return (
-                            <option key={idx} value={ch}>🏦 {ch} ({count})</option>
-                          );
-                        })}
-                      </select>
-
-                      {/* Filter Pills */}
-                      <div className="expenses-filter-pills" style={{ display: 'flex', gap: '6px' }}>
-                        <button 
-                          type="button" 
-                          className={`filter-pill-btn ${expenseFilter === 'all' ? 'active' : ''}`}
-                          onClick={() => setExpenseFilter('all')}
+                        {/* Filtro de Personal */}
+                        <select
+                          value={expensePersonnelFilter}
+                          onChange={(e) => setExpensePersonnelFilter(e.target.value)}
+                          style={{
+                            padding: '7px 12px',
+                            fontSize: '0.8rem',
+                            borderRadius: '12px',
+                            background: 'rgba(0,0,0,0.35)',
+                            border: '1px solid var(--border-glass)',
+                            color: expensePersonnelFilter !== 'all' ? 'var(--primary-cyan)' : 'var(--text-secondary)',
+                            fontWeight: expensePersonnelFilter !== 'all' ? 700 : 400,
+                            cursor: 'pointer'
+                          }}
                         >
-                          Todos ({allProjectExpenses.length})
-                        </button>
-                        <button 
-                          type="button" 
-                          className={`filter-pill-btn ${expenseFilter === 'assigned' ? 'active' : ''}`}
-                          onClick={() => setExpenseFilter('assigned')}
+                          <option value="all">👤 Todo el personal / proveedores</option>
+                          {uniquePersonnelOptions.map((opt, idx) => (
+                            <option key={idx} value={opt.value}>👤 {opt.label}</option>
+                          ))}
+                        </select>
+
+                        {/* Filter by Chequera / Caja */}
+                        <select
+                          value={expenseChequeraFilter}
+                          onChange={(e) => setExpenseChequeraFilter(e.target.value)}
+                          style={{
+                            padding: '7px 12px',
+                            fontSize: '0.8rem',
+                            borderRadius: '12px',
+                            background: 'rgba(0,0,0,0.35)',
+                            border: '1px solid var(--border-glass)',
+                            color: expenseChequeraFilter !== 'all' ? '#60a5fa' : 'var(--text-secondary)',
+                            fontWeight: expenseChequeraFilter !== 'all' ? 700 : 400,
+                            cursor: 'pointer'
+                          }}
                         >
-                          Asignados ({assignedExpenses.length})
-                        </button>
-                        {unclassifiedExpenses.length > 0 && (
+                          <option value="all">🏦 Todas las chequeras ({allProjectExpenses.length})</option>
+                          <option value="unassigned">⚠️ Sin Asignar ({allProjectExpenses.filter(e => !extractChequera(e)).length})</option>
+                          {chequerasList.map((ch, idx) => {
+                            const count = allProjectExpenses.filter(e => (extractChequera(e) || '').toLowerCase() === ch.toLowerCase()).length;
+                            return (
+                              <option key={idx} value={ch}>🏦 {ch} ({count})</option>
+                            );
+                          })}
+                        </select>
+
+                        {/* Filter Pills */}
+                        <div className="expenses-filter-pills" style={{ display: 'flex', gap: '6px' }}>
                           <button 
                             type="button" 
-                            className={`filter-pill-btn ${expenseFilter === 'unassigned' ? 'active' : ''}`}
-                            style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: expenseFilter === 'unassigned' ? '#fbbf24' : 'var(--text-secondary)' }}
-                            onClick={() => setExpenseFilter('unassigned')}
+                            className={`filter-pill-btn ${expenseFilter === 'all' ? 'active' : ''}`}
+                            onClick={() => setExpenseFilter('all')}
                           >
-                            ⚠️ Sin Clasificar ({unclassifiedExpenses.length})
+                            Todos ({allProjectExpenses.length})
                           </button>
-                        )}
+                          <button 
+                            type="button" 
+                            className={`filter-pill-btn ${expenseFilter === 'assigned' ? 'active' : ''}`}
+                            onClick={() => setExpenseFilter('assigned')}
+                          >
+                            Asignados ({assignedExpenses.length})
+                          </button>
+                          {unclassifiedExpenses.length > 0 && (
+                            <button 
+                              type="button" 
+                              className={`filter-pill-btn ${expenseFilter === 'unassigned' ? 'active' : ''}`}
+                              style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: expenseFilter === 'unassigned' ? '#fbbf24' : 'var(--text-secondary)' }}
+                              onClick={() => setExpenseFilter('unassigned')}
+                            >
+                              ⚠️ Sin Clasificar ({unclassifiedExpenses.length})
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* JUSTO DEBAJO DE FECHAS: ORGANIZAR POR FECHA */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                        padding: '6px 12px',
+                        background: 'rgba(0, 0, 0, 0.15)',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border-glass)',
+                        width: 'fit-content'
+                      }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          ↕️ Organizar por fecha:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setExpenseDateOrder('desc')}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '0.74rem',
+                            borderRadius: '6px',
+                            border: expenseDateOrder === 'desc' ? '1.5px solid var(--primary-cyan)' : '1px solid var(--border-glass)',
+                            background: expenseDateOrder === 'desc' ? 'rgba(255, 109, 0, 0.18)' : 'rgba(255, 255, 255, 0.04)',
+                            color: expenseDateOrder === 'desc' ? 'var(--primary-cyan)' : 'var(--text-secondary)',
+                            fontWeight: expenseDateOrder === 'desc' ? 700 : 500,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'var(--transition-smooth)'
+                          }}
+                          title="Ver los gastos más recientes primero"
+                        >
+                          <span>⬇️ Más recientes primero</span>
+                          {expenseDateOrder === 'desc' && <span style={{ fontSize: '0.65rem' }}>●</span>}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExpenseDateOrder('asc')}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '0.74rem',
+                            borderRadius: '6px',
+                            border: expenseDateOrder === 'asc' ? '1.5px solid var(--primary-cyan)' : '1px solid var(--border-glass)',
+                            background: expenseDateOrder === 'asc' ? 'rgba(255, 109, 0, 0.18)' : 'rgba(255, 255, 255, 0.04)',
+                            color: expenseDateOrder === 'asc' ? 'var(--primary-cyan)' : 'var(--text-secondary)',
+                            fontWeight: expenseDateOrder === 'asc' ? 700 : 500,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'var(--transition-smooth)'
+                          }}
+                          title="Ver los gastos más antiguos primero"
+                        >
+                          <span>⬆️ Más antiguas primero</span>
+                          {expenseDateOrder === 'asc' && <span style={{ fontSize: '0.65rem' }}>●</span>}
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginLeft: '6px', borderLeft: '1px solid var(--border-glass)', paddingLeft: '8px' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Atajos:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const now = new Date();
+                              const yr = now.getFullYear();
+                              const mo = String(now.getMonth() + 1).padStart(2, '0');
+                              setExpenseMonthFilter(`${yr}-${mo}`);
+                              setExpenseStartDate('');
+                              setExpenseEndDate('');
+                            }}
+                            style={{
+                              padding: '2px 8px',
+                              fontSize: '0.7rem',
+                              borderRadius: '5px',
+                              border: expenseMonthFilter && expenseMonthFilter === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}` ? '1px solid var(--primary-cyan)' : '1px solid var(--border-glass)',
+                              background: 'rgba(255, 255, 255, 0.03)',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Este mes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const now = new Date();
+                              now.setMonth(now.getMonth() - 1);
+                              const yr = now.getFullYear();
+                              const mo = String(now.getMonth() + 1).padStart(2, '0');
+                              setExpenseMonthFilter(`${yr}-${mo}`);
+                              setExpenseStartDate('');
+                              setExpenseEndDate('');
+                            }}
+                            style={{
+                              padding: '2px 8px',
+                              fontSize: '0.7rem',
+                              borderRadius: '5px',
+                              border: '1px solid var(--border-glass)',
+                              background: 'rgba(255, 255, 255, 0.03)',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Mes anterior
+                          </button>
+                          {(expenseStartDate || expenseEndDate || expenseMonthFilter) && (
+                            <button
+                              type="button"
+                              onClick={() => { setExpenseStartDate(''); setExpenseEndDate(''); setExpenseMonthFilter(''); }}
+                              style={{
+                                padding: '2px 8px',
+                                fontSize: '0.7rem',
+                                borderRadius: '5px',
+                                border: '1px solid rgba(244, 63, 94, 0.3)',
+                                background: 'rgba(244, 63, 94, 0.08)',
+                                color: '#fda4af',
+                                cursor: 'pointer',
+                                fontWeight: 600
+                              }}
+                            >
+                              Ver todos
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                     </div>
@@ -2550,7 +2727,18 @@ export default function ProjectDetail({
                         <table className="modern-glass-table">
                           <thead>
                             <tr>
-                              <th>Fecha</th>
+                              <th 
+                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                onClick={() => setExpenseDateOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                                title="Haz clic para alternar orden por fecha"
+                              >
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                  <span>Fecha</span>
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--primary-cyan)' }}>
+                                    {expenseDateOrder === 'desc' ? '▼' : '▲'}
+                                  </span>
+                                </span>
+                              </th>
                               <th>Concepto / Compra</th>
                               <th>Chequera / Caja</th>
                               <th>Renglón Asignado</th>
