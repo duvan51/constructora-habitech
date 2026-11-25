@@ -4517,33 +4517,79 @@ export default function ProjectDetail({
                               </div>
                             </div>
                             
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button 
-                                className="btn btn-secondary" 
-                                style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                onClick={() => {
-                                  setShowReceipt({
-                                    ...showHitoPayments,
-                                    hitoId: showHitoPayments.id, // Store the hito ID to restore it when closing receipt
-                                    id: p.id,
-                                    paidDate: p.date,
-                                    amount: p.amount,
-                                    payments: [p] // Pass only this payment
-                                  });
-                                  setShowHitoPayments(null); // Close the gestionar cobros modal
-                                }}
-                              >
-                                <Printer size={12} /> Recibo
-                              </button>
-                              {userRole !== 'viewer' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                 <button 
-                                  className="btn-icon" 
-                                  style={{ padding: '4px', color: 'var(--primary-red)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                  onClick={() => handleDeletePayment(p.id)}
+                                  className="btn btn-secondary" 
+                                  style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  onClick={() => {
+                                    setShowReceipt({
+                                      ...showHitoPayments,
+                                      hitoId: showHitoPayments.id, // Store the hito ID to restore it when closing receipt
+                                      id: p.id,
+                                      paidDate: p.date,
+                                      amount: p.amount,
+                                      payments: [p] // Pass only this payment
+                                    });
+                                    setShowHitoPayments(null); // Close the gestionar cobros modal
+                                  }}
                                 >
-                                  <Trash2 size={14} />
+                                  <Printer size={12} /> Recibo
                                 </button>
-                              )}
+                                {userRole !== 'viewer' && (
+                                  <button 
+                                    className="btn-icon" 
+                                    style={{ padding: '4px', color: 'var(--primary-red)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                    onClick={() => handleDeletePayment(p.id)}
+                                    title="Eliminar abono"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Botón Ver Comprobante subido */}
+                              {(() => {
+                                const hasFile = (p.files && p.files.length > 0) || p.receiptBase64 || p.fileBase64;
+                                const firstFile = p.files && p.files.length > 0 ? p.files[0] : null;
+                                const fileData = firstFile?.fileBase64 || firstFile?.base64 || firstFile?.url || p.receiptBase64 || p.fileBase64;
+                                const fileType = firstFile?.fileType || (fileData && (fileData.startsWith('data:application/pdf') || fileData.endsWith('.pdf')) ? 'pdf' : 'image');
+                                const fileName = firstFile?.fileName || `Comprobante_Pago_${p.date || 'abono'}`;
+
+                                if (!hasFile || !fileData) return null;
+
+                                return (
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    style={{
+                                      padding: '3px 8px',
+                                      fontSize: '0.73rem',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      background: 'rgba(255, 109, 0, 0.08)',
+                                      border: '1px solid rgba(255, 109, 0, 0.3)',
+                                      color: 'var(--primary-cyan)',
+                                      fontWeight: 600,
+                                      cursor: 'pointer'
+                                    }}
+                                    title="Ver comprobante adjunto"
+                                    onClick={() => {
+                                      const w = window.open();
+                                      if (fileType === 'pdf') {
+                                        w.document.write(`<embed width="100%" height="100%" src="${fileData}" type="application/pdf" />`);
+                                      } else {
+                                        w.document.write(`<div style="background:#000; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"><img src="${fileData}" style="max-width:100%; max-height:100vh;" /></div>`);
+                                      }
+                                      w.document.body.style.margin = '0';
+                                      w.document.title = fileName;
+                                    }}
+                                  >
+                                    <Eye size={12} /> Ver
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </div>
 
