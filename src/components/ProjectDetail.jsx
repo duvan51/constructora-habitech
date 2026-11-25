@@ -4,7 +4,7 @@ import {
   DollarSign, CheckSquare, FileText, Image as ImageIcon, Camera, 
   TrendingUp, Plus, Trash2, Eye, Download, CheckCircle, Clock, X, Printer,
   Receipt, Search, ChevronDown, ChevronUp, CreditCard, Calculator, FolderOpen, Info, Loader2, ExternalLink, Upload,
-  Link2, Check, Landmark
+  Link2, Check, Landmark, RefreshCw
 } from 'lucide-react';
 import { 
   getChequerasList, 
@@ -208,6 +208,8 @@ export default function ProjectDetail({
   });
   const [showNewChequeraInputHito, setShowNewChequeraInputHito] = useState(false);
   const [newChequeraNameHito, setNewChequeraNameHito] = useState('');
+  const [isSubmittingHitoPayment, setIsSubmittingHitoPayment] = useState(false);
+  const [showPaymentReloadSuccess, setShowPaymentReloadSuccess] = useState(false);
   
   // Expense Logging Form State
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -561,6 +563,7 @@ export default function ProjectDetail({
     };
 
     try {
+      setIsSubmittingHitoPayment(true);
       logGlobalTransaction(newTx);
       await onUpdate(updatedProject);
       
@@ -576,9 +579,17 @@ export default function ProjectDetail({
         method: 'Transferencia',
         files: []
       });
+
+      // Show brief reload/success indicator then hide automatically once visually reflected
+      setShowPaymentReloadSuccess(true);
+      setTimeout(() => {
+        setShowPaymentReloadSuccess(false);
+      }, 1500);
     } catch (err) {
       console.error(err);
       alert('Error al registrar abono.');
+    } finally {
+      setIsSubmittingHitoPayment(false);
     }
   };
 
@@ -4477,8 +4488,35 @@ export default function ProjectDetail({
                       </div>
                     )}
 
-                    <button type="submit" className="btn btn-success" style={{ padding: '8px', fontSize: '0.9rem', width: '100%', marginTop: '5px' }}>
-                      Registrar Cobro
+                    <button 
+                      type="submit" 
+                      className={`btn ${isSubmittingHitoPayment ? 'btn-secondary' : showPaymentReloadSuccess ? 'btn-success' : 'btn-success'}`}
+                      style={{ 
+                        padding: '9px 12px', 
+                        fontSize: '0.9rem', 
+                        width: '100%', 
+                        marginTop: '5px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+                      }}
+                      disabled={isSubmittingHitoPayment}
+                    >
+                      {isSubmittingHitoPayment ? (
+                        <>
+                          <RefreshCw size={16} className="animate-spin" />
+                          <span>Recargando y guardando cobro...</span>
+                        </>
+                      ) : showPaymentReloadSuccess ? (
+                        <>
+                          <Check size={16} />
+                          <span>¡Cobro registrado y actualizado!</span>
+                        </>
+                      ) : (
+                        <span>Registrar Cobro</span>
+                      )}
                     </button>
                   </form>
                 )}
