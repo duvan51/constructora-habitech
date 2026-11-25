@@ -521,14 +521,21 @@ export default function ProjectDetail({
     };
 
     // Calculate milestone payments
-    const currentMilestone = project.paymentPlan.find(h => h.id === showHitoPayments.id);
-    const existingPayments = currentMilestone.payments || (currentMilestone.status === 'paid' ? [{ id: 'legacy', amount: currentMilestone.amount, date: currentMilestone.paidDate || currentMilestone.dueDate, method: 'Transferencia', chequera: '', files: [] }] : []);
-    const updatedPaymentsList = [...existingPayments, newPayItem];
+    // Look up fresh milestone from project or showHitoPayments to prevent stale reference
+    const currentMilestone = (project.paymentPlan && project.paymentPlan.find(h => h.id === showHitoPayments.id)) || showHitoPayments;
+    const existingPayments = currentMilestone.payments && Array.isArray(currentMilestone.payments)
+      ? currentMilestone.payments
+      : (currentMilestone.status === 'paid' ? [{ id: 'legacy', amount: currentMilestone.amount, date: currentMilestone.paidDate || currentMilestone.dueDate, method: 'Transferencia', chequera: '', files: [] }] : []);
+    
+    // Check if payId already exists (prevent duplicate)
+    const updatedPaymentsList = existingPayments.some(p => p.id === newPayItem.id)
+      ? existingPayments.map(p => p.id === newPayItem.id ? newPayItem : p)
+      : [...existingPayments, newPayItem];
 
-    const hitoTotalPaid = updatedPaymentsList.reduce((s, p) => s + p.amount, 0);
+    const hitoTotalPaid = updatedPaymentsList.reduce((s, p) => s + (Number(p.amount) || 0), 0);
     const updatedStatus = hitoTotalPaid >= currentMilestone.amount ? 'paid' : 'partial';
 
-    const updatedPaymentPlan = project.paymentPlan.map(h => {
+    const updatedPaymentPlan = (project.paymentPlan || []).map(h => {
       if (h.id === showHitoPayments.id) {
         return {
           ...h,
@@ -552,6 +559,7 @@ export default function ProjectDetail({
       milestoneId: showHitoPayments.id,
       milestoneName: showHitoPayments.name,
       paymentId: payId,
+      skipMilestoneSync: true, // Prevents race condition: ProjectDetail handles paymentPlan update directly
       method: newPayment.method,
       chequera: selectedChequera,
       account: selectedChequera,
@@ -564,12 +572,16 @@ export default function ProjectDetail({
 
     try {
       setIsSubmittingHitoPayment(true);
-      logGlobalTransaction(newTx);
+      if (typeof logGlobalTransaction === 'function') {
+        logGlobalTransaction(newTx);
+      }
       await onUpdate(updatedProject);
       
-      // Update local modal state
+      // Update local modal state with updated milestone
       const updatedHito = updatedPaymentPlan.find(h => h.id === showHitoPayments.id);
-      setShowHitoPayments(updatedHito);
+      if (updatedHito) {
+        setShowHitoPayments(updatedHito);
+      }
 
       // Reset form
       setNewPayment({
@@ -4270,10 +4282,14 @@ export default function ProjectDetail({
 
       {/* GESTIONAR COBROS (PAGOS PARCIALES) MODAL */}
       {showHitoPayments && (() => {
-        const rawPayments = showHitoPayments.payments || (showHitoPayments.status === 'paid' ? [{ id: 'legacy', amount: showHitoPayments.amount, date: showHitoPayments.paidDate || showHitoPayments.dueDate, method: 'Transferencia', files: [] }] : []);
+        // Always read the latest version of the milestone from project.paymentPlan if available
+        const activeMilestone = (project.paymentPlan && project.paymentPlan.find(h => h.id === showHitoPayments.id)) || showHitoPayments;
+        const rawPayments = activeMilestone.payments && Array.isArray(activeMilestone.payments)
+          ? activeMilestone.payments
+          : (activeMilestone.status === 'paid' ? [{ id: 'legacy', amount: activeMilestone.amount, date: activeMilestone.paidDate || activeMilestone.dueDate, method: 'Transferencia', files: [] }] : []);
         const milestonePayments = [...rawPayments].sort((a, b) => new Date(b.date) - new Date(a.date));
-        const hitoTotalPaid = milestonePayments.reduce((s, p) => s + p.amount, 0);
-        const hitoRemaining = Math.max(0, showHitoPayments.amount - hitoTotalPaid);
+        const hitoTotalPaid = milestonePayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const hitoRemaining = Math.max(0, activeMilestone.amount - hitoTotalPaid);
 
         return (
           <div className="modal-overlay animate-fade-in">
@@ -4281,7 +4297,7 @@ export default function ProjectDetail({
               <div className="modal-header">
                 <div style={{ textAlign: 'left' }}>
                   <h3 style={{ margin: 0 }}>Gestionar Cobros - Hito</h3>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{showHitoPayments.name}</span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{activeMilestone.name}</span>
                 </div>
                 <button className="btn-icon" onClick={() => setShowHitoPayments(null)}><X size={18} /></button>
               </div>
@@ -4300,7 +4316,7 @@ export default function ProjectDetail({
                 }}>
                   <div style={{ minWidth: '120px' }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Monto del Hito</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: '4px' }}>{formatCurrency(showHitoPayments.amount)}</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: '4px' }}>{formatCurrency(activeMilestone.amount)}</div>
                   </div>
                   <div style={{ minWidth: '120px' }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Total Cobrado</div>

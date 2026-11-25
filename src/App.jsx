@@ -453,7 +453,9 @@ export default function App() {
       };
       
       // 1. If transaction is tied to a specific project and is an Income (Cobro a Cliente), sync to paymentPlan milestones!
-      if (newTx.projectId && newTx.projectId !== 'general' && newTx.type === 'income') {
+      // NOTE: If skipMilestoneSync is true (e.g. called from ProjectDetail which already updates and persists paymentPlan),
+      // we only record the global transaction without concurrently overwriting the project in the database.
+      if (newTx.projectId && newTx.projectId !== 'general' && newTx.type === 'income' && !newTx.skipMilestoneSync) {
         const freshProjects = await getAll('projects');
         const targetProj = freshProjects.find(p => p.id === newTx.projectId) || projects.find(p => p.id === newTx.projectId);
         if (targetProj) {
