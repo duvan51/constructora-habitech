@@ -3787,5 +3787,132 @@ p {
   }
 }
 
+/* --- Floating Project Switcher (Ctrl+K) - Light Mode Theme Support --- */
+[data-theme="light"] .floating-switcher-overlay,
+body.theme-light .floating-switcher-overlay {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+[data-theme="light"] .floating-switcher-modal,
+body.theme-light .floating-switcher-modal {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 25px 70px -10px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 109, 0, 0.35);
+}
+
+[data-theme="light"] .floating-switcher-header,
+body.theme-light .floating-switcher-header {
+  background: #f8fafc;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .floating-switcher-input,
+body.theme-light .floating-switcher-input {
+  color: #0f172a;
+}
+
+[data-theme="light"] .floating-switcher-input::placeholder,
+body.theme-light .floating-switcher-input::placeholder {
+  color: #94a3b8;
+}
+
+[data-theme="light"] .floating-switcher-clear-btn,
+body.theme-light .floating-switcher-clear-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #64748b;
+}
+
+[data-theme="light"] .floating-switcher-clear-btn:hover,
+body.theme-light .floating-switcher-clear-btn:hover {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: rgba(244, 63, 94, 0.3);
+  color: #e11d48;
+}
+
+[data-theme="light"] .floating-switcher-list::-webkit-scrollbar-thumb,
+body.theme-light .floating-switcher-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .floating-switcher-item,
+body.theme-light .floating-switcher-item {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="light"] .floating-switcher-item:hover,
+[data-theme="light"] .floating-switcher-item.is-selected,
+body.theme-light .floating-switcher-item:hover,
+body.theme-light .floating-switcher-item.is-selected {
+  background: rgba(255, 109, 0, 0.08);
+  border-color: rgba(255, 109, 0, 0.45);
+  box-shadow: 0 4px 14px rgba(255, 109, 0, 0.1);
+}
+
+[data-theme="light"] .floating-switcher-item-name,
+body.theme-light .floating-switcher-item-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .floating-switcher-item-meta,
+body.theme-light .floating-switcher-item-meta {
+  color: #64748b;
+}
+
+[data-theme="light"] .floating-switcher-progress-bar,
+body.theme-light .floating-switcher-progress-bar {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .floating-switcher-progress-val,
+body.theme-light .floating-switcher-progress-val {
+  color: #475569;
+}
+
+[data-theme="light"] .floating-switcher-chevron,
+body.theme-light .floating-switcher-chevron {
+  color: #94a3b8;
+}
+
+[data-theme="light"] .floating-switcher-footer,
+body.theme-light .floating-switcher-footer {
+  background: #f8fafc;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .floating-switcher-shortcut-item,
+body.theme-light .floating-switcher-shortcut-item {
+  color: #64748b;
+}
+
+[data-theme="light"] .switcher-kbd,
+body.theme-light .switcher-kbd {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .floating-switcher-fab,
+body.theme-light .floating-switcher-fab {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(255, 109, 0, 0.45);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12), 0 0 15px rgba(255, 109, 0, 0.18);
+}
+
+[data-theme="light"] .floating-switcher-fab-label,
+body.theme-light .floating-switcher-fab-label {
+  color: #0f172a;
+}
+
+[data-theme="light"] .floating-switcher-fab-kbd,
+body.theme-light .floating-switcher-fab-kbd {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+}
+
 
 
